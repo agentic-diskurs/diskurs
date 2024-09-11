@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "diskurs"
+version = "0.0.1"
+description = "A hackable and extendable framework for developing LLM-based multi-agentic systems."
+authors = ["Flurin Gishamer <fgishamer@me.com>"]
+license = "MIT"
+readme = "README.md"
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pydantic = "^2.8.2"
+pyaml = "^24.7.0"
+Jinja2 = "^3.1.4"
+openai = "^1.43.0"
+python-dotenv = "^1.0.1"
+click = "^8.1.7"
+
+[tool.poetry.dev-dependencies]
+pytest = "^8.3.2"
+
+[tool.poetry.scripts]
+diskurs = "diskurs.cli:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.poetry.urls]
+Homepage = "https://github.com/agentic-diskurs/diskurs"
+Issues = "https://github.com/agentic-diskurs/diskurs/issues"
