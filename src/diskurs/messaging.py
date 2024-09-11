@@ -1,6 +1,7 @@
 from entities import Conversation
 from interfaces import ConversationParticipant, ConversationDispatcher
 
+# TODO: find a way to log the conversation
 
 class SynchronousConversationDispatcher(ConversationDispatcher):
     def __init__(self):

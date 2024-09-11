@@ -1,10 +1,8 @@
 import json
+import logging
 import os
 from typing import Any, Optional
-import logging
 
-from openai import OpenAI, BadRequestError, AzureOpenAI
-from openai.types.chat import ChatCompletion
 from openai import (
     APIError,
     APITimeoutError,
@@ -12,6 +10,8 @@ from openai import (
     UnprocessableEntityError,
     AuthenticationError,
 )
+from openai import OpenAI, BadRequestError, AzureOpenAI
+from openai.types.chat import ChatCompletion
 
 from entities import Conversation, ChatMessage, Role, ToolCall
 from tools import ToolDescription, map_python_type_to_json
@@ -38,8 +38,8 @@ class OpenAILLMClient:
         return cls(client=client, model=model)
 
     def send_request(
-        self,
-        body: dict[str, Any],
+            self,
+            body: dict[str, Any],
     ) -> ChatCompletion:
         completion = self.client.chat.completions.create(**body)
         return completion
@@ -109,7 +109,7 @@ class OpenAILLMClient:
         }
 
     def format_conversation_for_llm(
-        self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None
+            self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None
     ) -> dict[str, Any]:
         """
         Formats the conversation object into a dictionary that can be sent to the LLM model.
@@ -170,7 +170,7 @@ class OpenAILLMClient:
 
     @classmethod
     def concatenate_user_prompt_with_llm_response(
-        cls, conversation: Conversation, completion: ChatCompletion
+            cls, conversation: Conversation, completion: ChatCompletion
     ) -> list[ChatMessage]:
         """
         Creates a list of ChatMessages that combines the user prompt with the LLM response.
@@ -189,7 +189,7 @@ class OpenAILLMClient:
         return user_prompt + [cls.llm_response_to_chat_message(completion)]
 
     def generate(
-        self, conversation: Conversation, tools: Optional[ToolDescription] = None
+            self, conversation: Conversation, tools: Optional[ToolDescription] = None
     ) -> Conversation:
         """
         Generates a response from the LLM model for the given conversation.
@@ -213,18 +213,18 @@ class OpenAILLMClient:
                 )
 
             except (
-                UnprocessableEntityError,
-                AuthenticationError,
-                PermissionError,
-                BadRequestError,
+                    UnprocessableEntityError,
+                    AuthenticationError,
+                    PermissionError,
+                    BadRequestError,
             ) as e:
                 logger.error(f"Non-retryable error: {e}, aborting...")
                 raise e
 
             except (
-                APITimeoutError,
-                APIError,
-                RateLimitError,
+                    APITimeoutError,
+                    APIError,
+                    RateLimitError,
             ) as e:
                 fail_counter += 1
                 logger.warning(
@@ -233,13 +233,18 @@ class OpenAILLMClient:
 
         raise RuntimeError("Failed to generate response after multiple attempts.")
 
-class AzureOpenAILLMClient(OpenAILLMClient):
-    @classmethod
-    def create(cls, api_key: str, model: str):
+
+class LLMClientCreator:
+    @staticmethod
+    def openai(api_key: str, model: str) -> OpenAILLMClient:
+        client = OpenAI(api_key=api_key)
+        return OpenAILLMClient(client=client, model=model)
+
+    @staticmethod
+    def azure_openai(model: str, api_version: str, api_key: Optional[str] = None, azure_endpoint: Optional[str] = None) -> OpenAILLMClient:
         client = AzureOpenAI(
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            api_version="2024-02-01",
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+            api_key=api_key or os.getenv("AZURE_OPENAI_API_KEY"),
+            api_version=api_version,
+            azure_endpoint=azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
         )
-        client.api_key = api_key
-        return cls(client=client, model=model)
+        return OpenAILLMClient(client=client, model=model)
