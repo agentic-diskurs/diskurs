@@ -9,8 +9,8 @@ from diskurs.prompt import Prompt
 def prompt_instance():
     return Prompt.create(
         location=Path(__file__).parent / "prompt_test_files",
-        system_prompt_argument="MySystemPromptArgument",
-        user_prompt_argument="MyUserPromptArgument",
+        system_prompt_argument_class="MySystemPromptArgument",
+        user_prompt_argument_class="MyUserPromptArgument",
     )
 
 

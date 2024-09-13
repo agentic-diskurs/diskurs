@@ -1,14 +1,12 @@
+import os
 import re
-from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Type, TypeVar, Any, Optional
-
 import yaml
+from dataclasses import asdict, dataclass, is_dataclass, field
+from pathlib import Path
+from typing import Any, Optional, Type, TypeVar, get_args, get_origin
 
-T = TypeVar('T', bound='YamlSerializable')
+T = TypeVar("T", bound="YamlSerializable")
 
-
-# TODO: figure how to handle default values for optional fields
 
 class YamlSerializable:
     """
@@ -30,8 +28,9 @@ class YamlSerializable:
         :return: An instance of the dataclass with values loaded from the YAML.
         """
         data = yaml.safe_load(yaml_content)
+        data = resolve_env_vars(data)  # Replace placeholders with environment variables
         snake_case_data = cls._convert_keys_to_snake_case(data)
-        return cls(**snake_case_data)
+        return dataclass_loader(cls, snake_case_data)
 
     def serialize_to_yaml(self) -> str:
         """
@@ -51,8 +50,8 @@ class YamlSerializable:
         :param name: The camelCase string to be converted.
         :return: The converted snake_case string.
         """
-        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+        s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+        return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
     @staticmethod
     def _snake_to_camel(name: str) -> str:
@@ -62,8 +61,8 @@ class YamlSerializable:
         :param name: The snake_case string to be converted.
         :return: The converted camelCase string.
         """
-        components = name.split('_')
-        return components[0] + ''.join(x.title() for x in components[1:])
+        components = name.split("_")
+        return components[0] + "".join(x.title() for x in components[1:])
 
     @classmethod
     def _convert_keys_to_snake_case(cls, d: Any) -> Any:
@@ -98,80 +97,132 @@ class YamlSerializable:
             return d
 
 
-
 @dataclass
-class Prompt(YamlSerializable):
+class PromptConfig(YamlSerializable):
     """
     Represents the prompt configuration for an agent.
     """
-    prompt_assets: str
+
+    prompt_assets: Path
     user_prompt_argument_class: str
     system_prompt_argument_class: str
 
 
 @dataclass
-class Agent(YamlSerializable):
+class AgentConfig(YamlSerializable):
     """
     Represents an agent configuration.
     """
+
     name: str
     type: str
     llm: str
-    prompt: Prompt
+    prompt: PromptConfig
     tools: list[str]
+    topics: list[str]
 
 
 @dataclass
-class LLM(YamlSerializable):
+class LLMConfig(YamlSerializable):
     """
     Represents the LLM configuration.
     """
+
+    # TODO: handle cases for different LLM types, some might not need a model name, or an api_version
     name: str
     model_name: str
     type: str
     endpoint: str
     api_version: str
+    api_key: Optional[str] = field(default=None, repr=False)
 
 
 @dataclass
 class ToolConfig(YamlSerializable):
     """
-    Represents optional tool-specific configurations.
-    """
-    foo: Optional[str] = None
-    baz: Optional[str] = None
-
-
-@dataclass
-class Tool(YamlSerializable):
-    """
     Represents a tool configuration.
     """
+
     name: str
     function_name: str
-    module_name: str
-    configs: Optional[ToolConfig] = None
+    module_path: Path  # Changed to Path type
+    configs: Optional[dict] = None
 
 
 @dataclass
-class Config(YamlSerializable):
+class ForumConfig(YamlSerializable):
     """
     Represents the entire config file structure.
     """
-    agents: list[Agent]
-    llms: list[LLM]
-    tools: list[Tool]
+
+    agents: list[AgentConfig]
+    first_contact: str
+    llms: list[LLMConfig]
+    tools: list[ToolConfig]
 
 
-def load_config_from_yaml(yaml_content: str | Path) -> Config:
+def resolve_env_vars(data):
+    if isinstance(data, dict):
+        return {k: resolve_env_vars(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [resolve_env_vars(item) for item in data]
+    elif isinstance(data, str):
+        # Replace placeholders of the form ${VAR_NAME:default_value}
+        pattern = re.compile(r"\$\{([^}:]+)(?::([^}]+))?\}")
+        matches = pattern.findall(data)
+        for var, default in matches:
+            env_value = os.getenv(var, default)
+            if env_value is None:
+                raise ValueError(f"Environment variable '{var}' is not set and no default value provided.")
+            data = data.replace(f'${{{var}{":" + default if default else ""}}}', env_value)
+        return data
+    else:
+        return data
+
+
+def dataclass_loader(dataclass_type, data, base_path: Optional[Path] = None):
+    """Recursively loads YAML data into the appropriate dataclass."""
+    if is_dataclass(dataclass_type) and isinstance(data, dict):
+        field_types = {field.name: field.type for field in dataclass_type.__dataclass_fields__.values()}
+        return dataclass_type(
+            **{
+                key: dataclass_loader(field_types[key], value, base_path=base_path)
+                for key, value in data.items()
+                if key in field_types
+            }
+        )
+    elif get_origin(dataclass_type) == list and isinstance(data, list):
+        # Handle lists by extracting the type of the list elements
+        list_type = get_args(dataclass_type)[0]
+        return [dataclass_loader(list_type, item, base_path=base_path) for item in data]
+    elif dataclass_type == Path and isinstance(data, str):
+        # Resolve paths relative to the base path
+        path = Path(data)
+        if not path.is_absolute() and base_path is not None:
+            path = base_path / path
+        return path
+    else:
+        # If it's neither a dict nor a list, assume it's a primitive type and return as-is
+        return data
+
+
+def load_config_from_yaml(config: str | Path, base_path: Optional[Path] = None) -> ForumConfig:
     """
     Loads the complete configuration from YAML content and maps it
-    to the Config dataclass.
+    to the ForumConfig dataclass.
 
-    :param yaml_content: If type string then loads from YAML string, if Path loads the file containing the configs.
-    :return: An instance of the Config dataclass.
+    :param config: If type string then loads from YAML string, if Path loads the file containing the configs.
+    :param base_path: Base path to resolve relative paths.
+    :return: An instance of the ForumConfig dataclass.
     """
-    if isinstance(yaml_content, Path):
-        with open(yaml_content) as f:
-            yaml_content = f.read()
-    return Config.load_from_yaml(yaml_content)
+    if isinstance(config, Path):
+        with open(config) as f:
+            config_content = f.read()
+        if base_path is None:
+            base_path = config.parent.resolve()
+    else:
+        config_content = config
+    yaml_data = yaml.safe_load(config_content)
+    yaml_data = resolve_env_vars(yaml_data)
+    snake_case_data = YamlSerializable._convert_keys_to_snake_case(yaml_data)
+    return dataclass_loader(ForumConfig, snake_case_data, base_path=base_path)

@@ -23,8 +23,8 @@ def create_agent(name):
         # Read and write each template file to the appropriate location
         for template_name in [
             "prompt.py",
-            "user_prompt.jinja2",
-            "system_prompt.jinja2",
+            "user_template.jinja2",
+            "system_template.jinja2",
         ]:
             template_path = TEMPLATES_DIR / template_name
             output_file = agent_dir / template_name.replace(".jinja2", "")

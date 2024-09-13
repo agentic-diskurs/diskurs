@@ -1,11 +1,15 @@
 import inspect
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 from functools import wraps
+from pathlib import Path
 from typing import Callable, Optional
 import logging
 
+from config import ToolConfig
 from entities import ToolCallResult, ToolCall
+from utils import load_module_from_path
 
 # Set up logging (this should ideally be done at the module or class level)
 logging.basicConfig(level=logging.WARNING)
@@ -106,16 +110,12 @@ class ToolExecutor:
             new_tools = {tool.__name__: tool for tool in tool_list}
             for name in new_tools:
                 if name in self.tools:
-                    logger.warning(
-                        f"Tool '{name}' already exists and will be overwritten."
-                    )
+                    logger.warning(f"Tool '{name}' already exists and will be overwritten.")
             self.tools = {**self.tools, **new_tools}
         else:
             tool_name = tool_list.__name__
             if tool_name in self.tools:
-                logger.warning(
-                    f"Tool '{tool_name}' already exists and will be overwritten."
-                )
+                logger.warning(f"Tool '{tool_name}' already exists and will be overwritten.")
             self.tools = {**self.tools, tool_name: tool_list}
 
     def execute_tool(self, tool_call: ToolCall) -> ToolCallResult:
@@ -127,3 +127,22 @@ class ToolExecutor:
             )
         else:
             raise ValueError(f"Tool '{tool_call.function_name}' not found.")
+
+
+def load_tools(tool_configs: list[ToolConfig]) -> list[Callable]:
+    modules_to_functions = defaultdict(list)
+
+    for tool in tool_configs:
+        modules_to_functions[tool.module_path].append(tool.function_name)
+
+    tool_functions = []
+
+    for module_path, function_names in modules_to_functions.items():
+        module_name = Path(module_path).stem
+        module = load_module_from_path(module_name, module_path)
+
+        for function_name in function_names:
+            func = getattr(module, function_name)
+            tool_functions.append(func)
+
+    return tool_functions

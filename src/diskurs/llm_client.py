@@ -1,15 +1,9 @@
 import json
 import logging
 import os
-from typing import Any, Optional
+from typing import Any, Optional, Self
 
-from openai import (
-    APIError,
-    APITimeoutError,
-    RateLimitError,
-    UnprocessableEntityError,
-    AuthenticationError,
-)
+from openai import APIError, APITimeoutError, RateLimitError, UnprocessableEntityError, AuthenticationError
 from openai import OpenAI, BadRequestError, AzureOpenAI
 from openai.types.chat import ChatCompletion
 
@@ -32,14 +26,18 @@ class OpenAILLMClient:
         self.max_repeat = max_repeat
 
     @classmethod
-    def create(cls, api_key: str, model: str):
+    def create(cls, **kwargs):
+        api_key = kwargs.get("api_key", None)
+        model = kwargs.get("model", "")
+
         client = OpenAI()
         client.api_key = api_key
+
         return cls(client=client, model=model)
 
     def send_request(
-            self,
-            body: dict[str, Any],
+        self,
+        body: dict[str, Any],
     ) -> ChatCompletion:
         completion = self.client.chat.completions.create(**body)
         return completion
@@ -98,9 +96,7 @@ class OpenAILLMClient:
             if message.tool_calls
             else {}
         )
-        tool_call_id = (
-            {"tool_call_id": message.tool_call_id} if message.tool_call_id else {}
-        )
+        tool_call_id = {"tool_call_id": message.tool_call_id} if message.tool_call_id else {}
         return {
             "role": str(message.role),
             "content": message.content,
@@ -109,7 +105,7 @@ class OpenAILLMClient:
         }
 
     def format_conversation_for_llm(
-            self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None
+        self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None
     ) -> dict[str, Any]:
         """
         Formats the conversation object into a dictionary that can be sent to the LLM model.
@@ -119,11 +115,7 @@ class OpenAILLMClient:
         :return: A JSON-serializable dictionary containing the conversation data ready for the LLM
         """
 
-        formatted_tools = (
-            {"tools": [self.format_tool_description_for_llm(tool) for tool in tools]}
-            if tools
-            else {}
-        )
+        formatted_tools = {"tools": [self.format_tool_description_for_llm(tool) for tool in tools]} if tools else {}
 
         messages = []
         for message in conversation.render_chat():
@@ -170,7 +162,7 @@ class OpenAILLMClient:
 
     @classmethod
     def concatenate_user_prompt_with_llm_response(
-            cls, conversation: Conversation, completion: ChatCompletion
+        cls, conversation: Conversation, completion: ChatCompletion
     ) -> list[ChatMessage]:
         """
         Creates a list of ChatMessages that combines the user prompt with the LLM response.
@@ -182,15 +174,11 @@ class OpenAILLMClient:
         :return: Flat list of ChatMessages containing the user prompt and LLM response
         """
         user_prompt = (
-            conversation.user_prompt
-            if isinstance(conversation.user_prompt, list)
-            else [conversation.user_prompt]
+            conversation.user_prompt if isinstance(conversation.user_prompt, list) else [conversation.user_prompt]
         )
         return user_prompt + [cls.llm_response_to_chat_message(completion)]
 
-    def generate(
-            self, conversation: Conversation, tools: Optional[ToolDescription] = None
-    ) -> Conversation:
+    def generate(self, conversation: Conversation, tools: Optional[ToolDescription] = None) -> Conversation:
         """
         Generates a response from the LLM model for the given conversation.
         Handles conversion from Conversation to LLM request format, sending the request to the LLM model,
@@ -206,30 +194,24 @@ class OpenAILLMClient:
         while fail_counter < self.max_repeat:
             try:
                 completion = self.send_request(request_body)
-                return conversation.append(
-                    self.concatenate_user_prompt_with_llm_response(
-                        conversation, completion
-                    )
-                )
+                return conversation.append(self.concatenate_user_prompt_with_llm_response(conversation, completion))
 
             except (
-                    UnprocessableEntityError,
-                    AuthenticationError,
-                    PermissionError,
-                    BadRequestError,
+                UnprocessableEntityError,
+                AuthenticationError,
+                PermissionError,
+                BadRequestError,
             ) as e:
                 logger.error(f"Non-retryable error: {e}, aborting...")
                 raise e
 
             except (
-                    APITimeoutError,
-                    APIError,
-                    RateLimitError,
+                APITimeoutError,
+                APIError,
+                RateLimitError,
             ) as e:
                 fail_counter += 1
-                logger.warning(
-                    f"Retryable error encountered: {e}, retrying... ({fail_counter}/{self.max_repeat})"
-                )
+                logger.warning(f"Retryable error encountered: {e}, retrying... ({fail_counter}/{self.max_repeat})")
 
         raise RuntimeError("Failed to generate response after multiple attempts.")
 
@@ -241,10 +223,28 @@ class LLMClientCreator:
         return OpenAILLMClient(client=client, model=model)
 
     @staticmethod
-    def azure_openai(model: str, api_version: str, api_key: Optional[str] = None, azure_endpoint: Optional[str] = None) -> OpenAILLMClient:
+    def azure_openai(
+        model: str, api_version: str, api_key: Optional[str] = None, azure_endpoint: Optional[str] = None
+    ) -> OpenAILLMClient:
         client = AzureOpenAI(
             api_key=api_key or os.getenv("AZURE_OPENAI_API_KEY"),
             api_version=api_version,
-            azure_endpoint=azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
+            azure_endpoint=azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT"),
         )
         return OpenAILLMClient(client=client, model=model)
+
+
+class AzureOpenAIClient(OpenAILLMClient):
+    @classmethod
+    def create(cls, **kwargs) -> Self:
+        api_key = kwargs.get("api_key", None)
+        model = kwargs.get("model_name", "")
+        api_version = kwargs.get("api_version", "")
+        azure_endpoint = kwargs.get("endpoint", "")
+
+        client = AzureOpenAI(
+            api_key=api_key,
+            api_version=api_version,
+            azure_endpoint=azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT"),
+        )
+        return cls(client=client, model=model, max_repeat=3)

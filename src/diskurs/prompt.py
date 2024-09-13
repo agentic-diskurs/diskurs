@@ -27,41 +27,41 @@ class PromptValidationError(Exception):
 class Prompt:
 
     def __init__(
-        self,
-        system_template: Template,
-        user_template: Template,
-        user_prompt_argument: Type[GenericUserPromptArg],
-        system_prompt_argument: Type[GenericSystemPromptArg],
-        is_valid: Callable[[GenericUserPromptArg], bool],
-        is_final: Callable[[GenericUserPromptArg], bool],
+            self,
+            system_template: Template,
+            user_template: Template,
+            system_prompt_argument_class: Type[GenericSystemPromptArg],
+            user_prompt_argument_class: Type[GenericUserPromptArg],
+            is_valid: Callable[[GenericUserPromptArg], bool],
+            is_final: Callable[[GenericUserPromptArg], bool]
     ):
         self.system_template = system_template
         self.user_template = user_template
-        self.user_prompt_argument = user_prompt_argument
-        self.system_prompt_argument = system_prompt_argument
+        self.user_prompt_argument = user_prompt_argument_class
+        self.system_prompt_argument = system_prompt_argument_class
         self.is_valid = is_valid
         self.is_final = is_final
 
     @classmethod
     def create(
-        cls,
-        location: Path,
-        system_prompt_argument: str,
-        user_prompt_argument: str,
-        template_dir: Optional[Path] = None,
-        code_filename: str = "prompt.py",
-        user_template_filename: str = "user_template.jinja2",
-        system_template_filename: str = "system_template.jinja2",
-        is_valid_name="is_valid",
-        is_final_name="is_final",
+            cls,
+            location: Path,
+            system_prompt_argument_class: str,
+            user_prompt_argument_class: str,
+            template_dir: Optional[Path] = None,
+            code_filename: str = "prompt.py",
+            user_template_filename: str = "user_template.jinja2",
+            system_template_filename: str = "system_template.jinja2",
+            is_valid_name="is_valid",
+            is_final_name="is_final",
     ) -> "Prompt":
         """
         Factory method to create a Prompt object. Loads templates and code dynamically
         based on the provided directory and filenames.
 
         :param location: Base path where prompt.py and templates are located.
-        :param system_prompt_argument: Name of the class that specifies the placeholders of the system prompt template
-        :param user_prompt_argument:  Name of the class that specifies the placeholders of the user prompt template
+        :param system_prompt_argument_class: Name of the class that specifies the placeholders of the system prompt template
+        :param user_prompt_argument_class:  Name of the class that specifies the placeholders of the user prompt template
         :param template_dir: Optional path to a separate template directory. If not provided, will use `location`.
         :param code_filename: Name of the file containing PromptArguments and validation logic.
         :param user_template_filename: Filename of the user template (Jinja2 format).
@@ -82,8 +82,8 @@ class Prompt:
         try:
             system_prompt_arg, user_prompt_arg, is_valid, is_final = cls.load_code(
                 module_path=location / code_filename,
-                system_prompt_arg_name=system_prompt_argument,
-                user_prompt_arg_name=user_prompt_argument,
+                system_prompt_arg_name=system_prompt_argument_class,
+                user_prompt_arg_name=user_prompt_argument_class,
                 is_valid_name=is_valid_name,
                 is_final_name=is_final_name,
             )
@@ -96,20 +96,20 @@ class Prompt:
         return cls(
             system_template=system_template,
             user_template=user_template,
-            system_prompt_argument=system_prompt_arg,
-            user_prompt_argument=user_prompt_arg,
+            system_prompt_argument_class=system_prompt_arg,
+            user_prompt_argument_class=user_prompt_arg,
             is_valid=is_valid,
             is_final=is_final,
         )
 
     @classmethod
     def load_code(
-        cls,
-        module_path: Path,
-        system_prompt_arg_name: str,
-        user_prompt_arg_name: str,
-        is_valid_name: str,
-        is_final_name: str,
+            cls,
+            module_path: Path,
+            system_prompt_arg_name: str,
+            user_prompt_arg_name: str,
+            is_valid_name: str,
+            is_final_name: str,
     ) -> tuple[
         Type[PromptArgument],
         Type[PromptArgument],
@@ -128,6 +128,8 @@ class Prompt:
 
         :return: Tuple containing the SystemPromptArgument class, UserPromptArgument class, and validation callables.
         """
+
+        # TODO: try to refactor to use utils.load_module_from_path
         if not module_path.exists():
             raise FileNotFoundError(f"Module file not found: {module_path}")
 
@@ -180,7 +182,7 @@ class Prompt:
         )
 
     def render_user_template(
-        self, name: str, prompt_arg: PromptArgument
+            self, name: str, prompt_arg: PromptArgument
     ) -> ChatMessage:
         return ChatMessage(
             role=Role.USER,
@@ -199,10 +201,10 @@ class Prompt:
 
     @classmethod
     def validate_dataclass(
-        cls,
-        parsed_response: dict[str, Any],
-        user_prompt_argument: Type[dataclass],
-        strict: bool = False,
+            cls,
+            parsed_response: dict[str, Any],
+            user_prompt_argument: Type[dataclass],
+            strict: bool = False,
     ) -> dataclass:
         """
         Validate that the JSON fields match the target dataclass.
@@ -292,3 +294,7 @@ class Prompt:
             return validated_response
         except PromptValidationError as e:
             return ChatMessage(role=Role.USER, content=str(e))
+
+    @classmethod
+    def from_config(cls, prompt, param):
+        pass

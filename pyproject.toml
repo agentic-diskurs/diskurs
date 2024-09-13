@@ -22,7 +22,9 @@ openai = "^1.43.0"
 python-dotenv = "^1.0.1"
 click = "^8.1.7"
 
+
 [tool.poetry.dev-dependencies]
+black = "^24.8.0"
 pytest = "^8.3.2"
 
 [tool.poetry.scripts]

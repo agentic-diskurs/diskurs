@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 from typing import Optional, Callable
 
 from entities import Conversation, ChatMessage, Role, PromptArgument
@@ -10,6 +9,8 @@ from tools import ToolDescription, ToolExecutor
 
 logger = logging.getLogger(__name__)
 
+# TODO: Create different agent types: MultiStepAgent, SingleStepAgent, ConductorAgent etc..
+
 
 class Agent(ConversationParticipant):
 
@@ -18,8 +19,8 @@ class Agent(ConversationParticipant):
         name: str,
         prompt: Prompt,
         llm_client: OpenAILLMClient,
-        tool_executor: Optional[ToolExecutor] = None,
         dispatcher: Optional[ConversationDispatcher] = None,
+        tool_executor: Optional[ToolExecutor] = None,
         tools: Optional[list[ToolDescription]] = None,
         max_reasoning_steps: int = 5,
     ):
@@ -27,8 +28,8 @@ class Agent(ConversationParticipant):
         self.prompt = prompt
         self.tools = tools
         self.llm_client = llm_client
-        self.tool_executor = tool_executor
         self.dispatcher = dispatcher
+        self.tool_executor = tool_executor
         self.tools = tools or []
         self.max_reasoning_steps = max_reasoning_steps
 
@@ -36,26 +37,18 @@ class Agent(ConversationParticipant):
     def create(
         cls,
         name: str,
-        prompt_assets: Path,
-        system_prompt_argument: str,
-        user_prompt_argument: str,
-        llm_api_key: str,
-        llm_model: str,
-        max_reasoning_steps: int = 5,
-        **prompt_kwargs,
+        prompt: Prompt,
+        llm_client: OpenAILLMClient,
+        **kwargs,
     ):
-        prompt = Prompt.create(
-            location=prompt_assets,
-            system_prompt_argument=system_prompt_argument,
-            user_prompt_argument=user_prompt_argument,
-            **prompt_kwargs,
-        )
-        llm_client = OpenAILLMClient.create(api_key=llm_api_key, model=llm_model)
         return cls(
             name=name,
             prompt=prompt,
             llm_client=llm_client,
-            max_reasoning_steps=max_reasoning_steps,
+            dispatcher=kwargs.get("dispatcher", None),
+            tool_executor=kwargs.get("tool_executor", None),
+            tools=kwargs.get("tools", []),
+            max_reasoning_steps=kwargs.get("max_reasoning_steps", 5),
         )
 
     def register_dispatcher(self, dispatcher: ConversationDispatcher) -> None:
@@ -67,9 +60,7 @@ class Agent(ConversationParticipant):
 
         new_tools = [ToolDescription.from_function(fun) for fun in tools]
 
-        if self.tools and set([tool.name for tool in new_tools]) & set(
-            tool.name for tool in self.tools
-        ):
+        if self.tools and set([tool.name for tool in new_tools]) & set(tool.name for tool in self.tools):
             raise ValueError("Tool names must be unique")
         else:
             self.tools = self.tools + new_tools
@@ -90,9 +81,7 @@ class Agent(ConversationParticipant):
             user_prompt_argument.content = conversation
 
         system_prompt = self.prompt.render_system_template(system_prompt_argument)
-        user_prompt = self.prompt.render_user_template(
-            name=self.name, prompt_arg=user_prompt_argument
-        )
+        user_prompt = self.prompt.render_user_template(name=self.name, prompt_arg=user_prompt_argument)
 
         if isinstance(conversation, str):
             return Conversation(
@@ -134,16 +123,12 @@ class Agent(ConversationParticipant):
         if isinstance(parsed_response, PromptArgument):
             return response.update(
                 user_prompt_argument=parsed_response,
-                user_prompt=self.prompt.render_user_template(
-                    name=self.name, prompt_arg=parsed_response
-                ),
+                user_prompt=self.prompt.render_user_template(name=self.name, prompt_arg=parsed_response),
             )
         elif isinstance(parsed_response, ChatMessage):
             return response.update(user_prompt=parsed_response)
         else:
-            raise ValueError(
-                f"Failed to parse response from LLM model: {parsed_response}"
-            )
+            raise ValueError(f"Failed to parse response from LLM model: {parsed_response}")
 
     def perform_reasoning(self, conversation: Conversation) -> Conversation:
         """
