@@ -1,7 +1,6 @@
 import inspect
 import re
 from collections import defaultdict
-from dataclasses import dataclass
 from functools import wraps
 from pathlib import Path
 from typing import Callable, Optional
@@ -9,6 +8,7 @@ import logging
 
 from config import ToolConfig
 from entities import ToolCallResult, ToolCall
+from registry import register_tool_executor
 from utils import load_module_from_path
 
 # Set up logging (this should ideally be done at the module or class level)
@@ -24,25 +24,6 @@ def map_python_type_to_json(python_type: str) -> str:
         "bool": "boolean",
     }
     return type_mapping.get(python_type, "string")
-
-
-@dataclass
-class ToolDescription:
-    name: str
-    description: str
-    arguments: dict[str, dict[str, str]]
-
-    @classmethod
-    def from_function(cls, function: Callable):
-        """
-        Create a ToolDescription instance from a decorated function.
-        Assumes the function has been annotated with the @tool decorator.
-        """
-        return cls(
-            name=function.name,
-            description=function.description,
-            arguments=function.args,
-        )
 
 
 def tool(func):
@@ -100,6 +81,7 @@ def tool(func):
     return wrapper
 
 
+@register_tool_executor("default")
 class ToolExecutor:
 
     def __init__(self, tools: Optional[dict[str, Callable]] = None):
@@ -139,6 +121,7 @@ def load_tools(tool_configs: list[ToolConfig]) -> list[Callable]:
 
     for module_path, function_names in modules_to_functions.items():
         module_name = Path(module_path).stem
+        module_path = Path(module_path).resolve()
         module = load_module_from_path(module_name, module_path)
 
         for function_name in function_names:

@@ -1,24 +1,25 @@
 import logging
 from typing import Optional, Callable
 
-from entities import Conversation, ChatMessage, Role, PromptArgument
-from interfaces import ConversationParticipant, ConversationDispatcher
-from llm_client import OpenAILLMClient
+from entities import Conversation, ChatMessage, Role, PromptArgument, ToolDescription
+from interfaces import ConversationDispatcher, LLMClient, Agent
 from prompt import Prompt
-from tools import ToolDescription, ToolExecutor
+from registry import register_agent
+from tools import ToolExecutor
 
 logger = logging.getLogger(__name__)
 
 # TODO: Create different agent types: MultiStepAgent, SingleStepAgent, ConductorAgent etc..
 
 
-class Agent(ConversationParticipant):
+@register_agent("multistep")
+class MultiStepAgent(Agent):
 
     def __init__(
         self,
         name: str,
         prompt: Prompt,
-        llm_client: OpenAILLMClient,
+        llm_client: LLMClient,
         dispatcher: Optional[ConversationDispatcher] = None,
         tool_executor: Optional[ToolExecutor] = None,
         tools: Optional[list[ToolDescription]] = None,
@@ -38,7 +39,7 @@ class Agent(ConversationParticipant):
         cls,
         name: str,
         prompt: Prompt,
-        llm_client: OpenAILLMClient,
+        llm_client: LLMClient,
         **kwargs,
     ):
         return cls(
@@ -158,8 +159,6 @@ class Agent(ConversationParticipant):
         :return: the updated conversation object after the agent has finished reasoning. Contains
             the chat history, with all the system and user messages, as well as the final answer.
         """
-
-        # TODO: Handle new openai thread if openai client
         conversation = self.prepare_conversation(conversation)
 
         for reasoning_step in range(self.max_reasoning_steps):

@@ -1,6 +1,6 @@
 import copy
 from dataclasses import dataclass, field, fields
-from typing import Optional, TypeVar, Any
+from typing import Optional, TypeVar, Any, Callable
 
 from enum import Enum
 
@@ -90,12 +90,8 @@ class Conversation:
 
         self._system_prompt = system_prompt
         self._user_prompt = user_prompt
-        self._user_prompt_argument = (
-            copy.deepcopy(user_prompt_argument) if user_prompt_argument else None
-        )
-        self._system_prompt_argument = (
-            copy.deepcopy(system_prompt_argument) if system_prompt_argument else None
-        )
+        self._user_prompt_argument = copy.deepcopy(user_prompt_argument) if user_prompt_argument else None
+        self._system_prompt_argument = copy.deepcopy(system_prompt_argument) if system_prompt_argument else None
         self._metadata = copy.deepcopy(metadata or {})
 
     @property
@@ -179,8 +175,7 @@ class Conversation:
             chat=chat or self._chat,
             system_prompt=(system_prompt or self._system_prompt),
             user_prompt=user_prompt or self._user_prompt,
-            system_prompt_argument=system_prompt_argument
-            or self._system_prompt_argument,
+            system_prompt_argument=system_prompt_argument or self._system_prompt_argument,
             user_prompt_argument=user_prompt_argument or self._user_prompt_argument,
             metadata=metadata or self._metadata,
         )
@@ -203,14 +198,10 @@ class Conversation:
             new_message = [ChatMessage(content=message, role=role, name=name)]
         elif isinstance(message, ChatMessage):
             new_message = [message]
-        elif isinstance(message, list) and all(
-            isinstance(m, ChatMessage) for m in message
-        ):
+        elif isinstance(message, list) and all(isinstance(m, ChatMessage) for m in message):
             new_message = message
         else:
-            raise ValueError(
-                "Invalid message type. Must be a string, ChatMessage or a list of ChatMessages"
-            )
+            raise ValueError("Invalid message type. Must be a string, ChatMessage or a list of ChatMessages")
 
         new_chat = self.chat + new_message
 
@@ -257,40 +248,20 @@ class PromptArgument:
     pass
 
 
-if __name__ == "__main__":
-    # Step 1: Create ChatMessages using the Role enum
-    system_message = ChatMessage(
-        role=Role.SYSTEM, content="Welcome to the conversation."
-    )
-    user_message_1 = ChatMessage(
-        role=Role.USER, content="Hello, I need help with my account."
-    )
-    assistant_message = ChatMessage(
-        role=Role.ASSISTANT, content="Sure, I can help with that."
-    )
-    user_message_2 = ChatMessage(role=Role.USER, content="I forgot my password.")
+@dataclass
+class ToolDescription:
+    name: str
+    description: str
+    arguments: dict[str, dict[str, str]]
 
-    # Step 2: Create an initial Conversation
-    conversation = Conversation(
-        chat=[user_message_1, assistant_message],
-        system_prompt=system_message,
-        user_prompt=user_message_2,
-    )
-
-    # Step 3: Append a new message to the conversation
-    tool_message = ChatMessage(
-        role=Role.TOOL, content="Here is a link to reset your password."
-    )
-    updated_conversation = conversation.append(tool_message)
-
-    # Step 4: Render the final conversation
-    final_chat = updated_conversation.render_chat()
-
-    # Step 5: Print the conversation (formatted for OpenAI)
-    print("Conversation for OpenAI:")
-    for msg in final_chat:
-        print(msg.to_dict())
-
-    # Step 6: Print the full internal conversation representation
-    print("\nInternal Conversation Object:")
-    print(updated_conversation)
+    @classmethod
+    def from_function(cls, function: Callable):
+        """
+        Create a ToolDescription instance from a decorated function.
+        Assumes the function has been annotated with the @tool decorator.
+        """
+        return cls(
+            name=function.name,
+            description=function.description,
+            arguments=function.args,
+        )

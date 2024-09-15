@@ -15,6 +15,7 @@ from entities import (
     GenericUserPromptArg,
     GenericSystemPromptArg,
 )
+from utils import load_module_from_path
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +28,13 @@ class PromptValidationError(Exception):
 class Prompt:
 
     def __init__(
-            self,
-            system_template: Template,
-            user_template: Template,
-            system_prompt_argument_class: Type[GenericSystemPromptArg],
-            user_prompt_argument_class: Type[GenericUserPromptArg],
-            is_valid: Callable[[GenericUserPromptArg], bool],
-            is_final: Callable[[GenericUserPromptArg], bool]
+        self,
+        system_template: Template,
+        user_template: Template,
+        system_prompt_argument_class: Type[GenericSystemPromptArg],
+        user_prompt_argument_class: Type[GenericUserPromptArg],
+        is_valid: Callable[[GenericUserPromptArg], bool],
+        is_final: Callable[[GenericUserPromptArg], bool],
     ):
         self.system_template = system_template
         self.user_template = user_template
@@ -44,16 +45,16 @@ class Prompt:
 
     @classmethod
     def create(
-            cls,
-            location: Path,
-            system_prompt_argument_class: str,
-            user_prompt_argument_class: str,
-            template_dir: Optional[Path] = None,
-            code_filename: str = "prompt.py",
-            user_template_filename: str = "user_template.jinja2",
-            system_template_filename: str = "system_template.jinja2",
-            is_valid_name="is_valid",
-            is_final_name="is_final",
+        cls,
+        location: Path,
+        system_prompt_argument_class: str,
+        user_prompt_argument_class: str,
+        template_dir: Optional[Path] = None,
+        code_filename: str = "prompt.py",
+        user_template_filename: str = "user_template.jinja2",
+        system_template_filename: str = "system_template.jinja2",
+        is_valid_name="is_valid",
+        is_final_name="is_final",
     ) -> "Prompt":
         """
         Factory method to create a Prompt object. Loads templates and code dynamically
@@ -89,9 +90,7 @@ class Prompt:
             )
         except FileNotFoundError as e:
             logger.error(f"Error loading code: {e}")
-            raise FileNotFoundError(
-                f"Could not load the code from {location / code_filename}"
-            )
+            raise FileNotFoundError(f"Could not load the code from {location / code_filename}")
 
         return cls(
             system_template=system_template,
@@ -104,12 +103,12 @@ class Prompt:
 
     @classmethod
     def load_code(
-            cls,
-            module_path: Path,
-            system_prompt_arg_name: str,
-            user_prompt_arg_name: str,
-            is_valid_name: str,
-            is_final_name: str,
+        cls,
+        module_path: Path,
+        system_prompt_arg_name: str,
+        user_prompt_arg_name: str,
+        is_valid_name: str,
+        is_final_name: str,
     ) -> tuple[
         Type[PromptArgument],
         Type[PromptArgument],
@@ -129,19 +128,8 @@ class Prompt:
         :return: Tuple containing the SystemPromptArgument class, UserPromptArgument class, and validation callables.
         """
 
-        # TODO: try to refactor to use utils.load_module_from_path
-        if not module_path.exists():
-            raise FileNotFoundError(f"Module file not found: {module_path}")
-
-        logger.info(f"Loading module from path: {module_path}")
-
-        spec = importlib.util.spec_from_file_location(module_path.stem, module_path)
-        if spec is None:
-            raise ImportError(f"Could not create a spec for module from {module_path}")
-
-        loaded_module = importlib.util.module_from_spec(spec)
-        sys.modules[module_path.stem] = loaded_module
-        spec.loader.exec_module(loaded_module)
+        # Use the utils function to load the module
+        loaded_module = load_module_from_path(module_name=module_path.stem, module_path=module_path)
 
         try:
             system_prompt_argument = getattr(loaded_module, system_prompt_arg_name)
@@ -151,7 +139,7 @@ class Prompt:
         except AttributeError as e:
             logger.error(f"Missing expected attributes in {module_path.stem}: {e}")
             raise AttributeError(
-                f"Required attributes (SystemPromptArgument, UserPromptArgument, is_valid, is_final) "
+                f"Required attributes ({system_prompt_arg_name}, {user_prompt_arg_name}, {is_valid_name}, {is_final_name}) "
                 f"not found in {module_path.stem}"
             )
 
@@ -177,13 +165,9 @@ class Prompt:
         return template
 
     def render_system_template(self, prompt_args: PromptArgument) -> ChatMessage:
-        return ChatMessage(
-            role=Role.SYSTEM, content=self.system_template.render(**asdict(prompt_args))
-        )
+        return ChatMessage(role=Role.SYSTEM, content=self.system_template.render(**asdict(prompt_args)))
 
-    def render_user_template(
-            self, name: str, prompt_arg: PromptArgument
-    ) -> ChatMessage:
+    def render_user_template(self, name: str, prompt_arg: PromptArgument) -> ChatMessage:
         return ChatMessage(
             role=Role.USER,
             name=name,
@@ -201,10 +185,10 @@ class Prompt:
 
     @classmethod
     def validate_dataclass(
-            cls,
-            parsed_response: dict[str, Any],
-            user_prompt_argument: Type[dataclass],
-            strict: bool = False,
+        cls,
+        parsed_response: dict[str, Any],
+        user_prompt_argument: Type[dataclass],
+        strict: bool = False,
     ) -> dataclass:
         """
         Validate that the JSON fields match the target dataclass.
@@ -222,9 +206,7 @@ class Prompt:
 
         dataclass_fields = {f.name: f for f in fields(user_prompt_argument)}
         required_fields = {
-            f.name
-            for f in dataclass_fields.values()
-            if f.default is MISSING and f.default_factory is MISSING
+            f.name for f in dataclass_fields.values() if f.default is MISSING and f.default_factory is MISSING
         }
 
         missing_fields = (
@@ -237,13 +219,9 @@ class Prompt:
         if missing_fields or extra_fields:
             error_message = []
             if missing_fields:
-                error_message.append(
-                    f"Missing required fields: {', '.join(missing_fields)}."
-                )
+                error_message.append(f"Missing required fields: {', '.join(missing_fields)}.")
             if extra_fields:
-                error_message.append(
-                    f"Extra fields provided: {', '.join(extra_fields)}. Please remove them."
-                )
+                error_message.append(f"Extra fields provided: {', '.join(extra_fields)}. Please remove them.")
             valid_fields = ", ".join(dataclass_fields.keys())
             error_message.append(f"Valid fields are: {valid_fields}.")
             raise PromptValidationError(" ".join(error_message))
@@ -251,9 +229,7 @@ class Prompt:
         try:
             return user_prompt_argument(**parsed_response)
         except TypeError as e:
-            raise PromptValidationError(
-                f"Error constructing {user_prompt_argument.__name__}: {e}"
-            )
+            raise PromptValidationError(f"Error constructing {user_prompt_argument.__name__}: {e}")
 
     @classmethod
     def validate_json(cls, llm_response: str) -> dict:
@@ -285,12 +261,8 @@ class Prompt:
         :raises PromptValidationError: If the text is not valid.
         """
         try:
-            parsed_response = self.validate_json(
-                llm_response
-            )  # Use the parse_json method
-            validated_response = self.validate_dataclass(
-                parsed_response, self.user_prompt_argument
-            )
+            parsed_response = self.validate_json(llm_response)  # Use the parse_json method
+            validated_response = self.validate_dataclass(parsed_response, self.user_prompt_argument)
             return validated_response
         except PromptValidationError as e:
             return ChatMessage(role=Role.USER, content=str(e))

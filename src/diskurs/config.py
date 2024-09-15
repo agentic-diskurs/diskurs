@@ -155,10 +155,13 @@ class ForumConfig(YamlSerializable):
     Represents the entire config file structure.
     """
 
-    agents: list[AgentConfig]
+    dispatcher_type: str
     first_contact: str
+    tool_executor_type: str
+    agents: list[AgentConfig]
     llms: list[LLMConfig]
     tools: list[ToolConfig]
+    custom_modules: list[str] = field(default_factory=list)
 
 
 def resolve_env_vars(data):

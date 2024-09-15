@@ -1,6 +1,22 @@
-from typing import Protocol
+# interfaces.py
+from abc import ABC, abstractmethod
+from typing import Optional, Callable
+from typing import Protocol, Self
 
 from entities import Conversation
+from entities import ToolDescription, ChatMessage
+from prompt import Prompt
+
+
+class LLMClient(ABC):
+    @classmethod
+    @abstractmethod
+    def create(cls, **kwargs) -> Self:
+        pass
+
+    @abstractmethod
+    def generate(self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None) -> Conversation:
+        pass
 
 
 class ConversationDispatcher(Protocol):
@@ -27,7 +43,25 @@ class ConversationParticipant(Protocol):
         """Actively participate in the conversation by processing and possibly responding."""
         pass
 
-class LLMClient(Protocol):
+
+class Agent(ConversationParticipant, ABC):
     @classmethod
-    def create(cls, api_key: str, model: str) -> "LLMClient":
+    @abstractmethod
+    def create(
+        cls,
+        name: str,
+        prompt: Prompt,
+        llm_client: LLMClient,
+        **kwargs,
+    ):
+        pass
+
+    @abstractmethod
+    def invoke(self, conversation: Conversation | str) -> Conversation:
+        """Run the agent on a conversation."""
+        pass
+
+    @abstractmethod
+    def prepare_conversation(self, conversation: Conversation | str) -> Conversation:
+        """Prepare the conversation for reasoning, ensuring it is valid."""
         pass

@@ -1,8 +1,12 @@
 from entities import Conversation
 from interfaces import ConversationParticipant, ConversationDispatcher
+from registry import register_dispatcher
+
 
 # TODO: find a way to log the conversation
 
+
+@register_dispatcher("synchronous")
 class SynchronousConversationDispatcher(ConversationDispatcher):
     def __init__(self):
         self._topics = {}

@@ -1,6 +1,7 @@
 from pprint import pprint
 
-from diskurs.tools import tool, ToolDescription, ToolExecutor
+from diskurs.tools import tool, ToolExecutor
+from entities import ToolDescription
 
 
 def test_annotation():
@@ -36,8 +37,7 @@ def test_annotation():
 
     # Access the tool descriptor
     tool_description = [
-        ToolDescription.from_function(fun)
-        for fun in [get_delivery_date, is_holiday_deserved, get_holiday_date]
+        ToolDescription.from_function(fun) for fun in [get_delivery_date, is_holiday_deserved, get_holiday_date]
     ]
     pprint(tool_description)
 
