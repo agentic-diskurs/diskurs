@@ -1,15 +1,15 @@
+from concurrent.futures import Future
+
 from entities import Conversation
 from interfaces import ConversationParticipant, ConversationDispatcher
 from registry import register_dispatcher
 
 
-# TODO: find a way to log the conversation
-
-
 @register_dispatcher("synchronous")
 class SynchronousConversationDispatcher(ConversationDispatcher):
     def __init__(self):
-        self._topics = {}
+        self._topics: dict[str, list[ConversationParticipant]] = {}
+        self.future = Future()
 
     def subscribe(self, topic: str, subscriber: ConversationParticipant) -> None:
         """Subscribe an agent to a specific topic."""
@@ -23,8 +23,23 @@ class SynchronousConversationDispatcher(ConversationDispatcher):
         if topic in self._topics:
             self._topics[topic].remove(subscriber)
 
-    def publish(self, topic: str, conversation: Conversation) -> None:
+    def publish(self, topic: str, conversation: Conversation, finish_diskurs: bool = False) -> None:
         """Publish a conversation to all agents subscribed to the topic."""
+        if finish_diskurs:
+            if not self.future.done():
+                self.future.set_result(self.final_conversation)
         if topic in self._topics:
             for agent in self._topics[topic]:
                 agent.process_conversation(conversation)
+
+    def finalize(self, response: dict) -> None:
+        """Finalize a diskurs by setting the future."""
+        if not self.future.done():
+            self.future.set_result(response)
+
+    def run(self, participant: ConversationParticipant, question: str) -> dict:
+        """Finish the conversation."""
+        participant.process_conversation(question)
+
+        final_result = self.future.result()
+        return final_result

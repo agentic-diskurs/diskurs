@@ -32,19 +32,50 @@ class ConversationDispatcher(Protocol):
         """Dispatch a conversation to all participants subscribed to the topic."""
         pass
 
-
-class ConversationParticipant(Protocol):
-    dispatcher: "ConversationDispatcher"
-
-    def register_dispatcher(self, dispatcher: ConversationDispatcher) -> None:
+    def run(self, participant: "ConversationParticipant", question: str) -> dict:
+        """Finish the conversation."""
         pass
 
+    def finalize(self, conversation: dict) -> None:
+        """Finalize a conversation by adding metadata or other final touches."""
+        pass
+
+
+class ConversationParticipant(ABC):
+    @property
+    def topics(self) -> list[str]:
+        return self._topics
+
+    @topics.setter
+    def topics(self, value: list[str]) -> None:
+        self._topics = value
+
+    def register_dispatcher(self, dispatcher: ConversationDispatcher) -> None:
+        self.dispatcher = dispatcher
+
+    @abstractmethod
     def process_conversation(self, conversation: Conversation) -> None:
         """Actively participate in the conversation by processing and possibly responding."""
         pass
 
 
-class Agent(ConversationParticipant, ABC):
+class ConversationFinalizer(ABC):
+
+    @abstractmethod
+    def can_finalize(self, conversation: Conversation) -> bool:
+        """Check if a conversation can be finalized."""
+        pass
+
+    @abstractmethod
+    def finalize(self, conversation: Conversation) -> dict:
+        """Format the final answer as a dict."""
+        pass
+
+
+class Agent(ABC):
+    name: str
+    prompt: Prompt
+
     @classmethod
     @abstractmethod
     def create(
@@ -59,9 +90,4 @@ class Agent(ConversationParticipant, ABC):
     @abstractmethod
     def invoke(self, conversation: Conversation | str) -> Conversation:
         """Run the agent on a conversation."""
-        pass
-
-    @abstractmethod
-    def prepare_conversation(self, conversation: Conversation | str) -> Conversation:
-        """Prepare the conversation for reasoning, ensuring it is valid."""
         pass

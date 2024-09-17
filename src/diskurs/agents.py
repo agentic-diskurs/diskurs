@@ -1,25 +1,26 @@
 import logging
-from typing import Optional, Callable
+from abc import ABC
+from typing import Optional, Callable, Self
 
 from entities import Conversation, ChatMessage, Role, PromptArgument, ToolDescription
-from interfaces import ConversationDispatcher, LLMClient, Agent
+from interfaces import ConversationDispatcher, LLMClient, Agent, ConversationParticipant, ConversationFinalizer
 from prompt import Prompt
 from registry import register_agent
+from test_tools import tool_executor
 from tools import ToolExecutor
 
 logger = logging.getLogger(__name__)
 
-# TODO: Create different agent types: MultiStepAgent, SingleStepAgent, ConductorAgent etc..
-
 
 @register_agent("multistep")
-class MultiStepAgent(Agent):
+class MultiStepAgent(Agent, ConversationParticipant):
 
     def __init__(
         self,
         name: str,
         prompt: Prompt,
         llm_client: LLMClient,
+        topics: Optional[list[str]] = None,
         dispatcher: Optional[ConversationDispatcher] = None,
         tool_executor: Optional[ToolExecutor] = None,
         tools: Optional[list[ToolDescription]] = None,
@@ -27,12 +28,13 @@ class MultiStepAgent(Agent):
     ):
         self.name = name
         self.prompt = prompt
-        self.tools = tools
         self.llm_client = llm_client
+        self.topics = topics
         self.dispatcher = dispatcher
         self.tool_executor = tool_executor
         self.tools = tools or []
         self.max_reasoning_steps = max_reasoning_steps
+        self._topics = []
 
     @classmethod
     def create(
@@ -41,19 +43,21 @@ class MultiStepAgent(Agent):
         prompt: Prompt,
         llm_client: LLMClient,
         **kwargs,
-    ):
+    ) -> Self:
+        dispatcher = kwargs.get("dispatcher", None)
+        tool_executor = kwargs.get("tool_executor", None)
+        tools = kwargs.get("tools", None)
+        max_reasoning_steps = kwargs.get("max_reasoning_steps", 5)
+
         return cls(
             name=name,
             prompt=prompt,
             llm_client=llm_client,
-            dispatcher=kwargs.get("dispatcher", None),
-            tool_executor=kwargs.get("tool_executor", None),
-            tools=kwargs.get("tools", []),
-            max_reasoning_steps=kwargs.get("max_reasoning_steps", 5),
+            dispatcher=dispatcher,
+            tool_executor=tool_executor,
+            tools=tools,
+            max_reasoning_steps=max_reasoning_steps,
         )
-
-    def register_dispatcher(self, dispatcher: ConversationDispatcher) -> None:
-        self.dispatcher = dispatcher
 
     def register_tools(self, tools: list[Callable] | Callable) -> None:
         if callable(tools):
@@ -81,8 +85,8 @@ class MultiStepAgent(Agent):
         if isinstance(conversation, str):
             user_prompt_argument.content = conversation
 
-        system_prompt = self.prompt.render_system_template(system_prompt_argument)
-        user_prompt = self.prompt.render_user_template(name=self.name, prompt_arg=user_prompt_argument)
+        system_prompt = self.prompt.render_system_template(self.name, system_prompt_argument)
+        user_prompt = self.prompt.render_user_template(name=self.name, prompt_args=user_prompt_argument)
 
         if isinstance(conversation, str):
             return Conversation(
@@ -124,7 +128,7 @@ class MultiStepAgent(Agent):
         if isinstance(parsed_response, PromptArgument):
             return response.update(
                 user_prompt_argument=parsed_response,
-                user_prompt=self.prompt.render_user_template(name=self.name, prompt_arg=parsed_response),
+                user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=parsed_response),
             )
         elif isinstance(parsed_response, ChatMessage):
             return response.update(user_prompt=parsed_response)
@@ -160,11 +164,11 @@ class MultiStepAgent(Agent):
             the chat history, with all the system and user messages, as well as the final answer.
         """
         conversation = self.prepare_conversation(conversation)
-
         for reasoning_step in range(self.max_reasoning_steps):
             conversation = self.perform_reasoning(conversation)
 
             if self.prompt.is_final(conversation.user_prompt_argument):
+                self.max_reasoning_steps = 0
                 break
 
         return conversation.update()
@@ -178,3 +182,112 @@ class MultiStepAgent(Agent):
         """
         conversation = self.invoke(conversation)
         self.dispatcher.publish(topic=self.name, conversation=conversation)
+
+
+@register_agent("conductor")
+class ConductorAgent(Agent, ConversationParticipant, ConversationFinalizer):
+    def __init__(
+        self,
+        name: str,
+        prompt: Prompt,
+        llm_client: LLMClient,
+        agent_descriptions: dict[str, str],
+        dispatcher: Optional[ConversationDispatcher] = None,
+        max_reasoning_steps: int = 5,
+        conductor_memory_fields: Optional[list[str]] = None,
+    ):
+        self.name = name
+        self.prompt = prompt
+        self.llm_client = llm_client
+        self.agent_descriptions = agent_descriptions
+        self.dispatcher = dispatcher
+        self.max_reasoning_steps = max_reasoning_steps
+        self.conductor_memory_fields = conductor_memory_fields or {}
+        self._topics = []
+
+    @classmethod
+    def create(
+        cls,
+        name: str,
+        prompt: Prompt,
+        llm_client: LLMClient,
+        **kwargs,
+    ) -> Self:
+        agent_descriptions = kwargs.get("agent_descriptions", {})
+        dispatcher = kwargs.get("dispatcher", None)
+        max_reasoning_steps = kwargs.get("max_reasoning_steps", 5)
+        conductor_memory_fields = kwargs.get("conductor_memory_fields", [])
+
+        return cls(
+            name=name,
+            prompt=prompt,
+            llm_client=llm_client,
+            agent_descriptions=agent_descriptions,
+            dispatcher=dispatcher,
+            max_reasoning_steps=max_reasoning_steps,
+            conductor_memory_fields=conductor_memory_fields,
+        )
+
+    def set_conductor_memory_fields(self, conductor_memory_fields: list[str]) -> None:
+        self.conductor_memory_fields = conductor_memory_fields
+
+    def invoke(self, conversation: Conversation | str) -> Conversation:
+        conversation = self.prepare_conversation(conversation)
+        for reasoning_step in range(self.max_reasoning_steps):
+            conversation = self.perform_reasoning(conversation)
+
+            if self.prompt.is_final(conversation.user_prompt_argument):
+                self.max_reasoning_steps = 0
+                break
+
+        return conversation.update()
+
+    def prepare_conversation(self, conversation: Conversation | str) -> Conversation:
+        """
+        Ensures the conversation is in a valid state by creating a new set of prompts
+        and prompt_variables for system and user, as well creating a fresh copy of the conversation.
+
+        :param conversation: A conversation object, possible passed from another agent
+            or a string to start a new conversation.
+        :return: A deep copy of the conversation, in a valid state for this agent
+        """
+        system_prompt_argument = self.prompt.system_prompt_argument(agent_descriptions=self.agent_descriptions)
+        user_prompt_argument = self.prompt.user_prompt_argument()
+
+        if isinstance(conversation, str):
+            user_prompt_argument.content = conversation
+            metadata = {"conductor_memory": {field_name: None for field_name in self.conductor_memory_fields}}
+
+        system_prompt = self.prompt.render_system_template(name=self.name, prompt_args=system_prompt_argument)
+        user_prompt = self.prompt.render_user_template(name=self.name, prompt_args=user_prompt_argument)
+
+        if isinstance(conversation, str):
+            return Conversation(
+                system_prompt_argument=system_prompt_argument,
+                user_prompt_argument=user_prompt_argument,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+            )
+        else:
+            return conversation.update(
+                chat=conversation.chat,
+                system_prompt_argument=system_prompt_argument,
+                user_prompt_argument=user_prompt_argument,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+            )
+
+    def can_finalize(self, conversation: Conversation) -> bool:
+        pass
+
+    def finalize(self, conversation: Conversation) -> dict:
+        pass
+
+    def process_conversation(self, conversation: Conversation) -> None:
+        conversation = self.invoke(conversation)
+
+        if self.can_finalize(conversation):
+            final_response = self.finalize(conversation)
+            self.dispatcher.finalize(final_response)
+        else:
+            self.dispatcher.publish(topic=self.name, conversation=conversation)

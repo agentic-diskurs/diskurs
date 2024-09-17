@@ -3,6 +3,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import List
 
+from agents import ConductorAgent
 from config import load_config_from_yaml
 from interfaces import Agent
 from prompt import Prompt
@@ -43,7 +44,7 @@ class ForumFactory:
         self.dispatcher = None
         self.tool_executor = None
         self.first_contact = None
-        self.modules_to_import = ["llm_client", "dispatcher", "multistep_agent"]
+        self.modules_to_import = ["llm_client", "dispatcher", "agents"]
 
     def create_forum(self) -> Forum:
         self.import_modules()
@@ -53,6 +54,7 @@ class ForumFactory:
         self.create_dispatcher()
         self.create_llm_clients()
         self.create_agents()
+        self.prepare_conductors()
         self.identify_first_contact_agent()
 
         return Forum(
@@ -109,7 +111,17 @@ class ForumFactory:
                 system_prompt_argument_class=agent_conf.prompt.system_prompt_argument_class,
                 user_prompt_argument_class=agent_conf.prompt.user_prompt_argument_class,
             )
-            agent_tools = [tool for tool in self.tools if tool.name in agent_conf.tools]
+
+            additional_args = {}
+
+            if agent_conf.additional_arguments and agent_conf.additional_arguments.get("tools"):
+                additional_args["tools"] = [
+                    tool for tool in self.tools if tool.name in agent_conf.additional_arguments["tools"]
+                ]
+                additional_args["tool_executor"] = self.tool_executor
+            if self.dispatcher:
+                additional_args["dispatcher"] = self.dispatcher
+                additional_args["topics"] = agent_conf.additional_arguments["topics"]
 
             agent_type = agent_conf.type
             agent_cls = AGENT_REGISTRY.get(agent_type)
@@ -117,18 +129,24 @@ class ForumFactory:
                 raise ValueError(f"Agent type '{agent_type}' is not registered.")
 
             agent = agent_cls.create(
-                name=agent_conf.name,
-                prompt=prompt,
-                llm_client=self.llm_clients[agent_conf.llm],
-                dispatcher=self.dispatcher,
-                tool_executor=self.tool_executor,
-                tools=agent_tools,
+                name=agent_conf.name, prompt=prompt, llm_client=self.llm_clients[agent_conf.llm], **additional_args
             )
 
-            for topic in agent_conf.topics:
+            agent.topics = agent_conf.additional_arguments["topics"]
+
+            for topic in agent.topics:
                 self.dispatcher.subscribe(topic=topic, subscriber=agent)
 
             self.agents.append(agent)
+
+    def prepare_conductors(self):
+        if conductor_agents := [agent for agent in self.agents if isinstance(agent, ConductorAgent)]:  # noqa
+            for conductor in conductor_agents:
+                conductor.agent_descriptions = {
+                    agent.name: agent.prompt.agent_description
+                    for agent in self.agents
+                    if agent.name in conductor.topics
+                }
 
     def identify_first_contact_agent(self):
         """Identify the first contact agent from the list of agents."""

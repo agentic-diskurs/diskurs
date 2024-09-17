@@ -29,6 +29,7 @@ class Prompt:
 
     def __init__(
         self,
+        agent_description: str,
         system_template: Template,
         user_template: Template,
         system_prompt_argument_class: Type[GenericSystemPromptArg],
@@ -36,6 +37,7 @@ class Prompt:
         is_valid: Callable[[GenericUserPromptArg], bool],
         is_final: Callable[[GenericUserPromptArg], bool],
     ):
+        self.agent_description = agent_description
         self.system_template = system_template
         self.user_template = user_template
         self.user_prompt_argument = user_prompt_argument_class
@@ -50,6 +52,7 @@ class Prompt:
         system_prompt_argument_class: str,
         user_prompt_argument_class: str,
         template_dir: Optional[Path] = None,
+        agent_description_filename: str = "agent_description.txt",
         code_filename: str = "prompt.py",
         user_template_filename: str = "user_template.jinja2",
         system_template_filename: str = "system_template.jinja2",
@@ -64,6 +67,7 @@ class Prompt:
         :param system_prompt_argument_class: Name of the class that specifies the placeholders of the system prompt template
         :param user_prompt_argument_class:  Name of the class that specifies the placeholders of the user prompt template
         :param template_dir: Optional path to a separate template directory. If not provided, will use `location`.
+        :param agent_description_filename: location of the text file containing the agent's description
         :param code_filename: Name of the file containing PromptArguments and validation logic.
         :param user_template_filename: Filename of the user template (Jinja2 format).
         :param system_template_filename: Filename of the system template (Jinja2 format).
@@ -76,6 +80,9 @@ class Prompt:
 
         logger.info(f"Loading templates from: {template_dir}")
         logger.info(f"Loading code from: {location / code_filename}")
+
+        with open(location / agent_description_filename, "r") as f:
+            agent_description = f.read()
 
         system_template = cls.load_template(template_dir / system_template_filename)
         user_template = cls.load_template(template_dir / user_template_filename)
@@ -93,6 +100,7 @@ class Prompt:
             raise FileNotFoundError(f"Could not load the code from {location / code_filename}")
 
         return cls(
+            agent_description=agent_description,
             system_template=system_template,
             user_template=user_template,
             system_prompt_argument_class=system_prompt_arg,
@@ -164,14 +172,14 @@ class Prompt:
 
         return template
 
-    def render_system_template(self, prompt_args: PromptArgument) -> ChatMessage:
-        return ChatMessage(role=Role.SYSTEM, content=self.system_template.render(**asdict(prompt_args)))
+    def render_system_template(self, name: str, prompt_args: PromptArgument) -> ChatMessage:
+        return ChatMessage(role=Role.SYSTEM, name=name, content=self.system_template.render(**asdict(prompt_args)))
 
-    def render_user_template(self, name: str, prompt_arg: PromptArgument) -> ChatMessage:
+    def render_user_template(self, name: str, prompt_args: PromptArgument) -> ChatMessage:
         return ChatMessage(
             role=Role.USER,
             name=name,
-            content=self.user_template.render(**asdict(prompt_arg)),
+            content=self.user_template.render(**asdict(prompt_args)),
         )
 
     def validate_prompt(self, name: str, prompt_args: PromptArgument) -> ChatMessage:

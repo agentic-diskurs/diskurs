@@ -118,8 +118,7 @@ class AgentConfig(YamlSerializable):
     type: str
     llm: str
     prompt: PromptConfig
-    tools: list[str]
-    topics: list[str]
+    additional_arguments: Optional[dict] = field(default=None, repr=False)
 
 
 @dataclass
@@ -128,13 +127,9 @@ class LLMConfig(YamlSerializable):
     Represents the LLM configuration.
     """
 
-    # TODO: handle cases for different LLM types, some might not need a model name, or an api_version
     name: str
-    model_name: str
     type: str
-    endpoint: str
-    api_version: str
-    api_key: Optional[str] = field(default=None, repr=False)
+    additional_arguments: Optional[dict] = field(default=None, repr=False)
 
 
 @dataclass

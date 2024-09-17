@@ -21,7 +21,7 @@ class Role(Enum):
 GenericUserPromptArg = TypeVar("GenericUserPromptArg", bound="PromptArgument")
 GenericSystemPromptArg = TypeVar("GenericSystemPromptArg", bound="PromptArgument")
 
-# TODO: Implement to string method for entities
+# TODO: Implement to string method for entities i.e. __format__
 
 
 @dataclass
