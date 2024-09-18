@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from diskurs.entities import PromptArgument
+from diskurs.entities import PromptArgument, LongtermMemory
 
 
 @dataclass
@@ -12,11 +12,13 @@ class ConductorSystemPromptArgument(PromptArgument):
 @dataclass
 class ConductorUserPromptArgument(PromptArgument):
     content: Optional[str] = None
+    next_agent: Optional[str] = None
 
 
-def is_valid(prompt_arguments: ConductorUserPromptArgument) -> bool:
-    return True
+@dataclass
+class MyConductorLongtermMemory(LongtermMemory):
+    my_memory: str
 
 
-def is_final(prompt_arguments: ConductorUserPromptArgument) -> bool:
-    return True
+def can_finalize(longterm_memory: MyConductorLongtermMemory) -> bool:
+    return longterm_memory.my_memory == "I remember"

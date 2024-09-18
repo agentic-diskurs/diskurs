@@ -1,22 +1,16 @@
-# interfaces.py
-from abc import ABC, abstractmethod
-from typing import Optional, Callable
+from typing import Optional
 from typing import Protocol, Self
 
 from entities import Conversation
-from entities import ToolDescription, ChatMessage
+from entities import ToolDescription
 from prompt import Prompt
 
 
-class LLMClient(ABC):
+class LLMClient(Protocol):
     @classmethod
-    @abstractmethod
-    def create(cls, **kwargs) -> Self:
-        pass
+    def create(cls, **kwargs) -> Self: ...
 
-    @abstractmethod
-    def generate(self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None) -> Conversation:
-        pass
+    def generate(self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None) -> Conversation: ...
 
 
 class ConversationDispatcher(Protocol):
@@ -41,53 +35,29 @@ class ConversationDispatcher(Protocol):
         pass
 
 
-class ConversationParticipant(ABC):
+class ConversationParticipant(Protocol):
     @property
-    def topics(self) -> list[str]:
-        return self._topics
+    def topics(self) -> list[str]: ...
 
-    @topics.setter
-    def topics(self, value: list[str]) -> None:
-        self._topics = value
-
-    def register_dispatcher(self, dispatcher: ConversationDispatcher) -> None:
-        self.dispatcher = dispatcher
-
-    @abstractmethod
     def process_conversation(self, conversation: Conversation) -> None:
         """Actively participate in the conversation by processing and possibly responding."""
-        pass
+        ...
+
+    def register_dispatcher(self, dispatcher: ConversationDispatcher) -> None: ...
 
 
-class ConversationFinalizer(ABC):
-
-    @abstractmethod
-    def can_finalize(self, conversation: Conversation) -> bool:
-        """Check if a conversation can be finalized."""
-        pass
-
-    @abstractmethod
-    def finalize(self, conversation: Conversation) -> dict:
-        """Format the final answer as a dict."""
-        pass
-
-
-class Agent(ABC):
-    name: str
-    prompt: Prompt
+class Agent(Protocol):
 
     @classmethod
-    @abstractmethod
-    def create(
-        cls,
-        name: str,
-        prompt: Prompt,
-        llm_client: LLMClient,
-        **kwargs,
-    ):
-        pass
+    def create(cls, name: str, prompt: Prompt, llm_client: LLMClient, **kwargs) -> Self: ...
 
-    @abstractmethod
     def invoke(self, conversation: Conversation | str) -> Conversation:
         """Run the agent on a conversation."""
-        pass
+        ...
+
+
+class Conductor(Protocol):
+    @classmethod
+    def create(cls, name: str, prompt: Prompt, llm_client: LLMClient, **kwargs) -> Self: ...
+
+    def update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation: ...

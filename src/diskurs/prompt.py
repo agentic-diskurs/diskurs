@@ -14,7 +14,9 @@ from entities import (
     Role,
     GenericUserPromptArg,
     GenericSystemPromptArg,
+    GenericConductorLongtermMemory,
 )
+from registry import register_prompt
 from utils import load_module_from_path
 
 logger = logging.getLogger(__name__)
@@ -25,6 +27,19 @@ class PromptValidationError(Exception):
         super().__init__(message)
 
 
+IS_VALID_DEFAULT_VALUE_NAME = "is_valid"
+IS_FINAL_DEFAULT_VALUE_NAME = "is_final"
+
+
+def is_valid_default(prompt_arguments: GenericUserPromptArg) -> bool:
+    return True
+
+
+def is_final_default(prompt_arguments: GenericUserPromptArg) -> bool:
+    return True
+
+
+@register_prompt("prompt")
 class Prompt:
 
     def __init__(
@@ -34,16 +49,16 @@ class Prompt:
         user_template: Template,
         system_prompt_argument_class: Type[GenericSystemPromptArg],
         user_prompt_argument_class: Type[GenericUserPromptArg],
-        is_valid: Callable[[GenericUserPromptArg], bool],
-        is_final: Callable[[GenericUserPromptArg], bool],
+        is_valid: Optional[Callable[[GenericUserPromptArg], bool]] = None,
+        is_final: Optional[Callable[[GenericUserPromptArg], bool]] = None,
     ):
         self.agent_description = agent_description
         self.system_template = system_template
         self.user_template = user_template
         self.user_prompt_argument = user_prompt_argument_class
         self.system_prompt_argument = system_prompt_argument_class
-        self.is_valid = is_valid
-        self.is_final = is_final
+        self.is_valid = is_valid or is_valid_default
+        self.is_final = is_final or is_final_default
 
     @classmethod
     def create(
@@ -56,8 +71,7 @@ class Prompt:
         code_filename: str = "prompt.py",
         user_template_filename: str = "user_template.jinja2",
         system_template_filename: str = "system_template.jinja2",
-        is_valid_name="is_valid",
-        is_final_name="is_final",
+        **kwargs,
     ) -> "Prompt":
         """
         Factory method to create a Prompt object. Loads templates and code dynamically
@@ -76,6 +90,7 @@ class Prompt:
 
         :return: An instance of the Prompt class.
         """
+
         template_dir = template_dir or location
 
         logger.info(f"Loading templates from: {template_dir}")
@@ -87,17 +102,14 @@ class Prompt:
         system_template = cls.load_template(template_dir / system_template_filename)
         user_template = cls.load_template(template_dir / user_template_filename)
 
-        try:
-            system_prompt_arg, user_prompt_arg, is_valid, is_final = cls.load_code(
-                module_path=location / code_filename,
-                system_prompt_arg_name=system_prompt_argument_class,
-                user_prompt_arg_name=user_prompt_argument_class,
-                is_valid_name=is_valid_name,
-                is_final_name=is_final_name,
-            )
-        except FileNotFoundError as e:
-            logger.error(f"Error loading code: {e}")
-            raise FileNotFoundError(f"Could not load the code from {location / code_filename}")
+        module_path = location / code_filename
+        loaded_module = load_module_from_path(module_name=module_path.stem, module_path=module_path)
+
+        system_prompt_arg, user_prompt_arg = cls.load_prompt_arguments(
+            loaded_module, system_prompt_argument_class, user_prompt_argument_class
+        )
+
+        predicates = cls._prepare_predicates(loaded_module, kwargs)
 
         return cls(
             agent_description=agent_description,
@@ -105,53 +117,64 @@ class Prompt:
             user_template=user_template,
             system_prompt_argument_class=system_prompt_arg,
             user_prompt_argument_class=user_prompt_arg,
-            is_valid=is_valid,
-            is_final=is_final,
+            **predicates,
         )
 
     @classmethod
-    def load_code(
-        cls,
-        module_path: Path,
-        system_prompt_arg_name: str,
-        user_prompt_arg_name: str,
-        is_valid_name: str,
-        is_final_name: str,
-    ) -> tuple[
-        Type[PromptArgument],
-        Type[PromptArgument],
-        Callable[[PromptArgument], bool],
-        Callable[[PromptArgument], bool],
-    ]:
-        """
-        Dynamically loads the module and extracts required attributes (PromptArgument classes and validation logic)
-        from the specified module file path.
+    def _prepare_predicates(cls, loaded_module, kwargs):
+        predicate_info = {
+            "is_valid_name": kwargs.get("is_valid_name", "is_valid"),
+            "is_final_name": kwargs.get("is_final_name", "is_final"),
+        }
 
-        :param module_path: Path to the Python module (.py file) to load.
-        :param system_prompt_arg_name: Name of the class for the system prompt argument.
-        :param user_prompt_arg_name: Name of the class for the user prompt argument.
-        :param is_valid_name: The name of the function to be used for prompt validation.
-        :param is_final_name: The name of the function to check if a prompt's requirements are satisfied.
+        is_final, is_valid = cls.load_prompt_predicates(loaded_module=loaded_module, **predicate_info)
+        predicates = {"is_valid": is_valid, "is_final": is_final}
+        return predicates
 
-        :return: Tuple containing the SystemPromptArgument class, UserPromptArgument class, and validation callables.
-        """
+    @classmethod
+    def load_prompt_predicate(cls, predicate_name, default_name, loaded_module):
+        try:
+            predicate = getattr(loaded_module, predicate_name)
+        except AttributeError as e:
+            if predicate_name != default_name:
+                logger.error(f"Missing expected attribute {predicate_name} in {loaded_module.__name__}: {e}")
+                raise AttributeError(f"Required attribute {predicate_name} not found in {loaded_module.__name__}")
+            else:
 
-        # Use the utils function to load the module
-        loaded_module = load_module_from_path(module_name=module_path.stem, module_path=module_path)
+                predicate = None
+        return predicate
 
+    @classmethod
+    def load_prompt_predicates(cls, is_final_name, is_valid_name, loaded_module):
+        is_valid = cls.load_prompt_predicate(
+            predicate_name=is_valid_name, default_name=IS_VALID_DEFAULT_VALUE_NAME, loaded_module=loaded_module
+        )
+        is_final = cls.load_prompt_predicate(
+            predicate_name=is_final_name, default_name=IS_FINAL_DEFAULT_VALUE_NAME, loaded_module=loaded_module
+        )
+
+        if is_valid is None:
+            is_valid = is_valid_default
+            logger.warning(f"Predicate function is_valid not found in {loaded_module.__name__}. Using default.")
+
+        if is_final is None:
+            is_final = is_final_default
+            logger.warning(f"Predicate function is_final not found in {loaded_module.__name__}. Using default.")
+
+        return is_final, is_valid
+
+    @classmethod
+    def load_prompt_arguments(cls, loaded_module, system_prompt_arg_name, user_prompt_arg_name):
         try:
             system_prompt_argument = getattr(loaded_module, system_prompt_arg_name)
             user_prompt_argument = getattr(loaded_module, user_prompt_arg_name)
-            is_valid = getattr(loaded_module, is_valid_name)
-            is_final = getattr(loaded_module, is_final_name)
         except AttributeError as e:
-            logger.error(f"Missing expected attributes in {module_path.stem}: {e}")
+            logger.error(f"Missing expected prompt argument classes in {loaded_module.__name__}: {e}")
             raise AttributeError(
-                f"Required attributes ({system_prompt_arg_name}, {user_prompt_arg_name}, {is_valid_name}, {is_final_name}) "
-                f"not found in {module_path.stem}"
+                f"Required: ({system_prompt_arg_name}, {user_prompt_arg_name}) "
+                f"not found in {loaded_module.__name__}"
             )
-
-        return system_prompt_argument, user_prompt_argument, is_valid, is_final
+        return system_prompt_argument, user_prompt_argument
 
     @classmethod
     def load_template(cls, location: Path) -> Template:
@@ -275,6 +298,31 @@ class Prompt:
         except PromptValidationError as e:
             return ChatMessage(role=Role.USER, content=str(e))
 
+
+@register_prompt("conductor_prompt")
+class ConductorPrompt(Prompt):
+    def __init__(
+        self,
+        agent_description: str,
+        system_template: Template,
+        user_template: Template,
+        system_prompt_argument_class: Type[GenericSystemPromptArg],
+        user_prompt_argument_class: Type[GenericUserPromptArg],
+        can_finalize: Callable[[GenericConductorLongtermMemory], bool],
+    ):
+        super().__init__(
+            agent_description, system_template, user_template, system_prompt_argument_class, user_prompt_argument_class
+        )
+        self._can_finalize = can_finalize
+
     @classmethod
-    def from_config(cls, prompt, param):
-        pass
+    def _prepare_predicates(cls, loaded_module, kwargs):
+        can_finalize_name = kwargs.get("can_finalize_name", "can_finalize")
+
+        predicate = cls.load_prompt_predicate(
+            predicate_name=can_finalize_name, default_name="can_finalize", loaded_module=loaded_module
+        )
+        return {"can_finalize": predicate}
+
+    def can_finalize(self, longterm_memory: GenericConductorLongtermMemory) -> bool:
+        return self._can_finalize(longterm_memory)

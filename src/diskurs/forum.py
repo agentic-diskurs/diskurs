@@ -3,16 +3,10 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import List
 
-from agents import ConductorAgent
 from config import load_config_from_yaml
 from interfaces import Agent
 from prompt import Prompt
-from registry import (
-    AGENT_REGISTRY,
-    LLM_REGISTRY,
-    TOOL_EXECUTOR_REGISTRY,
-    DISPATCHER_REGISTRY,
-)
+from registry import AGENT_REGISTRY, LLM_REGISTRY, TOOL_EXECUTOR_REGISTRY, DISPATCHER_REGISTRY, PROMPT_REGISTRY
 from tools import load_tools
 from utils import load_module_from_path
 
@@ -44,7 +38,9 @@ class ForumFactory:
         self.dispatcher = None
         self.tool_executor = None
         self.first_contact = None
-        self.modules_to_import = ["llm_client", "dispatcher", "agents"]
+        self.modules_to_import = ["llm_client", "dispatcher", "agent", "conductor_agent"]
+
+    # TODO: find a cleaner solution for modules_to_import
 
     def create_forum(self) -> Forum:
         self.import_modules()
@@ -106,7 +102,8 @@ class ForumFactory:
     def create_agents(self):
         """Create agent instances based on the configuration."""
         for agent_conf in self.config.agents:
-            prompt = Prompt.create(
+            prompt_cls = PROMPT_REGISTRY.get(agent_conf.prompt.type)
+            prompt = prompt_cls.create(
                 location=agent_conf.prompt.prompt_assets,
                 system_prompt_argument_class=agent_conf.prompt.system_prompt_argument_class,
                 user_prompt_argument_class=agent_conf.prompt.user_prompt_argument_class,
@@ -140,13 +137,17 @@ class ForumFactory:
             self.agents.append(agent)
 
     def prepare_conductors(self):
-        if conductor_agents := [agent for agent in self.agents if isinstance(agent, ConductorAgent)]:  # noqa
-            for conductor in conductor_agents:
-                conductor.agent_descriptions = {
-                    agent.name: agent.prompt.agent_description
-                    for agent in self.agents
-                    if agent.name in conductor.topics
-                }
+        # get the configs from each conductor agent
+        conductor_configs = [agent for agent in self.config.agents if agent.type == "conductor"]
+
+        # for each conductor agent, get the agent descriptions for the agents that are in the topics
+        for conf in conductor_configs:
+            conductor = next((agent for agent in self.agents if agent.name == conf.name))
+            conductor.agent_descriptions = {
+                agent.name: agent.prompt.agent_description
+                for agent in self.agents
+                if agent.name in conf.additional_arguments["topics"]
+            }
 
     def identify_first_contact_agent(self):
         """Identify the first contact agent from the list of agents."""

@@ -1,11 +1,15 @@
 first_contact: "conductor_agent"
 toolExecutorType: "default"
 dispatcherType: "synchronous"
+customModules:
+  - "conductor_agent.py"
+  - "multistep_agent.py"
 agents:
   - name: "conductor_agent"
     type: "conductor"
     llm: "gpt-4-switzerland-north"
     prompt:
+      type: "conductor_prompt"
       promptAssets: "conductor_agent"
       userPromptArgumentClass: "ConductorUserPromptArgument"
       systemPromptArgumentClass: "ConductorSystemPromptArgument"
@@ -25,7 +29,7 @@ agents:
         - "example_tool1"
         - "example_tool2"
       topics:
-        - "second_agent"
+        - "conductor"
   - name: "second_agent"
     type: "multistep"
     llm: "gpt-4-switzerland-north"
@@ -38,7 +42,7 @@ agents:
         - "example_tool1"
         - "example_tool2"
       topics:
-          - "first_agent"
+          - "conductor"
 
 llms:
   - name: "gpt-4-switzerland-north"

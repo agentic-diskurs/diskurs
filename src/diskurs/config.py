@@ -106,6 +106,7 @@ class PromptConfig(YamlSerializable):
     prompt_assets: Path
     user_prompt_argument_class: str
     system_prompt_argument_class: str
+    type: Optional[str] = "prompt"
 
 
 @dataclass

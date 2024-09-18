@@ -6,7 +6,6 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-# utils.py
 def load_module_from_path(module_name: str, module_path: Path):
     module_path = module_path.resolve()
     if not module_path.is_file():

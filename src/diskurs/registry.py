@@ -9,6 +9,7 @@ LLM_REGISTRY: Dict[str, Type] = {}
 # New registries
 TOOL_EXECUTOR_REGISTRY: Dict[str, Type] = {}
 DISPATCHER_REGISTRY: Dict[str, Type] = {}
+PROMPT_REGISTRY: Dict[str, Type] = {}
 
 
 def register_agent(name: str):
@@ -46,6 +47,16 @@ def register_dispatcher(name: str):
 
     def decorator(cls):
         DISPATCHER_REGISTRY[name] = cls
+        return cls
+
+    return decorator
+
+
+def register_prompt(name: str):
+    """Decorator to register a Prompt class."""
+
+    def decorator(cls):
+        PROMPT_REGISTRY[name] = cls
         return cls
 
     return decorator
