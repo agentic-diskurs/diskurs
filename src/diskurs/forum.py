@@ -4,8 +4,7 @@ from pathlib import Path
 from typing import List
 
 from config import load_config_from_yaml
-from interfaces import Agent
-from prompt import Prompt
+from interfaces import Agent, ConversationParticipant
 from registry import AGENT_REGISTRY, LLM_REGISTRY, TOOL_EXECUTOR_REGISTRY, DISPATCHER_REGISTRY, PROMPT_REGISTRY
 from tools import load_tools
 from utils import load_module_from_path
@@ -17,7 +16,7 @@ class Forum:
         agents: List[Agent],
         dispatcher,
         tool_executor,
-        first_contact: Agent,
+        first_contact: ConversationParticipant,
     ):
         self.agents = agents
         self.dispatcher = dispatcher
@@ -38,7 +37,7 @@ class ForumFactory:
         self.dispatcher = None
         self.tool_executor = None
         self.first_contact = None
-        self.modules_to_import = ["llm_client", "dispatcher", "agent", "conductor_agent"]
+        self.modules_to_import = ["llm_client", "dispatcher", "agent", "conductor_agent", "prompt"]
 
     # TODO: find a cleaner solution for modules_to_import
 
@@ -103,11 +102,7 @@ class ForumFactory:
         """Create agent instances based on the configuration."""
         for agent_conf in self.config.agents:
             prompt_cls = PROMPT_REGISTRY.get(agent_conf.prompt.type)
-            prompt = prompt_cls.create(
-                location=agent_conf.prompt.prompt_assets,
-                system_prompt_argument_class=agent_conf.prompt.system_prompt_argument_class,
-                user_prompt_argument_class=agent_conf.prompt.user_prompt_argument_class,
-            )
+            prompt = prompt_cls.create(**asdict(agent_conf.prompt))
 
             additional_args = {}
 

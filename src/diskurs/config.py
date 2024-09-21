@@ -1,9 +1,12 @@
 import os
 import re
-import yaml
-from dataclasses import asdict, dataclass, is_dataclass, field
+from dataclasses import asdict, is_dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Type, TypeVar, get_args, get_origin
+from typing import Any, Optional, TypeVar, get_args, get_origin
+from typing import Type
+
+import yaml
 
 T = TypeVar("T", bound="YamlSerializable")
 
@@ -19,18 +22,19 @@ class YamlSerializable:
     """
 
     @classmethod
-    def load_from_yaml(cls: Type[T], yaml_content: str) -> T:
+    def load_from_yaml(cls: Type[T], yaml_content: str, base_path: Optional[Path] = None) -> T:
         """
         Load a YAML string with camelCase keys and convert it into an instance
         of the dataclass, mapping keys to snake_case.
 
         :param yaml_content: A YAML formatted string with camelCase keys.
+        :param base_path: Optional base path for resolving relative paths.
         :return: An instance of the dataclass with values loaded from the YAML.
         """
         data = yaml.safe_load(yaml_content)
         data = resolve_env_vars(data)  # Replace placeholders with environment variables
         snake_case_data = cls._convert_keys_to_snake_case(data)
-        return dataclass_loader(cls, snake_case_data)
+        return dataclass_loader(cls, snake_case_data, base_path=base_path)
 
     def serialize_to_yaml(self) -> str:
         """
@@ -46,9 +50,6 @@ class YamlSerializable:
     def _camel_to_snake(name: str) -> str:
         """
         Convert a string from camelCase to snake_case.
-
-        :param name: The camelCase string to be converted.
-        :return: The converted snake_case string.
         """
         s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
         return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
@@ -57,9 +58,6 @@ class YamlSerializable:
     def _snake_to_camel(name: str) -> str:
         """
         Convert a string from snake_case to camelCase.
-
-        :param name: The snake_case string to be converted.
-        :return: The converted camelCase string.
         """
         components = name.split("_")
         return components[0] + "".join(x.title() for x in components[1:])
@@ -69,9 +67,6 @@ class YamlSerializable:
         """
         Recursively convert all keys in a dictionary (or list) from camelCase
         to snake_case.
-
-        :param d: A dictionary or list with camelCase keys.
-        :return: A dictionary or list with snake_case keys.
         """
         if isinstance(d, dict):
             return {cls._camel_to_snake(k): cls._convert_keys_to_snake_case(v) for k, v in d.items()}
@@ -85,9 +80,6 @@ class YamlSerializable:
         """
         Recursively convert all keys in a dictionary (or list) from snake_case
         to camelCase.
-
-        :param d: A dictionary or list with snake_case keys.
-        :return: A dictionary or list with camelCase keys.
         """
         if isinstance(d, dict):
             return {cls._snake_to_camel(k): cls._convert_keys_to_camel_case(v) for k, v in d.items()}
@@ -97,19 +89,57 @@ class YamlSerializable:
             return d
 
 
-@dataclass
-class PromptConfig(YamlSerializable):
+class Registrable:
+    registry: dict[str, Type["Registrable"]] = {}
+    discriminator: str = "type"
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        key = getattr(cls, cls.discriminator, None)
+        if key:
+            cls.registry[key] = cls
+
+    @classmethod
+    def get_subclass(cls, key: str) -> Type["Registrable"]:
+        return cls.registry.get(key, cls)
+
+
+@dataclass(kw_only=True)
+class PromptConfig(YamlSerializable, Registrable):
     """
     Represents the prompt configuration for an agent.
     """
 
-    prompt_assets: Path
+    type: str
+    location: Path
     user_prompt_argument_class: str
     system_prompt_argument_class: str
-    type: Optional[str] = "prompt"
+    type: Optional[str]
 
 
-@dataclass
+@dataclass(kw_only=True)
+class MultistepPromptConfig(PromptConfig):
+    """
+    Represents the prompt configuration for an agent.
+    """
+
+    type: str = "multistep_prompt"
+    is_valid_name: str
+    is_final_name: str
+
+
+@dataclass(kw_only=True)
+class ConductorPromptConfig(PromptConfig):
+    """
+    Represents the prompt configuration for an agent.
+    """
+
+    type: str = "conductor_prompt"
+    longterm_memory_class: str
+    can_finalize_name: str
+
+
+@dataclass(kw_only=True)
 class AgentConfig(YamlSerializable):
     """
     Represents an agent configuration.
@@ -122,15 +152,27 @@ class AgentConfig(YamlSerializable):
     additional_arguments: Optional[dict] = field(default=None, repr=False)
 
 
-@dataclass
-class LLMConfig(YamlSerializable):
+@dataclass(kw_only=True)
+class LLMConfig(YamlSerializable, Registrable):
     """
     Represents the LLM configuration.
     """
 
-    name: str
     type: str
-    additional_arguments: Optional[dict] = field(default=None, repr=False)
+    name: str
+
+
+@dataclass(kw_only=True)
+class AzureLLMConfig(LLMConfig):
+    """
+    Represents the LLM configuration.
+    """
+
+    type: str = "azure"
+    api_key: str
+    api_version: str
+    model_name: str
+    endpoint: str
 
 
 @dataclass
@@ -179,9 +221,32 @@ def resolve_env_vars(data):
         return data
 
 
+def get_dataclass_subclass(base_class, data):
+    if issubclass(base_class, Registrable):
+        discriminator = base_class.discriminator
+        if discriminator in data:
+            key = data[discriminator]
+            subclass = base_class.get_subclass(key)
+            if subclass:
+                return subclass
+            else:
+                raise ValueError(f"Unknown {base_class.__name__} type: {key}")
+        else:
+            raise ValueError(f"Discriminator '{discriminator}' not found in data for {base_class.__name__}")
+    else:
+        return base_class
+
+
+from dataclasses import is_dataclass
+from typing import get_args, get_origin
+from pathlib import Path
+
+
 def dataclass_loader(dataclass_type, data, base_path: Optional[Path] = None):
     """Recursively loads YAML data into the appropriate dataclass."""
     if is_dataclass(dataclass_type) and isinstance(data, dict):
+        # Get the correct subclass based on data
+        dataclass_type = get_dataclass_subclass(dataclass_type, data)
         field_types = {field.name: field.type for field in dataclass_type.__dataclass_fields__.values()}
         return dataclass_type(
             **{

@@ -1,22 +1,23 @@
 import logging
 from abc import abstractmethod, ABC
+from dataclasses import is_dataclass
 from typing import Optional, Self
 
-from entities import Conversation, ChatMessage, PromptArgument, GenericPrompt
+from typing_extensions import TypeVar
+
+from entities import Conversation, ChatMessage, PromptArgument
 from interfaces import ConversationDispatcher, LLMClient, Agent, ConversationParticipant
-from prompt import Prompt
 
 logger = logging.getLogger(__name__)
 
-# TODO: consider passing a child class of AgentConfig to the create method, for specific agent types
-# TODO: consider having agent config class in agent module
+Prompt = TypeVar("Prompt")
 
 
 class BaseAgent(ABC, Agent, ConversationParticipant):
     def __init__(
         self,
         name: str,
-        prompt: GenericPrompt,
+        prompt: Prompt,
         llm_client: LLMClient,
         topics: Optional[list[str]] = None,
         dispatcher: Optional[ConversationDispatcher] = None,
@@ -112,9 +113,9 @@ class BaseAgent(ABC, Agent, ConversationParticipant):
         for max_trials in range(self.max_trials):
 
             response = self.llm_client.generate(conversation, getattr(self, "tools", None))
-            parsed_response = self.prompt.parse_prompt(response.last_message.content)
+            parsed_response = self.prompt.parse_user_prompt(response.last_message.content)
 
-            if isinstance(parsed_response, PromptArgument):
+            if is_dataclass(parsed_response):
                 self.max_trials = 0
                 return response.update(
                     user_prompt_argument=parsed_response,

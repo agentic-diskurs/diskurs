@@ -1,5 +1,3 @@
-# registry.py
-
 from typing import Type, Dict
 
 # Existing registries

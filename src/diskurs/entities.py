@@ -1,4 +1,5 @@
 import copy
+from collections import defaultdict
 from dataclasses import dataclass, field, fields
 from typing import Optional, TypeVar, Any, Callable
 
@@ -104,7 +105,7 @@ class Conversation:
         self._user_prompt = user_prompt
         self._user_prompt_argument = copy.deepcopy(user_prompt_argument) if user_prompt_argument else None
         self._system_prompt_argument = copy.deepcopy(system_prompt_argument) if system_prompt_argument else None
-        self._longterm_memory = longterm_memory
+        self._longterm_memory = longterm_memory or {}
         self._metadata = copy.deepcopy(metadata or {})
 
     @property

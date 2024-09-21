@@ -4,8 +4,8 @@ from typing import Optional, Self
 
 from agent import BaseAgent
 from entities import Conversation
-from interfaces import LLMClient, ConversationDispatcher
-from prompt import ConductorPrompt
+from interfaces import LLMClient, ConversationDispatcher, ConductorPrompt
+
 from registry import register_agent
 
 
@@ -22,12 +22,10 @@ class ConductorAgent(BaseAgent):
         dispatcher: Optional[ConversationDispatcher] = None,
         max_reasoning_steps: int = 5,
         max_trials: int = 5,
-        conductor_memory_fields: Optional[list[str]] = None,
     ):
         super().__init__(name, prompt, llm_client, topics, dispatcher, max_trials)
         self.agent_descriptions = agent_descriptions
         self.max_reasoning_steps = max_reasoning_steps
-        self.conductor_memory_fields = conductor_memory_fields or {}
         self._topics = []
         self.finalizer_name = finalizer_name
 
@@ -60,9 +58,11 @@ class ConductorAgent(BaseAgent):
 
     def update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation:
         longterm_memory = conversation.get_agent_longterm_memory(self.name)
-        last_agents_user_prompt_arguments = self.prompt.user_prompt_argument
-        if longterm_memory:
+        longterm_memory = longterm_memory or self.prompt.init_longterm_memory()
+        # TODO: allow for custom mapping of prompt args to longterm memory
 
+        last_agents_user_prompt_arguments = conversation.user_prompt_argument
+        if longterm_memory:
             common_fields = {field.name for field in fields(longterm_memory)}.intersection(
                 {field.name for field in fields(last_agents_user_prompt_arguments)}
             )
@@ -76,19 +76,20 @@ class ConductorAgent(BaseAgent):
     def invoke(self, conversation: Conversation | str) -> Conversation:
         conversation = self.prepare_conversation(
             conversation,
-            system_prompt_argument=self.prompt.system_prompt_argument(agent_descriptions=self.agent_descriptions),
-            user_prompt_argument=self.prompt.user_prompt_argument(),
+            system_prompt_argument=self.prompt.create_system_prompt_argument(
+                agent_descriptions=self.agent_descriptions
+            ),
+            user_prompt_argument=self.prompt.create_user_prompt_argument(),
         )
+        conversation = self.update_longterm_memory(conversation)
+
         return self.generate_validated_response(conversation)
 
     def process_conversation(self, conversation: Conversation | str) -> None:
-        if not isinstance(conversation, str):
-            conversation = self.update_longterm_memory(conversation)
 
-        if not isinstance(conversation, str) and self.prompt.can_finalize(
-            conversation.get_agent_longterm_memory(self.name)
-        ):
-            self.dispatcher.publish(topic=self.finalizer_name, conversation=conversation)
+        if not isinstance(conversation, str) and conversation.get_agent_longterm_memory(self.name):
+            if self.prompt.can_finalize(conversation.get_agent_longterm_memory(self.name)):
+                self.dispatcher.publish(topic=self.finalizer_name, conversation=conversation)
         else:
             conversation = self.invoke(conversation)
             next_agent = json.loads(conversation.last_message.content).get("next_agent")

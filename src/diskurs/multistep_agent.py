@@ -1,8 +1,8 @@
 from typing import Optional, Callable, Self
 
 from agent import BaseAgent
-from entities import GenericPrompt, ToolDescription, Conversation, ChatMessage, Role, PromptArgument
-from interfaces import LLMClient, ConversationDispatcher
+from entities import ToolDescription, Conversation, ChatMessage, Role
+from interfaces import LLMClient, ConversationDispatcher, MultistepPrompt
 from registry import register_agent
 from tools import ToolExecutor
 
@@ -13,7 +13,7 @@ class MultiStepAgent(BaseAgent):
     def __init__(
         self,
         name: str,
-        prompt: GenericPrompt,
+        prompt: MultistepPrompt,
         llm_client: LLMClient,
         topics: Optional[list[str]] = None,
         dispatcher: Optional[ConversationDispatcher] = None,
@@ -31,7 +31,7 @@ class MultiStepAgent(BaseAgent):
     def create(
         cls,
         name: str,
-        prompt: GenericPrompt,
+        prompt: MultistepPrompt,
         llm_client: LLMClient,
         **kwargs,
     ) -> Self:
@@ -112,8 +112,8 @@ class MultiStepAgent(BaseAgent):
         """
         conversation = self.prepare_conversation(
             conversation,
-            system_prompt_argument=self.prompt.system_prompt_argument(),
-            user_prompt_argument=self.prompt.user_prompt_argument(),
+            system_prompt_argument=self.prompt.create_system_prompt_argument(),
+            user_prompt_argument=self.prompt.create_user_prompt_argument(),
         )
 
         for reasoning_step in range(self.max_reasoning_steps):

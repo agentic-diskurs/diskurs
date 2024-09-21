@@ -1,9 +1,160 @@
-from typing import Optional
-from typing import Protocol, Self
+from abc import abstractmethod
+from dataclasses import dataclass
+from typing import List, Dict, Union, Self, TypeVar, Protocol, Type, Optional, Any
 
-from entities import Conversation
-from entities import ToolDescription
-from prompt import Prompt
+from entities import ToolDescription, ChatMessage, LongtermMemory
+
+
+class LongtermMemoryHandler(Protocol):
+    def can_finalize(self, longterm_memory: Any) -> bool:
+        pass
+
+
+class PromptValidator(Protocol):
+
+    @classmethod
+    def validate_dataclass(
+        cls,
+        parsed_response: dict[str, Any],
+        user_prompt_argument: Type[dataclass],
+        strict: bool = False,
+    ) -> dataclass:
+        pass
+
+    @classmethod
+    def validate_json(cls, llm_response: str) -> dict:
+        pass
+
+
+UserPromptArg = TypeVar("UserPromptArg")
+SystemPromptArg = TypeVar("SystemPromptArg")
+
+
+class Prompt(Protocol[SystemPromptArg, UserPromptArg]):
+    """Protocol for rendering templates in prompts."""
+
+    def render_system_template(self, name: str, prompt_args: Any) -> ChatMessage:
+        pass
+
+    def render_user_template(self, name: str, prompt_args: Any) -> ChatMessage:
+        pass
+
+    def parse_user_prompt(self, llm_response: str) -> UserPromptArg | ChatMessage:
+        pass
+
+    def create_system_prompt_argument(self, **prompt_args: dict) -> SystemPromptArg:
+        pass
+
+    def create_user_prompt_argument(self, **prompt_args: dict) -> UserPromptArg:
+        pass
+
+
+class MultistepPrompt(Prompt):
+
+    def is_final(self, user_prompt_argument: UserPromptArg) -> bool:
+        pass
+
+
+class ConductorPrompt(Prompt):
+
+    def init_longterm_memory(self) -> Any:
+        pass
+
+    def can_finalize(self, longterm_memory: Any) -> Any:
+        pass
+
+
+class Conversation(Protocol):
+    @property
+    @abstractmethod
+    def chat(self) -> List[ChatMessage]:
+        """Provides a deep copy of the chat messages to ensure immutability."""
+        pass
+
+    @property
+    @abstractmethod
+    def system_prompt(self) -> ChatMessage:
+        """Retrieves the system prompt of the conversation."""
+        pass
+
+    @property
+    @abstractmethod
+    def user_prompt(self) -> ChatMessage:
+        """Retrieves the user prompt of the conversation."""
+        pass
+
+    @property
+    @abstractmethod
+    def system_prompt_argument(self) -> SystemPromptArg:
+        """Returns the system prompt arguments."""
+        pass
+
+    @property
+    @abstractmethod
+    def user_prompt_argument(self) -> UserPromptArg:
+        """Returns the user prompt arguments."""
+        pass
+
+    @property
+    @abstractmethod
+    def metadata(self) -> Dict[str, str]:
+        """Provides a deep copy of the metadata dictionary to ensure immutability."""
+        pass
+
+    @property
+    @abstractmethod
+    def last_message(self) -> ChatMessage:
+        """Retrieves the last message in the conversation."""
+        pass
+
+    @abstractmethod
+    def get_agent_longterm_memory(self, agent_name: str) -> Optional[LongtermMemory]:
+        """Provides a deep copy of the long-term memory dictionary for the specified agent."""
+        pass
+
+    @abstractmethod
+    def update_agent_longterm_memory(self, agent_name: str, longterm_memory: LongtermMemory) -> Self:
+        """Updates the long-term memory for a specific agent and returns a new Conversation instance."""
+        pass
+
+    @abstractmethod
+    def update(
+        self,
+        chat: Optional[List[ChatMessage]] = None,
+        system_prompt_argument: Optional[SystemPromptArg] = None,
+        user_prompt_argument: Optional["UserPromptArg"] = None,
+        system_prompt: Optional[ChatMessage] = None,
+        user_prompt: Optional[Union[ChatMessage, List[ChatMessage]]] = None,
+        longterm_memory: Optional[Dict[str, LongtermMemory]] = None,
+        metadata: Optional[Dict[str, str]] = None,
+    ) -> Self:
+        """Returns a new instance of Conversation with updated fields, preserving immutability."""
+        pass
+
+    @abstractmethod
+    def append(
+        self,
+        message: Union[str, ChatMessage, List[ChatMessage]],
+        role: Optional[str] = "",
+        name: Optional[str] = "",
+    ) -> Self:
+        """Appends a new chat message and returns a new instance of Conversation."""
+        pass
+
+    @abstractmethod
+    def render_chat(self) -> List[ChatMessage]:
+        """Returns the complete chat with the system prompt prepended and the user prompt appended."""
+        pass
+
+    @abstractmethod
+    def is_empty(self) -> bool:
+        """Checks if the chat is empty."""
+        pass
+
+    @abstractmethod
+    def has_pending_tool_call(self) -> bool:
+        """Checks if there is a pending tool call."""
+        pass
 
 
 class LLMClient(Protocol):
@@ -14,11 +165,11 @@ class LLMClient(Protocol):
 
 
 class ConversationDispatcher(Protocol):
-    def subscribe(self, topic: str, participant: "ConversationParticipant") -> None:
+    def subscribe(self, topic: str, participant: Conversation) -> None:
         """Subscribe a participant to a specific topic."""
         pass
 
-    def unsubscribe(self, topic: str, participant: "ConversationParticipant") -> None:
+    def unsubscribe(self, topic: str, participant: Conversation) -> None:
         """Unsubscribe a participant from a specific topic."""
         pass
 
@@ -26,7 +177,7 @@ class ConversationDispatcher(Protocol):
         """Dispatch a conversation to all participants subscribed to the topic."""
         pass
 
-    def run(self, participant: "ConversationParticipant", question: str) -> dict:
+    def run(self, participant: Conversation, question: str) -> dict:
         """Finish the conversation."""
         pass
 
@@ -39,11 +190,11 @@ class ConversationParticipant(Protocol):
     @property
     def topics(self) -> list[str]: ...
 
-    def process_conversation(self, conversation: Conversation) -> None:
+    def process_conversation(self, conversation: Conversation | str) -> None:
         """Actively participate in the conversation by processing and possibly responding."""
         ...
 
-    def register_dispatcher(self, dispatcher: ConversationDispatcher) -> None: ...
+    def register_dispatcher(self, dispatcher: Conversation) -> None: ...
 
 
 class Agent(Protocol):
@@ -58,6 +209,6 @@ class Agent(Protocol):
 
 class Conductor(Protocol):
     @classmethod
-    def create(cls, name: str, prompt: Prompt, llm_client: LLMClient, **kwargs) -> Self: ...
+    def create(cls, name: str, prompt: MultistepPrompt, llm_client: LLMClient, **kwargs) -> Self: ...
 
     def update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation: ...

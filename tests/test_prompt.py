@@ -2,12 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from diskurs.prompt import Prompt
+from diskurs.prompt import MultistepPrompt
 
 
 @pytest.fixture
 def prompt_instance():
-    return Prompt.create(
+    return MultistepPrompt.create(
         location=Path(__file__).parent / "prompt_test_files",
         system_prompt_argument_class="MySystemPromptArgument",
         user_prompt_argument_class="MyUserPromptArgument",
@@ -36,14 +36,14 @@ mock_missing_keys_llm_response = """{
 
 
 def test_parse_prompt(prompt_instance):
-    res = prompt_instance.parse_prompt(mock_llm_response)
+    res = prompt_instance.parse_user_prompt(mock_llm_response)
 
     assert res.name == "John Doe"
     assert res.topic == "Python Programming"
 
 
 def test_fail_parse_prompt(prompt_instance):
-    res = prompt_instance.parse_prompt(mock_illegal_llm_response)
+    res = prompt_instance.parse_user_prompt(mock_illegal_llm_response)
 
     assert (
         res.content
@@ -53,9 +53,6 @@ def test_fail_parse_prompt(prompt_instance):
 
 
 def test_missing_key_parse_prompt(prompt_instance):
-    res = prompt_instance.parse_prompt(mock_missing_keys_llm_response)
+    res = prompt_instance.parse_user_prompt(mock_missing_keys_llm_response)
 
-    assert (
-        res.content
-        == "Missing required fields: name. Valid fields are: name, topic, user_question, answer."
-    )
+    assert res.content == "Missing required fields: name. Valid fields are: name, topic, user_question, answer."

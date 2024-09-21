@@ -17,8 +17,8 @@ class ConductorUserPromptArgument(PromptArgument):
 
 @dataclass
 class MyConductorLongtermMemory(LongtermMemory):
-    my_memory: str
+    my_memory: Optional[str] = ""
 
 
 def can_finalize(longterm_memory: MyConductorLongtermMemory) -> bool:
-    return longterm_memory.my_memory == "I remember"
+    return True

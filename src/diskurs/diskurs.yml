@@ -10,9 +10,11 @@ agents:
     llm: "gpt-4-switzerland-north"
     prompt:
       type: "conductor_prompt"
-      promptAssets: "conductor_agent"
+      location: "conductor_agent"
       userPromptArgumentClass: "ConductorUserPromptArgument"
       systemPromptArgumentClass: "ConductorSystemPromptArgument"
+      longtermMemoryClass: "MyConductorLongtermMemory"
+      canFinalizeName: "can_finalize"
     additionalArguments:
       topics:
         - "first_agent"
@@ -21,9 +23,12 @@ agents:
     type: "multistep"
     llm: "gpt-4-switzerland-north"
     prompt:
-      promptAssets: "my_agents/first_agent"
+      type: "multistep_prompt"
+      location: "my_agents/first_agent"
       userPromptArgumentClass: "FirstSystemPromptArgument"
       systemPromptArgumentClass: "FirstUserPromptArgument"
+      isValidName: "is_valid"
+      isFinalName: "is_final"
     additionalArguments:
       tools:
         - "example_tool1"
@@ -34,9 +39,12 @@ agents:
     type: "multistep"
     llm: "gpt-4-switzerland-north"
     prompt:
-      promptAssets: "my_agents/second_agent"
+      type: "multistep_prompt"
+      location: "my_agents/second_agent"
       userPromptArgumentClass: "SecondUserPromptArgument"
       systemPromptArgumentClass: "SecondSystemPromptArgument"
+      isValidName: "is_valid"
+      isFinalName: "is_final"
     additionalArguments:
       tools:
         - "example_tool1"
@@ -47,11 +55,10 @@ agents:
 llms:
   - name: "gpt-4-switzerland-north"
     type: "azure"
-    additionalArguments:
-      modelName: "gpt-4-0613"
-      endpoint: "https://osdp-enabling-openai.openai.azure.com"
-      apiVersion: "2023-03-15-preview"
-      apiKey: "${AZURE_OPENAI_API_KEY}"
+    modelName: "gpt-4-0613"
+    endpoint: "https://osdp-enabling-openai.openai.azure.com"
+    apiVersion: "2023-03-15-preview"
+    apiKey: "${AZURE_OPENAI_API_KEY}"
 
 tools:
   - name: "example_tool1"
