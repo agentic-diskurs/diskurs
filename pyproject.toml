@@ -26,13 +26,14 @@ click = "^8.1.7"
 [tool.poetry.dev-dependencies]
 black = "^24.8.0"
 pytest = "^8.3.2"
+pytest-cov = "5.0.0"
 
 [tool.poetry.scripts]
 diskurs = "diskurs.cli:cli"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.urls]
 Homepage = "https://github.com/agentic-diskurs/diskurs"

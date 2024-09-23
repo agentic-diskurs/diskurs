@@ -164,28 +164,6 @@ class LLMClient(Protocol):
     def generate(self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None) -> Conversation: ...
 
 
-class ConversationDispatcher(Protocol):
-    def subscribe(self, topic: str, participant: Conversation) -> None:
-        """Subscribe a participant to a specific topic."""
-        pass
-
-    def unsubscribe(self, topic: str, participant: Conversation) -> None:
-        """Unsubscribe a participant from a specific topic."""
-        pass
-
-    def publish(self, topic: str, conversation: Conversation) -> None:
-        """Dispatch a conversation to all participants subscribed to the topic."""
-        pass
-
-    def run(self, participant: Conversation, question: str) -> dict:
-        """Finish the conversation."""
-        pass
-
-    def finalize(self, conversation: dict) -> None:
-        """Finalize a conversation by adding metadata or other final touches."""
-        pass
-
-
 class ConversationParticipant(Protocol):
     @property
     def topics(self) -> list[str]: ...
@@ -195,6 +173,28 @@ class ConversationParticipant(Protocol):
         ...
 
     def register_dispatcher(self, dispatcher: Conversation) -> None: ...
+
+
+class ConversationDispatcher(Protocol):
+    def subscribe(self, topic: str, participant: ConversationParticipant) -> None:
+        """Subscribe a participant to a specific topic."""
+        pass
+
+    def unsubscribe(self, topic: str, participant: ConversationParticipant) -> None:
+        """Unsubscribe a participant from a specific topic."""
+        pass
+
+    def publish(self, topic: str, conversation: Conversation) -> None:
+        """Dispatch a conversation to all participants subscribed to the topic."""
+        pass
+
+    def run(self, participant: ConversationParticipant, question: str) -> dict:
+        """Finish the conversation."""
+        pass
+
+    def finalize(self, response: dict) -> None:
+        """Finalize a conversation by adding metadata or other final touches."""
+        pass
 
 
 class Agent(Protocol):

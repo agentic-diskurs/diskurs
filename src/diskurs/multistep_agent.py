@@ -40,6 +40,7 @@ class MultiStepAgent(BaseAgent):
         tools = kwargs.get("tools", None)
         max_reasoning_steps = kwargs.get("max_reasoning_steps", 5)
         max_trials = kwargs.get("max_trials", 5)
+        topics = kwargs.get("topics", [])
 
         return cls(
             name=name,
@@ -50,7 +51,12 @@ class MultiStepAgent(BaseAgent):
             tools=tools,
             max_reasoning_steps=max_reasoning_steps,
             max_trials=max_trials,
+            topics=topics,
         )
+
+    def get_conductor_name(self) -> str:
+        # TODO: somewhat hacky, but should work for now
+        return self.topics[0]
 
     def register_tools(self, tools: list[Callable] | Callable) -> None:
         if callable(tools):
@@ -133,4 +139,4 @@ class MultiStepAgent(BaseAgent):
         :param conversation: The conversation object to process.
         """
         conversation = self.invoke(conversation)
-        self.dispatcher.publish(topic=self.name, conversation=conversation)
+        self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)

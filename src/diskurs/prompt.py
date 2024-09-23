@@ -11,6 +11,7 @@ from entities import (
     ChatMessage,
     Role,
     GenericConductorLongtermMemory,
+    MessageType,
 )
 from registry import register_prompt
 from utils import load_module_from_path
@@ -110,7 +111,7 @@ class PromptParserMixin:
             validated_response = self.validate_dataclass(parsed_response, self.user_prompt_argument)
             return validated_response
         except PromptValidationError as e:
-            return ChatMessage(role=Role.USER, content=str(e))
+            return ChatMessage(role=Role.USER, content=str(e), type=MessageType.VALIDATION)
 
 
 UserPromptArg = TypeVar("UserPromptArg")
@@ -160,17 +161,20 @@ class PromptRendererMixin:
     def render_system_template(self, name: str, prompt_args: PromptArgument) -> ChatMessage:
         return ChatMessage(role=Role.SYSTEM, name=name, content=self.system_template.render(**asdict(prompt_args)))
 
-    def render_user_template(self, name: str, prompt_args: PromptArgument) -> ChatMessage:
+    def render_user_template(
+        self, name: str, prompt_args: PromptArgument, message_type: MessageType = MessageType.CONVERSATION
+    ) -> ChatMessage:
         return ChatMessage(
             role=Role.USER,
             name=name,
             content=self.user_template.render(**asdict(prompt_args)),
+            type=message_type,
         )
 
     def validate_prompt(self, name: str, prompt_args: PromptArgument) -> ChatMessage:
         try:
             if self.is_valid(prompt_args):
-                return self.render_user_template(name, prompt_args)
+                return self.render_user_template(name, prompt_args, MessageType.CONVERSATION)
         except PromptValidationError as e:  # Handle only validation errors
             return ChatMessage(role=Role.USER, content=str(e))
         except Exception as e:  # Handle other unforeseen errors separately

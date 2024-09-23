@@ -21,6 +21,17 @@ class Role(Enum):
         return self.value
 
 
+class MessageType(Enum):
+    ROUTING = "routing"
+    CONVERSATION = "conversation"
+
+    def __str__(self):
+        """
+        Override the default string representation to return the enum's value.
+        """
+        return self.value
+
+
 GenericPrompt = TypeVar("GenericPrompt", bound="Prompt")
 GenericUserPromptArg = TypeVar("GenericUserPromptArg", bound="PromptArgument")
 GenericSystemPromptArg = TypeVar("GenericSystemPromptArg", bound="PromptArgument")
@@ -51,6 +62,7 @@ class ChatMessage:
     name: Optional[str] = ""
     tool_call_id: Optional[str] = ""
     tool_calls: Optional[list[ToolCall]] = None
+    type: MessageType = MessageType.CONVERSATION
 
     def to_dict(self) -> dict:
         """
@@ -245,13 +257,14 @@ class Conversation:
 
         return self.update(chat=new_chat)
 
-    def render_chat(self) -> list[ChatMessage]:
+    def render_chat(self, message_type: MessageType = MessageType.CONVERSATION) -> list[ChatMessage]:
         """
         Returns the complete chat with the system prompt prepended and the user prompt appended.
 
         :return: A list representing the full chat, including the system and user prompts.
         """
-        return [self.system_prompt] + self.chat + [self.user_prompt]
+        chat = [message for message in self.chat if message.type == message_type]
+        return [self.system_prompt] + chat + [self.user_prompt]
 
     def is_empty(self) -> bool:
         """

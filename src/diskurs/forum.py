@@ -24,7 +24,7 @@ class Forum:
         self.conductor = first_contact
 
     def ama(self, question: str):
-        answer = self.conductor.process_conversation(question)
+        answer = self.dispatcher.run(self.conductor, question)
         return answer
 
 
@@ -37,7 +37,7 @@ class ForumFactory:
         self.dispatcher = None
         self.tool_executor = None
         self.first_contact = None
-        self.modules_to_import = ["llm_client", "dispatcher", "agent", "conductor_agent", "prompt"]
+        self.modules_to_import = ["llm_client", "dispatcher", "agent", "conductor_agent", "finalizer", "prompt"]
 
     # TODO: find a cleaner solution for modules_to_import
 
@@ -101,33 +101,32 @@ class ForumFactory:
     def create_agents(self):
         """Create agent instances based on the configuration."""
         for agent_conf in self.config.agents:
-            prompt_cls = PROMPT_REGISTRY.get(agent_conf.prompt.type)
-            prompt = prompt_cls.create(**asdict(agent_conf.prompt))
-
             additional_args = {}
 
-            if agent_conf.additional_arguments and agent_conf.additional_arguments.get("tools"):
-                additional_args["tools"] = [
-                    tool for tool in self.tools if tool.name in agent_conf.additional_arguments["tools"]
-                ]
+            if hasattr(agent_conf, "prompt"):
+                prompt_cls = PROMPT_REGISTRY.get(agent_conf.prompt.type)
+                prompt = prompt_cls.create(**asdict(agent_conf.prompt))
+                additional_args["prompt"] = prompt
+            if hasattr(agent_conf, "llm"):
+                additional_args["llm_client"] = self.llm_clients[agent_conf.llm]
+            if hasattr(agent_conf, "tools"):
+                agent_conf.tools = [tool for tool in self.tools if tool.name in agent_conf.tools]
                 additional_args["tool_executor"] = self.tool_executor
-            if self.dispatcher:
-                additional_args["dispatcher"] = self.dispatcher
-                additional_args["topics"] = agent_conf.additional_arguments["topics"]
+            if hasattr(agent_conf, "topics") and self.dispatcher:
+                additional_args["topics"] = agent_conf.topics
+            if hasattr(agent_conf, "finalizer_name"):
+                additional_args["finalizer_name"] = agent_conf.finalizer_name
+
+            additional_args["dispatcher"] = self.dispatcher
 
             agent_type = agent_conf.type
             agent_cls = AGENT_REGISTRY.get(agent_type)
             if agent_cls is None:
                 raise ValueError(f"Agent type '{agent_type}' is not registered.")
 
-            agent = agent_cls.create(
-                name=agent_conf.name, prompt=prompt, llm_client=self.llm_clients[agent_conf.llm], **additional_args
-            )
+            agent = agent_cls.create(name=agent_conf.name, **additional_args)
 
-            agent.topics = agent_conf.additional_arguments["topics"]
-
-            for topic in agent.topics:
-                self.dispatcher.subscribe(topic=topic, subscriber=agent)
+            self.dispatcher.subscribe(topic=agent.name, subscriber=agent)
 
             self.agents.append(agent)
 
@@ -139,9 +138,7 @@ class ForumFactory:
         for conf in conductor_configs:
             conductor = next((agent for agent in self.agents if agent.name == conf.name))
             conductor.agent_descriptions = {
-                agent.name: agent.prompt.agent_description
-                for agent in self.agents
-                if agent.name in conf.additional_arguments["topics"]
+                agent.name: agent.prompt.agent_description for agent in self.agents if agent.name in conf.topics
             }
 
     def identify_first_contact_agent(self):

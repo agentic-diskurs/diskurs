@@ -5,8 +5,8 @@ from typing import Optional, Self
 
 from typing_extensions import TypeVar
 
-from entities import Conversation, ChatMessage, PromptArgument
-from interfaces import ConversationDispatcher, LLMClient, Agent, ConversationParticipant
+from entities import ChatMessage, PromptArgument, MessageType
+from interfaces import ConversationDispatcher, LLMClient, Agent, ConversationParticipant, Conversation
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +26,8 @@ class BaseAgent(ABC, Agent, ConversationParticipant):
         self.dispatcher = dispatcher
         self.prompt = prompt
         self.name = name
-        self.topics = topics
+        self._topics = topics or []
         self.max_trials = max_trials
-        self._topics = []
         self.llm_client = llm_client
 
     @classmethod
@@ -77,6 +76,7 @@ class BaseAgent(ABC, Agent, ConversationParticipant):
         conversation: Conversation | str,
         system_prompt_argument: PromptArgument,
         user_prompt_argument: PromptArgument,
+        message_type: MessageType = MessageType.CONVERSATION,
     ) -> Conversation:
         """
         Ensures the conversation is in a valid state by creating a new set of prompts

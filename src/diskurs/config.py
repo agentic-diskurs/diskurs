@@ -140,16 +140,48 @@ class ConductorPromptConfig(PromptConfig):
 
 
 @dataclass(kw_only=True)
-class AgentConfig(YamlSerializable):
+class AgentConfig(YamlSerializable, Registrable):
     """
     Represents an agent configuration.
     """
 
-    name: str
     type: str
+    name: str
+
+
+@dataclass(kw_only=True)
+class FinalizerConfig(AgentConfig):
+    """
+    Represents an agent configuration.
+    """
+
+    type: str = "finalizer"
+    foo: str
+
+
+@dataclass(kw_only=True)
+class MultistepAgentConfig(AgentConfig):
+    """
+    Represents an agent configuration.
+    """
+
+    type: str = "multistep"
     llm: str
     prompt: PromptConfig
-    additional_arguments: Optional[dict] = field(default=None, repr=False)
+    topics: list[str]
+
+
+@dataclass(kw_only=True)
+class ConductorAgentConfig(AgentConfig):
+    """
+    Represents an agent configuration.
+    """
+
+    type: str = "conductor"
+    llm: str
+    prompt: PromptConfig
+    topics: list[str]
+    finalizer_name: str
 
 
 @dataclass(kw_only=True)

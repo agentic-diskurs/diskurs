@@ -26,18 +26,17 @@ class ConductorAgent(BaseAgent):
         super().__init__(name, prompt, llm_client, topics, dispatcher, max_trials)
         self.agent_descriptions = agent_descriptions
         self.max_reasoning_steps = max_reasoning_steps
-        self._topics = []
         self.finalizer_name = finalizer_name
 
     @classmethod
     def create(
         cls,
         name: str,
-        prompt: ConductorPrompt,
-        llm_client: LLMClient,
         **kwargs,
     ) -> Self:
-        agent_descriptions = kwargs.get("agent_descriptions", {})
+        prompt = kwargs.get("prompt")
+        llm_client = kwargs.get("llm_client")
+        agent_descriptions = kwargs.get("agent_descriptions")
         finalizer_name = kwargs.get("finalizer_name", "")
         dispatcher = kwargs.get("dispatcher", None)
         max_reasoning_steps = kwargs.get("max_reasoning_steps", 5)
