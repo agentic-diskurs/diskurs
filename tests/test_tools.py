@@ -1,6 +1,6 @@
 from pprint import pprint
 
-from diskurs.tools import tool, ToolExecutor
+from tools import tool, ToolExecutor
 from entities import ToolDescription
 
 
@@ -44,7 +44,6 @@ def test_annotation():
 
 import pytest
 import logging
-from unittest.mock import MagicMock
 
 
 # Assuming the ToolExecutor class and logger have been imported

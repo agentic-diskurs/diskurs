@@ -12,6 +12,22 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+packages = [
+    { include = "diskurs"},
+]
+
+include = [
+    { path = "src/diskurs/**/*.jinja2", format = "sdist" },
+    { path = "src/diskurs/**/*.txt", format = "sdist" },
+]
+
+exclude = [
+    "tests",
+    "tests/**",
+    "**/__pycache__",
+    "**/*.py[cod]",
+]
+
 
 [tool.poetry.dependencies]
 python = "^3.12"

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from diskurs.entities import PromptArgument
-from diskurs.prompt import PromptValidationError
+from entities import PromptArgument
+from prompt import PromptValidationError
 
 
 @dataclass
@@ -25,9 +25,7 @@ def is_valid(arg: MyUserPromptArgument) -> bool:
     if not arg.topic:
         raise PromptValidationError("Please extract the topic of the user's query")
     if not arg.user_question:
-        raise PromptValidationError(
-            "Please extract a concise description of the user's question"
-        )
+        raise PromptValidationError("Please extract a concise description of the user's question")
     return True
 
 

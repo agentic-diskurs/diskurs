@@ -37,9 +37,9 @@ class SynchronousConversationDispatcher(ConversationDispatcher):
         if not self.future.done():
             self.future.set_result(response)
 
-    def run(self, participant: ConversationParticipant, question: str) -> dict:
+    def run(self, participant: ConversationParticipant, question: dict) -> dict:
         """Finish the conversation."""
-        participant.process_conversation(question)
+        participant.start_conversation(question)
 
         final_result = self.future.result()
         return final_result

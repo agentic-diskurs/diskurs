@@ -174,6 +174,8 @@ class ConversationParticipant(Protocol):
 
     def register_dispatcher(self, dispatcher: Conversation) -> None: ...
 
+    def start_conversation(self, question: dict) -> None: ...
+
 
 class ConversationDispatcher(Protocol):
     def subscribe(self, topic: str, participant: ConversationParticipant) -> None:
@@ -188,7 +190,7 @@ class ConversationDispatcher(Protocol):
         """Dispatch a conversation to all participants subscribed to the topic."""
         pass
 
-    def run(self, participant: ConversationParticipant, question: str) -> dict:
+    def run(self, participant: ConversationParticipant, question: dict) -> dict:
         """Finish the conversation."""
         pass
 

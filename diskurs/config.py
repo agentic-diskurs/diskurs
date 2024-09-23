@@ -150,16 +150,6 @@ class AgentConfig(YamlSerializable, Registrable):
 
 
 @dataclass(kw_only=True)
-class FinalizerConfig(AgentConfig):
-    """
-    Represents an agent configuration.
-    """
-
-    type: str = "finalizer"
-    foo: str
-
-
-@dataclass(kw_only=True)
 class MultistepAgentConfig(AgentConfig):
     """
     Represents an agent configuration.
@@ -181,7 +171,6 @@ class ConductorAgentConfig(AgentConfig):
     llm: str
     prompt: PromptConfig
     topics: list[str]
-    finalizer_name: str
 
 
 @dataclass(kw_only=True)

@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, asdict
+from typing import Optional, Any
 
 from diskurs.entities import PromptArgument, LongtermMemory
 
@@ -17,8 +17,13 @@ class ConductorUserPromptArgument(PromptArgument):
 
 @dataclass
 class MyConductorLongtermMemory(LongtermMemory):
-    my_memory: Optional[str] = ""
+    user_query: Optional[str] = ""
+    test_flag: int = 0
 
 
 def can_finalize(longterm_memory: MyConductorLongtermMemory) -> bool:
-    return True
+    return longterm_memory.test_flag != 0
+
+
+def finalize(longterm_memory: MyConductorLongtermMemory) -> dict[str, Any]:
+    return asdict(longterm_memory)

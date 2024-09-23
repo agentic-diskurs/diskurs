@@ -5,8 +5,8 @@ import openai
 import pytest
 from dotenv import load_dotenv
 
-from diskurs.llm_client import LLMClient
-from diskurs.entities import Conversation, ChatMessage, Role, PromptArgument
+from llm_client import LLMClient
+from entities import Conversation, ChatMessage, Role, PromptArgument
 
 load_dotenv()
 
@@ -25,9 +25,7 @@ def dummy_openai():
 
 @pytest.fixture
 def init_conversation():
-    system_prompt = ChatMessage(
-        role=Role.SYSTEM, content="You are a helpful assistant."
-    )
+    system_prompt = ChatMessage(role=Role.SYSTEM, content="You are a helpful assistant.")
     user_prompt = ChatMessage(role=Role.USER, content="What is the capital of france?")
 
     system_prompt_arg = PromptArgument()

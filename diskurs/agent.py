@@ -5,8 +5,8 @@ from typing import Optional, Self
 
 from typing_extensions import TypeVar
 
-from entities import ChatMessage, PromptArgument, MessageType
-from interfaces import ConversationDispatcher, LLMClient, Agent, ConversationParticipant, Conversation
+from entities import ChatMessage, PromptArgument, MessageType, Conversation
+from interfaces import ConversationDispatcher, LLMClient, Agent, ConversationParticipant
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class BaseAgent(ABC, Agent, ConversationParticipant):
 
     def prepare_conversation(
         self,
-        conversation: Conversation | str,
+        conversation: Conversation,
         system_prompt_argument: PromptArgument,
         user_prompt_argument: PromptArgument,
         message_type: MessageType = MessageType.CONVERSATION,
@@ -86,37 +86,32 @@ class BaseAgent(ABC, Agent, ConversationParticipant):
             or a string to start a new conversation.
         :param system_prompt_argument: The system prompt argument to use for the system prompt.
         :param user_prompt_argument: The user prompt argument to use for the user prompt.
+        :param message_type: The type of message to render the user prompt as.
         :return: A deep copy of the conversation, in a valid state for this agent
         """
-        if isinstance(conversation, str):
-            user_prompt_argument.content = conversation
 
         system_prompt = self.prompt.render_system_template(self.name, prompt_args=system_prompt_argument)
-        user_prompt = self.prompt.render_user_template(name=self.name, prompt_args=user_prompt_argument)
+        user_prompt = self.prompt.render_user_template(
+            name=self.name, prompt_args=user_prompt_argument, message_type=message_type
+        )
 
-        if isinstance(conversation, str):
-            return Conversation(
-                system_prompt_argument=system_prompt_argument,
-                user_prompt_argument=user_prompt_argument,
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-            )
         return conversation.update(
-            chat=conversation.chat,
             system_prompt_argument=system_prompt_argument,
             user_prompt_argument=user_prompt_argument,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
         )
 
-    def generate_validated_response(self, conversation: Conversation) -> Conversation:
+    def generate_validated_response(
+        self, conversation: Conversation, message_type: MessageType = MessageType.CONVERSATION
+    ) -> Conversation:
         for max_trials in range(self.max_trials):
 
             response = self.llm_client.generate(conversation, getattr(self, "tools", None))
-            parsed_response = self.prompt.parse_user_prompt(response.last_message.content)
+
+            parsed_response = self.prompt.parse_user_prompt(response.last_message.content, message_type=message_type)
 
             if is_dataclass(parsed_response):
-                self.max_trials = 0
                 return response.update(
                     user_prompt_argument=parsed_response,
                     user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=parsed_response),

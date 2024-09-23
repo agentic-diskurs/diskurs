@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from diskurs.prompt import MultistepPrompt
+from prompt import MultistepPrompt
 
 
 @pytest.fixture

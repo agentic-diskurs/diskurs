@@ -23,7 +23,7 @@ class Forum:
         self.tool_executor = tool_executor
         self.conductor = first_contact
 
-    def ama(self, question: str):
+    def ama(self, question: dict):
         answer = self.dispatcher.run(self.conductor, question)
         return answer
 
@@ -37,7 +37,7 @@ class ForumFactory:
         self.dispatcher = None
         self.tool_executor = None
         self.first_contact = None
-        self.modules_to_import = ["llm_client", "dispatcher", "agent", "conductor_agent", "finalizer", "prompt"]
+        self.modules_to_import = ["llm_client", "dispatcher", "agent", "conductor_agent", "prompt"]
 
     # TODO: find a cleaner solution for modules_to_import
 

@@ -87,8 +87,8 @@ class Conversation:
     # TODO:  We need to handle ...prompt_arguments in a better way i.e. reset them reliably after each agent.
     def __init__(
         self,
-        system_prompt: ChatMessage,
-        user_prompt: ChatMessage,
+        system_prompt: Optional[ChatMessage] = None,
+        user_prompt: Optional[ChatMessage] = None,
         system_prompt_argument: Optional[GenericSystemPromptArg] = None,
         user_prompt_argument: Optional[GenericUserPromptArg] = None,
         chat=None,
@@ -263,7 +263,11 @@ class Conversation:
 
         :return: A list representing the full chat, including the system and user prompts.
         """
-        chat = [message for message in self.chat if message.type == message_type]
+        if message_type == MessageType.CONVERSATION:
+            chat = [message for message in self.chat if message.type == message_type]
+        else:
+            chat = self.chat
+
         return [self.system_prompt] + chat + [self.user_prompt]
 
     def is_empty(self) -> bool:
@@ -301,7 +305,7 @@ class PromptArgument:
 
 @dataclass
 class LongtermMemory:
-    pass
+    user_query: str
 
 
 @dataclass

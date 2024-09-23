@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 
 
-from diskurs.entities import Conversation
+from entities import Conversation
 
 load_dotenv()
 

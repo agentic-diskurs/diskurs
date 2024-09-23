@@ -104,7 +104,7 @@ class MultiStepAgent(BaseAgent):
         else:
             return self.generate_validated_response(response)
 
-    def invoke(self, conversation: Conversation | str) -> Conversation:
+    def invoke(self, conversation: Conversation) -> Conversation:
         """
         Runs the agent on a conversation, performing reasoning steps until the user prompt is final,
         meaning all the conditions, as specified in the prompt's is_final function, are met.

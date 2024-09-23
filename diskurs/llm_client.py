@@ -9,7 +9,7 @@ from openai import APIError, APITimeoutError, RateLimitError, UnprocessableEntit
 from openai import OpenAI, BadRequestError, AzureOpenAI
 from openai.types.chat import ChatCompletion
 
-from entities import Conversation, ChatMessage, Role, ToolCall, ToolDescription
+from entities import Conversation, ChatMessage, Role, ToolCall, ToolDescription, MessageType
 from interfaces import LLMClient
 from registry import register_llm
 from tools import map_python_type_to_json
@@ -138,10 +138,11 @@ class BaseOaiApiLLMClient(LLMClient):
         return completion.choices[0].finish_reason == "tool_calls"
 
     @classmethod
-    def llm_response_to_chat_message(cls, completion: ChatCompletion) -> ChatMessage:
+    def llm_response_to_chat_message(cls, completion: ChatCompletion, message_type: MessageType) -> ChatMessage:
         """
         Converts the message returned by the LLM to a typed ChatMessage.
         :param completion: The response from the LLM model
+        :param message_type: The type of message to be created
         :return: A ChatMessage object containing the structured response
         """
         if cls.is_tool_call(completion):
@@ -153,11 +154,12 @@ class BaseOaiApiLLMClient(LLMClient):
                 )
                 for tool_call in completion.choices[0].message.tool_calls
             ]
-            return ChatMessage(role=Role.ASSISTANT, tool_calls=tool_calls)
+            return ChatMessage(role=Role.ASSISTANT, tool_calls=tool_calls, type=message_type)
         else:
             return ChatMessage(
                 role=Role(completion.choices[0].message.role),
                 content=completion.choices[0].message.content,
+                type=message_type,
             )
 
     @classmethod
@@ -176,7 +178,8 @@ class BaseOaiApiLLMClient(LLMClient):
         user_prompt = (
             conversation.user_prompt if isinstance(conversation.user_prompt, list) else [conversation.user_prompt]
         )
-        return user_prompt + [cls.llm_response_to_chat_message(completion)]
+        message_type = next((m.type for m in user_prompt))
+        return user_prompt + [cls.llm_response_to_chat_message(completion, message_type=message_type)]
 
     def generate(self, conversation: Conversation, tools: Optional[ToolDescription] = None) -> Conversation:
         """
