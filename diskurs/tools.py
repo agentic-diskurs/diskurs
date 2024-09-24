@@ -1,9 +1,10 @@
+import importlib
 import inspect
 import re
 from collections import defaultdict
 from functools import wraps
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, Any
 import logging
 
 from config import ToolConfig
@@ -11,8 +12,7 @@ from entities import ToolCallResult, ToolCall
 from registry import register_tool_executor
 from utils import load_module_from_path
 
-# Set up logging (this should ideally be done at the module or class level)
-logging.basicConfig(level=logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 
@@ -111,11 +111,24 @@ class ToolExecutor:
             raise ValueError(f"Tool '{tool_call.function_name}' not found.")
 
 
-def load_tools(tool_configs: list[ToolConfig]) -> list[Callable]:
+def create_func_with_closure(func: Callable, config: ToolConfig, dependency_config: dict[str, Any]) -> Callable:
+    func_args = (
+        {dep_name: dependency_config[dep_name] for dep_name in config.dependencies} if config.dependencies else {}
+    )
+    try:
+        return func(config.configs, **func_args)
+
+    except AttributeError as e:
+        raise ImportError(f"Could not load '{config.function_name}'" + f"from '{config.module_path.name}': {e}")
+
+
+def load_tools(tool_configs: list[ToolConfig], tool_dependencies: dict[str, Any]) -> list[Callable]:
     modules_to_functions = defaultdict(list)
 
     for tool in tool_configs:
         modules_to_functions[tool.module_path].append(tool.function_name)
+
+    tool_idx = {tool_cfg.name: tool_cfg for tool_cfg in tool_configs}
 
     tool_functions = []
 
@@ -125,7 +138,14 @@ def load_tools(tool_configs: list[ToolConfig]) -> list[Callable]:
         module = load_module_from_path(module_name, module_path)
 
         for function_name in function_names:
-            func = getattr(module, function_name)
+            if tool_idx[function_name].dependencies or tool_idx[function_name].configs:
+                func = getattr(module, "create_" + function_name)
+                func = create_func_with_closure(
+                    func=func, config=tool_idx[function_name], dependency_config=tool_dependencies
+                )
+            else:
+                func = getattr(module, function_name)
+
             tool_functions.append(func)
 
     return tool_functions

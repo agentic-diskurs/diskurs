@@ -204,8 +204,9 @@ class ToolConfig(YamlSerializable):
 
     name: str
     function_name: str
-    module_path: Path  # Changed to Path type
+    module_path: Path
     configs: Optional[dict] = None
+    dependencies: Optional[list[str]] = None
 
 
 @dataclass
@@ -221,6 +222,7 @@ class ForumConfig(YamlSerializable):
     llms: list[LLMConfig]
     tools: list[ToolConfig]
     custom_modules: list[str] = field(default_factory=list)
+    tool_dependencies: dict[str, Any] = field(default_factory=dict)
 
 
 def resolve_env_vars(data):

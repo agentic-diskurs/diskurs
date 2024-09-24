@@ -1,4 +1,5 @@
 import importlib
+import logging
 from dataclasses import asdict
 from pathlib import Path
 from typing import List
@@ -8,6 +9,8 @@ from protocols import Agent, ConversationParticipant
 from registry import AGENT_REGISTRY, LLM_REGISTRY, TOOL_EXECUTOR_REGISTRY, DISPATCHER_REGISTRY, PROMPT_REGISTRY
 from tools import load_tools
 from utils import load_module_from_path
+
+logging.basicConfig(level=logging.WARNING)
 
 
 class Forum:
@@ -79,7 +82,7 @@ class ForumFactory:
 
     def load_and_register_tools(self):
         """Load and register tools with the tool executor."""
-        self.tools = load_tools(self.config.tools)
+        self.tools = load_tools(self.config.tools, self.config.tool_dependencies)
         self.tool_executor.register_tools(self.tools)
 
     def create_dispatcher(self):
