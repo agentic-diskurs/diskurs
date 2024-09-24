@@ -2,7 +2,7 @@ from typing import Optional, Callable, Self
 
 from agent import BaseAgent
 from entities import ToolDescription, Conversation, ChatMessage, Role
-from interfaces import LLMClient, ConversationDispatcher, MultistepPrompt
+from protocols import LLMClient, ConversationDispatcher, MultistepPromptProtocol
 from registry import register_agent
 from tools import ToolExecutor
 
@@ -13,7 +13,7 @@ class MultiStepAgent(BaseAgent):
     def __init__(
         self,
         name: str,
-        prompt: MultistepPrompt,
+        prompt: MultistepPromptProtocol,
         llm_client: LLMClient,
         topics: Optional[list[str]] = None,
         dispatcher: Optional[ConversationDispatcher] = None,
@@ -31,7 +31,7 @@ class MultiStepAgent(BaseAgent):
     def create(
         cls,
         name: str,
-        prompt: MultistepPrompt,
+        prompt: MultistepPromptProtocol,
         llm_client: LLMClient,
         **kwargs,
     ) -> Self:

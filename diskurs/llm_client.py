@@ -10,7 +10,7 @@ from openai import OpenAI, BadRequestError, AzureOpenAI
 from openai.types.chat import ChatCompletion
 
 from entities import Conversation, ChatMessage, Role, ToolCall, ToolDescription, MessageType
-from interfaces import LLMClient
+from protocols import LLMClient
 from registry import register_llm
 from tools import map_python_type_to_json
 

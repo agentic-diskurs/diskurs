@@ -13,6 +13,7 @@ from entities import (
     GenericConductorLongtermMemory,
     MessageType,
 )
+from protocols import MultistepPromptProtocol, ConductorPromptProtocol
 from registry import register_prompt
 from utils import load_module_from_path
 
@@ -144,8 +145,14 @@ class PromptRendererMixin:
         self.user_prompt_argument = user_prompt_argument_class
         self.system_template = system_template
         self.user_template = user_template
-        self.is_valid = is_valid or (lambda x: True)
-        self.is_final = is_final or (lambda x: True)
+        self._is_valid = is_valid or (lambda x: True)
+        self._is_final = is_final or (lambda x: True)
+
+    def is_final(self, user_prompt_argument: PromptArgument) -> bool:
+        return self._is_final(user_prompt_argument)
+
+    def is_valid(self, user_prompt_argument: PromptArgument) -> bool:
+        return self._is_valid(user_prompt_argument)
 
     def create_system_prompt_argument(self, **prompt_args: dict) -> SystemPromptArg:
         return self.system_prompt_argument(**prompt_args)
@@ -246,7 +253,7 @@ class PromptLoaderMixin:
 
 
 @register_prompt("multistep_prompt")
-class MultistepPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin):
+class MultistepPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin, MultistepPromptProtocol):
     def __init__(
         self,
         agent_description: str,
@@ -326,7 +333,7 @@ class MultistepPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin)
 
 
 @register_prompt("conductor_prompt")
-class ConductorPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin):
+class ConductorPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin, ConductorPromptProtocol):
     def __init__(
         self,
         agent_description: str,

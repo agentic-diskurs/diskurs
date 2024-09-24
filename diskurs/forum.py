@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List
 
 from config import load_config_from_yaml
-from interfaces import Agent, ConversationParticipant
+from protocols import Agent, ConversationParticipant
 from registry import AGENT_REGISTRY, LLM_REGISTRY, TOOL_EXECUTOR_REGISTRY, DISPATCHER_REGISTRY, PROMPT_REGISTRY
 from tools import load_tools
 from utils import load_module_from_path

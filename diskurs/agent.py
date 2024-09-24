@@ -6,7 +6,7 @@ from typing import Optional, Self
 from typing_extensions import TypeVar
 
 from entities import ChatMessage, PromptArgument, MessageType, Conversation
-from interfaces import ConversationDispatcher, LLMClient, Agent, ConversationParticipant
+from protocols import ConversationDispatcher, LLMClient, Agent, ConversationParticipant
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +29,6 @@ class BaseAgent(ABC, Agent, ConversationParticipant):
         self._topics = topics or []
         self.max_trials = max_trials
         self.llm_client = llm_client
-
-    @classmethod
-    @abstractmethod
-    def create(cls, name: str, prompt: Prompt, llm_client: LLMClient, **kwargs) -> Self:
-        pass
 
     @property
     def topics(self) -> list[str]:

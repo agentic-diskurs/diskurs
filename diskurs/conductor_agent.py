@@ -4,7 +4,7 @@ from typing import Optional, Self, Any
 
 from agent import BaseAgent
 from entities import Conversation, MessageType
-from interfaces import LLMClient, ConversationDispatcher, ConductorPrompt
+from protocols import LLMClient, ConversationDispatcher, ConductorPromptProtocol
 
 from registry import register_agent
 
@@ -14,7 +14,7 @@ class ConductorAgent(BaseAgent):
     def __init__(
         self,
         name: str,
-        prompt: ConductorPrompt,
+        prompt: ConductorPromptProtocol,
         llm_client: LLMClient,
         topics: list[str],
         agent_descriptions: dict[str, str],

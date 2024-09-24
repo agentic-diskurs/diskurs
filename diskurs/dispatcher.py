@@ -1,7 +1,7 @@
 from concurrent.futures import Future
 
 from entities import Conversation
-from interfaces import ConversationParticipant, ConversationDispatcher
+from protocols import ConversationParticipant, ConversationDispatcher
 from registry import register_dispatcher
 
 
