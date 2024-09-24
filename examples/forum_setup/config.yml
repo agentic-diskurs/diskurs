@@ -1,24 +1,18 @@
 first_contact: "conductor_agent"
 toolExecutorType: "default"
 dispatcherType: "synchronous"
-customModules:
-  - "conductor_agent.py"
-  - "multistep_agent.py"
+# customModules:
 agents:
-  - name: "finalizer_agent"
-    type: "finalizer"
-    foo: "bar"
   - name: "conductor_agent"
     type: "conductor"
     llm: "gpt-4-switzerland-north"
     prompt:
       type: "conductor_prompt"
-      location: "conductor_agent"
+      location: "agents/conductor_agent"
       userPromptArgumentClass: "ConductorUserPromptArgument"
       systemPromptArgumentClass: "ConductorSystemPromptArgument"
       longtermMemoryClass: "MyConductorLongtermMemory"
       canFinalizeName: "can_finalize"
-      finalizerName: "finalizer_agent"
     topics:
       - "first_agent"
       - "second_agent"
@@ -28,7 +22,7 @@ agents:
     llm: "gpt-4-switzerland-north"
     prompt:
       type: "multistep_prompt"
-      location: "my_agents/first_agent"
+      location: "agents/first_agent"
       userPromptArgumentClass: "FirstSystemPromptArgument"
       systemPromptArgumentClass: "FirstUserPromptArgument"
       isValidName: "is_valid"
@@ -43,7 +37,7 @@ agents:
     llm: "gpt-4-switzerland-north"
     prompt:
       type: "multistep_prompt"
-      location: "my_agents/second_agent"
+      location: "agents/second_agent"
       userPromptArgumentClass: "SecondUserPromptArgument"
       systemPromptArgumentClass: "SecondSystemPromptArgument"
       isValidName: "is_valid"

@@ -29,8 +29,8 @@ class Forum:
 
 
 class ForumFactory:
-    def __init__(self, config_path: Path):
-        self.config = load_config_from_yaml(config_path)
+    def __init__(self, config_path: Path, base_path: Path):
+        self.config = load_config_from_yaml(config=config_path, base_path=base_path)
         self.llm_clients = {}
         self.agents = []
         self.tools = []
@@ -62,7 +62,7 @@ class ForumFactory:
     def import_modules(self):
         """Dynamically import modules required for registration."""
         for module_name in self.modules_to_import:
-            importlib.import_module(module_name)
+            importlib.import_module(name=module_name, package="diskurs")
 
     def load_custom_modules(self):
         """Load custom modules specified in the configuration."""
@@ -149,6 +149,6 @@ class ForumFactory:
             raise ValueError(f"First contact agent '{first_contact_name}' not found among agents.")
 
 
-def create_forum_from_config(config_path: Path) -> Forum:
-    factory = ForumFactory(config_path)
+def create_forum_from_config(config_path: Path, base_path: Path) -> Forum:
+    factory = ForumFactory(config_path=config_path, base_path=base_path)
     return factory.create_forum()
