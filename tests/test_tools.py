@@ -170,3 +170,24 @@ def test_register_multiple_tools_with_overwrite(tool_executor, caplog):
     # Check that the warning is logged
     assert "Tool 'tool_c' already exists and will be overwritten." in caplog.text
 
+
+def test_invisible_params():
+    @tool
+    def get_delivery_date(order_id: str, company_id: str, season: str) -> str:
+        """
+        Get the delivery date for a customer's order.
+
+        :param order_id: The customer's order ID.
+        :param company_id: [invisible] the job you're working in
+        :param season: season of the year
+        :return: The delivery date as a string.
+        """
+        return "2024-09-03"
+
+    # Access the tool descriptor
+    tool_description = ToolDescription.from_function(get_delivery_date)
+    assert get_delivery_date.invisible_args == {
+        "company_id": {"title": "company_id", "type": "str", "description": "[invisible] the job you're working in"}
+    }
+    assert "season" in tool_description.arguments.keys()
+    assert "company_id" not in tool_description.arguments.keys()

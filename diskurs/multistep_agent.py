@@ -1,7 +1,7 @@
 from typing import Optional, Callable, Self
 
 from agent import BaseAgent
-from entities import ToolDescription, Conversation, ChatMessage, Role
+from entities import ToolDescription, Conversation, ChatMessage, Role, ToolCall
 from protocols import LLMClient, ConversationDispatcher, MultistepPromptProtocol
 from registry import register_agent
 from tools import ToolExecutor

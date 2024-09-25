@@ -34,10 +34,12 @@ def tool(func):
         "name": func.__name__,
         "description": "",
         "args": {},
+        "metadata": {},
     }
 
     param_descriptions = {}
     current_param = None
+    invisible_params = set()
 
     # Process docstring using regular expressions for :param and :return:
     param_regex = re.compile(r":param\s+(\w+):\s*(.+)")
@@ -48,6 +50,9 @@ def tool(func):
     for line in map(str.strip, docstring.splitlines()):
         if param_match := param_regex.match(line):
             current_param, param_description = param_match.groups()
+            if "[invisible]" in param_description:
+                invisible_params.add(current_param)
+                param_description = param_description.replace("[metadata]", "").strip()
             param_descriptions[current_param] = param_description
         elif return_match := return_regex.match(line):
             return_description = return_match.group(1)
@@ -61,14 +66,21 @@ def tool(func):
     if return_description:
         metadata["description"] += f"\nReturns: {return_description}"
 
+    if invisible_params:
+        metadata["invisible_args"] = {}
+
     # Construct argument metadata from param descriptions and type hints
     for param_name, param_description in param_descriptions.items():
         param_type = func.__annotations__.get(param_name, "unknown").__name__
-        metadata["args"][param_name] = {
-            "title": param_name.capitalize(),
+        arg_description = {
+            "title": param_name,
             "type": param_type,
             "description": param_description.strip(),
         }
+        if param_name in invisible_params:
+            metadata["invisible_args"][param_name] = arg_description
+        else:
+            metadata["args"][param_name] = arg_description
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -77,6 +89,7 @@ def tool(func):
     wrapper.name = metadata["name"]
     wrapper.description = metadata["description"]
     wrapper.args = metadata["args"]
+    wrapper.invisible_args = metadata["invisible_args"]
 
     return wrapper
 
@@ -100,12 +113,14 @@ class ToolExecutor:
                 logger.warning(f"Tool '{tool_name}' already exists and will be overwritten.")
             self.tools = {**self.tools, tool_name: tool_list}
 
-    def execute_tool(self, tool_call: ToolCall) -> ToolCallResult:
+    def execute_tool(self, tool_call: ToolCall, metadata: dict) -> ToolCallResult:
         if tool := self.tools.get(tool_call.function_name):
+            if tool.invisible_args:
+                invisible_args = {key: metadata[key] for key in tool.invisible_args if key in metadata}
             return ToolCallResult(
                 tool_call_id=tool_call.tool_call_id,
                 function_name=tool_call.function_name,
-                result=tool(**tool_call.arguments),
+                result=tool(**{**tool_call.arguments, **invisible_args}),
             )
         else:
             raise ValueError(f"Tool '{tool_call.function_name}' not found.")
