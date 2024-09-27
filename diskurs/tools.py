@@ -1,17 +1,17 @@
-import importlib
 import inspect
+import inspect
+import logging
 import re
 from collections import defaultdict
 from functools import wraps
 from pathlib import Path
 from typing import Callable, Optional, Any
-import logging
 
-from config import ToolConfig
-from entities import ToolCallResult, ToolCall
-from registry import register_tool_executor
-from utils import load_module_from_path
-
+from diskurs import ToolDependency
+from diskurs.config import ToolConfig
+from diskurs.entities import ToolCallResult, ToolCall
+from diskurs.registry import register_tool_executor
+from diskurs.utils import load_module_from_path
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +30,7 @@ def tool(func):
     docstring = inspect.getdoc(func) or ""
 
     # Initialize metadata
-    metadata = {
-        "name": func.__name__,
-        "description": "",
-        "args": {},
-        "metadata": {},
-    }
+    metadata = {"name": func.__name__, "description": "", "args": {}, "metadata": {}, "invisible_args": {}}
 
     param_descriptions = {}
     current_param = None
@@ -115,6 +110,7 @@ class ToolExecutor:
 
     def execute_tool(self, tool_call: ToolCall, metadata: dict) -> ToolCallResult:
         if tool := self.tools.get(tool_call.function_name):
+            invisible_args = {}
             if tool.invisible_args:
                 invisible_args = {key: metadata[key] for key in tool.invisible_args if key in metadata}
             return ToolCallResult(
@@ -126,10 +122,17 @@ class ToolExecutor:
             raise ValueError(f"Tool '{tool_call.function_name}' not found.")
 
 
-def create_func_with_closure(func: Callable, config: ToolConfig, dependency_config: dict[str, Any]) -> Callable:
-    func_args = (
-        {dep_name: dependency_config[dep_name] for dep_name in config.dependencies} if config.dependencies else {}
-    )
+def create_func_with_closure(func: Callable, config: ToolConfig, dependency_config: list[ToolDependency]) -> Callable:
+    func_args = {}
+
+    if config.dependencies:
+        dependency_config_map = {cfg.name: cfg for cfg in dependency_config}
+        func_args = {dep: dependency_config_map[dep] for dep in config.dependencies if dep in dependency_config_map}
+
+        missing_deps = [dep for dep in config.dependencies if dep not in dependency_config_map]
+        if missing_deps:
+            raise ValueError(f"Missing configurations for dependencies: {', '.join(missing_deps)}")
+
     try:
         return func(config.configs, **func_args)
 
@@ -137,13 +140,13 @@ def create_func_with_closure(func: Callable, config: ToolConfig, dependency_conf
         raise ImportError(f"Could not load '{config.function_name}'" + f"from '{config.module_path.name}': {e}")
 
 
-def load_tools(tool_configs: list[ToolConfig], tool_dependencies: dict[str, Any]) -> list[Callable]:
+def load_tools(tool_configs: list[ToolConfig], tool_dependencies: list[ToolDependency]) -> list[Callable]:
     modules_to_functions = defaultdict(list)
 
     for tool in tool_configs:
         modules_to_functions[tool.module_path].append(tool.function_name)
 
-    tool_idx = {tool_cfg.name: tool_cfg for tool_cfg in tool_configs}
+    tool_idx = {tool_cfg.function_name: tool_cfg for tool_cfg in tool_configs}
 
     tool_functions = []
 
@@ -159,7 +162,17 @@ def load_tools(tool_configs: list[ToolConfig], tool_dependencies: dict[str, Any]
                     func=func, config=tool_idx[function_name], dependency_config=tool_dependencies
                 )
             else:
-                func = getattr(module, function_name)
+                try:
+                    func = getattr(module, function_name)
+
+                except AttributeError as e:
+                    try:
+                        func = getattr(module, "create_" + function_name)
+                    except AttributeError as fallback_e:
+                        raise ImportError(
+                            f"Could neither load '{function_name}' nor create_+{function_name}"
+                            + f"from '{module_path.name}': {fallback_e}"
+                        )
 
             tool_functions.append(func)
 

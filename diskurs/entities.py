@@ -1,11 +1,7 @@
 import copy
-from collections import defaultdict
-from dataclasses import dataclass, field, fields
-from typing import Optional, TypeVar, Any, Callable
-
+from dataclasses import dataclass
 from enum import Enum
-
-from typing_extensions import Generic
+from typing import Optional, TypeVar, Any, Callable
 
 
 class Role(Enum):
@@ -113,12 +109,12 @@ class Conversation:
         else:
             self._chat = copy.deepcopy(chat)
 
-        self._system_prompt = system_prompt
-        self._user_prompt = user_prompt
+        self._system_prompt = copy.deepcopy(system_prompt) if system_prompt else None
+        self._user_prompt = copy.deepcopy(user_prompt) if user_prompt else None
         self._user_prompt_argument = copy.deepcopy(user_prompt_argument) if user_prompt_argument else None
         self._system_prompt_argument = copy.deepcopy(system_prompt_argument) if system_prompt_argument else None
-        self._longterm_memory = longterm_memory or {}
-        self._metadata = copy.deepcopy(metadata or {})
+        self._longterm_memory = copy.deepcopy(longterm_memory) or {}
+        self._metadata = copy.deepcopy(metadata) or {}
 
     @property
     def chat(self) -> list[ChatMessage]:
@@ -232,7 +228,7 @@ class Conversation:
 
     def append(
         self,
-        message: str | ChatMessage | list[ChatMessage],
+        message: ChatMessage | list[ChatMessage],
         role: Optional[Role] = "",
         name: Optional[str] = "",
     ) -> "Conversation":

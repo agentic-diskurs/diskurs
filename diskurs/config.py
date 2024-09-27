@@ -8,6 +8,9 @@ from typing import Type
 
 import yaml
 
+from diskurs.entities import ToolDescription
+from diskurs.utils import load_module_from_path
+
 T = TypeVar("T", bound="YamlSerializable")
 
 
@@ -147,6 +150,7 @@ class AgentConfig(YamlSerializable, Registrable):
 
     type: str
     name: str
+    topics: list[str]
 
 
 @dataclass(kw_only=True)
@@ -158,7 +162,7 @@ class MultistepAgentConfig(AgentConfig):
     type: str = "multistep"
     llm: str
     prompt: PromptConfig
-    topics: list[str]
+    tools: Optional[list[str]] = None
 
 
 @dataclass(kw_only=True)
@@ -170,7 +174,6 @@ class ConductorAgentConfig(AgentConfig):
     type: str = "conductor"
     llm: str
     prompt: PromptConfig
-    topics: list[str]
 
 
 @dataclass(kw_only=True)
@@ -210,6 +213,12 @@ class ToolConfig(YamlSerializable):
 
 
 @dataclass
+class ToolDependency(YamlSerializable, Registrable):
+    type: str
+    name: str
+
+
+@dataclass
 class ForumConfig(YamlSerializable):
     """
     Represents the entire config file structure.
@@ -222,7 +231,7 @@ class ForumConfig(YamlSerializable):
     llms: list[LLMConfig]
     tools: list[ToolConfig]
     custom_modules: list[str] = field(default_factory=list)
-    tool_dependencies: dict[str, Any] = field(default_factory=dict)
+    tool_dependencies: list[ToolDependency] = field(default_factory=dict)
 
 
 def resolve_env_vars(data):
@@ -260,11 +269,6 @@ def get_dataclass_subclass(base_class, data):
         return base_class
 
 
-from dataclasses import is_dataclass
-from typing import get_args, get_origin
-from pathlib import Path
-
-
 def dataclass_loader(dataclass_type, data, base_path: Optional[Path] = None):
     """Recursively loads YAML data into the appropriate dataclass."""
     if is_dataclass(dataclass_type) and isinstance(data, dict):
@@ -293,6 +297,13 @@ def dataclass_loader(dataclass_type, data, base_path: Optional[Path] = None):
         return data
 
 
+def pre_load_custom_modules(yaml_data, base_path: Path):
+    custom_modules = yaml_data.get("custom_modules", [])
+    for module_name in custom_modules:
+        module_full_path = (base_path / f"{module_name.replace('.', '/')}.py").resolve()
+        load_module_from_path(module_full_path.stem, module_full_path)
+
+
 def load_config_from_yaml(config: str | Path, base_path: Optional[Path] = None) -> ForumConfig:
     """
     Loads the complete configuration from YAML content and maps it
@@ -312,4 +323,7 @@ def load_config_from_yaml(config: str | Path, base_path: Optional[Path] = None) 
     yaml_data = yaml.safe_load(config_content)
     yaml_data = resolve_env_vars(yaml_data)
     snake_case_data = YamlSerializable._convert_keys_to_snake_case(yaml_data)
+
+    pre_load_custom_modules(snake_case_data, base_path)
+
     return dataclass_loader(ForumConfig, snake_case_data, base_path=base_path)

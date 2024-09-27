@@ -2,13 +2,14 @@ import importlib
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import List
+from typing import List, Callable
 
-from config import load_config_from_yaml
-from protocols import Agent, ConversationParticipant
-from registry import AGENT_REGISTRY, LLM_REGISTRY, TOOL_EXECUTOR_REGISTRY, DISPATCHER_REGISTRY, PROMPT_REGISTRY
-from tools import load_tools
-from utils import load_module_from_path
+from diskurs.config import load_config_from_yaml
+from diskurs.entities import ToolDescription
+from diskurs.protocols import Agent, ConversationParticipant
+from diskurs.registry import AGENT_REGISTRY, LLM_REGISTRY, TOOL_EXECUTOR_REGISTRY, DISPATCHER_REGISTRY, PROMPT_REGISTRY
+from diskurs.tools import load_tools
+from diskurs.utils import load_module_from_path
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -27,20 +28,25 @@ class Forum:
         self.conductor = first_contact
 
     def ama(self, question: dict):
+        # TODO:  initialize metadata and longterm memory
         answer = self.dispatcher.run(self.conductor, question)
         return answer
 
 
 class ForumFactory:
     def __init__(self, config_path: Path, base_path: Path):
+        self.base_path = base_path
         self.config = load_config_from_yaml(config=config_path, base_path=base_path)
         self.llm_clients = {}
         self.agents = []
-        self.tools = []
+        self.tools: list[Callable] = []
         self.dispatcher = None
         self.tool_executor = None
         self.first_contact = None
-        self.modules_to_import = ["llm_client", "dispatcher", "agent", "conductor_agent", "prompt"]
+        self.modules_to_import = [
+            Path(__file__).parent / mdls
+            for mdls in ["llm_client.py", "dispatcher.py", "agent.py", "conductor_agent.py", "prompt.py"]
+        ]
 
     # TODO: find a cleaner solution for modules_to_import
 
@@ -64,13 +70,13 @@ class ForumFactory:
 
     def import_modules(self):
         """Dynamically import modules required for registration."""
-        for module_name in self.modules_to_import:
-            importlib.import_module(name=module_name, package="diskurs")
+        for module_path in self.modules_to_import:
+            load_module_from_path(module_path.stem, module_path)
 
     def load_custom_modules(self):
         """Load custom modules specified in the configuration."""
-        for module_path_str in self.config.custom_modules:
-            module_path = Path(module_path_str)
+        for custom_module in self.config.custom_modules:
+            module_path = (self.base_path / f"{custom_module.replace('.', '/')}.py").resolve()
             load_module_from_path(module_path.stem, module_path)
 
     def create_tool_executor(self):
@@ -112,8 +118,10 @@ class ForumFactory:
                 additional_args["prompt"] = prompt
             if hasattr(agent_conf, "llm"):
                 additional_args["llm_client"] = self.llm_clients[agent_conf.llm]
-            if hasattr(agent_conf, "tools"):
-                agent_conf.tools = [tool for tool in self.tools if tool.name in agent_conf.tools]
+            if hasattr(agent_conf, "tools") and agent_conf.tools:
+                additional_args["tools"] = [
+                    ToolDescription.from_function(tool) for tool in self.tools if tool.__name__ in agent_conf.tools
+                ]
                 additional_args["tool_executor"] = self.tool_executor
             if hasattr(agent_conf, "topics") and self.dispatcher:
                 additional_args["topics"] = agent_conf.topics

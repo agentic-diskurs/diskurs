@@ -2,11 +2,11 @@ import json
 from dataclasses import fields
 from typing import Optional, Self, Any
 
-from agent import BaseAgent
-from entities import Conversation, MessageType
-from protocols import LLMClient, ConversationDispatcher, ConductorPromptProtocol
+from diskurs.agent import BaseAgent
+from diskurs.entities import Conversation, MessageType, ChatMessage, Role
+from diskurs.protocols import LLMClient, ConversationDispatcher, ConductorPromptProtocol
 
-from registry import register_agent
+from diskurs.registry import register_agent
 
 
 @register_agent("conductor")
@@ -76,7 +76,12 @@ class ConductorAgent(BaseAgent):
 
         return conversation.update_agent_longterm_memory(agent_name=self.name, longterm_memory=longterm_memory)
 
+    @staticmethod
+    def is_conversation_start(conversation: Conversation) -> bool:
+        return (not conversation.user_prompt) and (not conversation.system_prompt) and conversation.is_empty()
+
     def invoke(self, conversation: Conversation) -> Conversation:
+
         conversation = self.prepare_conversation(
             conversation,
             system_prompt_argument=self.prompt.create_system_prompt_argument(
@@ -108,8 +113,13 @@ class ConductorAgent(BaseAgent):
 
         conversation = Conversation()
 
+        # TODO: handle metadata as well, meaning, we need to differentiate between longterm memory and metadata,
+        #  where metadata should be specifically for the tool calls and longterm memory for the agent's prompts
+
         conversation = conversation.update_agent_longterm_memory(
             agent_name=self.name, longterm_memory=self.prompt.init_longterm_memory(**user_request)
+        ).append(
+            ChatMessage(Role.USER, content=user_request["user_query"], name=self.name, type=MessageType.CONVERSATION)
         )
 
         self.process_conversation(conversation)

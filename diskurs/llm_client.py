@@ -9,10 +9,10 @@ from openai import APIError, APITimeoutError, RateLimitError, UnprocessableEntit
 from openai import OpenAI, BadRequestError, AzureOpenAI
 from openai.types.chat import ChatCompletion
 
-from entities import Conversation, ChatMessage, Role, ToolCall, ToolDescription, MessageType
-from protocols import LLMClient
-from registry import register_llm
-from tools import map_python_type_to_json
+from diskurs.entities import Conversation, ChatMessage, Role, ToolCall, ToolDescription, MessageType
+from diskurs.protocols import LLMClient
+from diskurs.registry import register_llm
+from diskurs.tools import map_python_type_to_json
 
 logger = logging.getLogger(__name__)
 

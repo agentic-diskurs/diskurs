@@ -2,7 +2,7 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict, Union, Self, TypeVar, Protocol, Type, Optional, Any
 
-from entities import ToolDescription, ChatMessage, LongtermMemory, PromptArgument, MessageType
+from diskurs.entities import ToolDescription, ChatMessage, LongtermMemory, PromptArgument, MessageType
 
 
 class LongtermMemoryHandler(Protocol):

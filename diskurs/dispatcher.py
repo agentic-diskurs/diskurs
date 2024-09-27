@@ -1,8 +1,8 @@
 from concurrent.futures import Future
 
-from entities import Conversation
-from protocols import ConversationParticipant, ConversationDispatcher
-from registry import register_dispatcher
+from diskurs.entities import Conversation
+from diskurs.protocols import ConversationParticipant, ConversationDispatcher
+from diskurs.registry import register_dispatcher
 
 
 @register_dispatcher("synchronous")

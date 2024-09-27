@@ -5,12 +5,14 @@ from typing import Optional, Self
 
 from typing_extensions import TypeVar
 
-from entities import ChatMessage, PromptArgument, MessageType, Conversation
-from protocols import ConversationDispatcher, LLMClient, Agent, ConversationParticipant
+from diskurs.entities import ChatMessage, PromptArgument, MessageType, Conversation
+from diskurs.protocols import ConversationDispatcher, LLMClient, Agent, ConversationParticipant
 
 logger = logging.getLogger(__name__)
 
 Prompt = TypeVar("Prompt")
+
+# TODO: ensure maximum context length is 8192 tokens, if exceeds, truncate from left
 
 
 class BaseAgent(ABC, Agent, ConversationParticipant):
@@ -106,7 +108,7 @@ class BaseAgent(ABC, Agent, ConversationParticipant):
 
             parsed_response = self.prompt.parse_user_prompt(response.last_message.content, message_type=message_type)
 
-            if is_dataclass(parsed_response):
+            if isinstance(parsed_response, PromptArgument):
                 return response.update(
                     user_prompt_argument=parsed_response,
                     user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=parsed_response),

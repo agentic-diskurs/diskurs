@@ -6,16 +6,16 @@ from typing import Optional, Callable, Any, Type, TypeVar, Self
 
 from jinja2 import Environment, FileSystemLoader, Template
 
-from entities import (
+from diskurs.entities import (
     PromptArgument,
     ChatMessage,
     Role,
     GenericConductorLongtermMemory,
     MessageType,
 )
-from protocols import MultistepPromptProtocol, ConductorPromptProtocol
-from registry import register_prompt
-from utils import load_module_from_path
+from diskurs.protocols import MultistepPromptProtocol, ConductorPromptProtocol
+from diskurs.registry import register_prompt
+from diskurs.utils import load_module_from_path
 
 IS_VALID_DEFAULT_VALUE_NAME = "is_valid"
 IS_FINAL_DEFAULT_VALUE_NAME = "is_final"
@@ -149,6 +149,7 @@ class PromptRendererMixin:
         self._is_final = is_final or (lambda x: True)
 
     def is_final(self, user_prompt_argument: PromptArgument) -> bool:
+        # TODO: make is_valid and is_final optional (case single step agents)
         return self._is_final(user_prompt_argument)
 
     def is_valid(self, user_prompt_argument: PromptArgument) -> bool:
@@ -166,21 +167,7 @@ class PromptRendererMixin:
     def render_user_template(
         self, name: str, prompt_args: PromptArgument, message_type: MessageType = MessageType.CONVERSATION
     ) -> ChatMessage:
-        return ChatMessage(
-            role=Role.USER,
-            name=name,
-            content=self.user_template.render(**asdict(prompt_args)),
-            type=message_type,
-        )
-
-    def validate_prompt(self, name: str, prompt_args: PromptArgument) -> ChatMessage:
-        try:
-            if self.is_valid(prompt_args):
-                return self.render_user_template(name, prompt_args, MessageType.CONVERSATION)
-        except PromptValidationError as e:  # Handle only validation errors
-            return ChatMessage(role=Role.USER, content=str(e))
-        except Exception as e:  # Handle other unforeseen errors separately
-            return ChatMessage(role=Role.USER, content=f"An error occurred: {str(e)}")
+        raise NotImplementedError
 
 
 class PromptLoaderMixin:
@@ -331,6 +318,22 @@ class MultistepPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
             "user_prompt_argument_class": cls.load_symbol(user_prompt_argument_class, loaded_module),
         }
 
+    def render_user_template(
+        self, name: str, prompt_args: PromptArgument, message_type: MessageType = MessageType.CONVERSATION
+    ) -> ChatMessage:
+        try:
+            if self.is_valid(prompt_args):
+                return ChatMessage(
+                    role=Role.USER,
+                    name=name,
+                    content=self.user_template.render(**asdict(prompt_args)),
+                    type=message_type,
+                )
+        except PromptValidationError as e:
+            return ChatMessage(role=Role.USER, name=name, content=str(e), type=message_type)
+        except Exception as e:  # Handle other unforeseen errors separately
+            return ChatMessage(role=Role.USER, content=f"An error occurred: {str(e)}")
+
 
 @register_prompt("conductor_prompt")
 class ConductorPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin, ConductorPromptProtocol):
@@ -382,8 +385,9 @@ class ConductorPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
         :param user_template_filename: Filename of the user template (Jinja2 format).
         :param system_template_filename: Filename of the system template (Jinja2 format).
         :param kwargs:
-            is_valid_name: The name of the function to be used for prompt validation.
-            is_final_name: The name of the function to check if a prompt's requirements are satisfied.
+            can_finalize_name: Name of the function that determines if the user prompt is final.
+
+
 
         :return: An instance of the Prompt class.
         """
@@ -427,3 +431,13 @@ class ConductorPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
 
     def init_longterm_memory(self, **kwargs) -> GenericConductorLongtermMemory:
         return self.longterm_memory(**kwargs)
+
+    def render_user_template(
+        self, name: str, prompt_args: PromptArgument, message_type: MessageType = MessageType.ROUTING
+    ) -> ChatMessage:
+        return ChatMessage(
+            role=Role.USER,
+            name=name,
+            content=self.user_template.render(**asdict(prompt_args)),
+            type=message_type,
+        )
