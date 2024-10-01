@@ -14,6 +14,8 @@ Prompt = TypeVar("Prompt")
 
 # TODO: ensure maximum context length is 8192 tokens, if exceeds, truncate from left
 
+# TODO: implement conditional rendering i.e. for each agent, only the information relevant to it is shown
+
 
 class BaseAgent(ABC, Agent, ConversationParticipant):
     def __init__(

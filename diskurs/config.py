@@ -117,7 +117,7 @@ class PromptConfig(YamlSerializable, Registrable):
     location: Path
     user_prompt_argument_class: str
     system_prompt_argument_class: str
-    type: Optional[str]
+    json_formatting_template: Optional[Path] = None
 
 
 @dataclass(kw_only=True)

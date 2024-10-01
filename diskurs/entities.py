@@ -281,6 +281,10 @@ class Conversation:
         else:
             return False
 
+    def has_pending_tool_response(self) -> bool:
+        user_prompt = self.user_prompt if isinstance(self.user_prompt, list) else [self.user_prompt]
+        return any([msg.role == Role.TOOL for msg in user_prompt])
+
     def __setattr__(self, key, value):
         """
         Overrides attribute setting to prevent modifications to existing attributes.

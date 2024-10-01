@@ -1,9 +1,11 @@
+from importlib import resources
 from pathlib import Path
 import json
 import logging
 from dataclasses import dataclass, is_dataclass, fields, MISSING, asdict
 from typing import Optional, Callable, Any, Type, TypeVar, Self
 
+import jinja2
 from jinja2 import Environment, FileSystemLoader, Template
 
 from diskurs.entities import (
@@ -95,6 +97,7 @@ class PromptParserMixin:
         try:
             return json.loads(llm_response)
         except json.JSONDecodeError as e:
+            # TODO: put into a jinja2 template in assets folder
             error_message = (
                 f"LLM response is not valid JSON. Error: {e.msg} at line {e.lineno}, column {e.colno}. "
                 "Please ensure the response is valid JSON and follows the correct format."
@@ -138,6 +141,7 @@ class PromptRendererMixin:
         user_prompt_argument_class: Type[UserPromptArg],
         system_template: Template,
         user_template: Template,
+        json_formatting_template: Optional[Template] = None,
         is_valid: Optional[Callable[[UserPromptArg], bool]] = None,
         is_final: Optional[Callable[[UserPromptArg], bool]] = None,
     ):
@@ -145,6 +149,7 @@ class PromptRendererMixin:
         self.user_prompt_argument = user_prompt_argument_class
         self.system_template = system_template
         self.user_template = user_template
+        self.json_formatting_template = json_formatting_template
         self._is_valid = is_valid or (lambda x: True)
         self._is_final = is_final or (lambda x: True)
 
@@ -169,6 +174,11 @@ class PromptRendererMixin:
     ) -> ChatMessage:
         raise NotImplementedError
 
+    def render_json_formatting_prompt(self, prompt_args: dict) -> str:
+        keys = prompt_args.keys()
+        rendered_prompt = self.json_formatting_template.render(keys=keys)
+        return rendered_prompt
+
 
 class PromptLoaderMixin:
     @classmethod
@@ -184,13 +194,24 @@ class PromptLoaderMixin:
         user_template_filename,
     ):
         logger.info(f"Loading templates from: {location}")
-        agent_description, loaded_module, system_template, user_template = cls.load_assets(
+        agent_description, loaded_module, system_template, user_template = cls.load_user_assets(
             agent_description_filename, code_filename, location, system_template_filename, user_template_filename
         )
+
+        json_template_filename = kwargs.get("json_template_filename", "json_instruction.jinja2")
+        json_template_path = location / json_template_filename
+
+        if json_template_path.exists():
+            json_render_template = cls.load_template(json_template_path)
+        else:
+            # Load the template from the package assets
+            json_render_template = cls.load_template_from_package("diskurs.assets", json_template_filename)
+
         prompt_functions = cls.load_prompt_functions(
             system_prompt_argument_class, user_prompt_argument_class, loaded_module, kwargs
         )
-        return agent_description, prompt_functions, system_template, user_template
+
+        return agent_description, prompt_functions, system_template, user_template, json_render_template
 
     @classmethod
     def load_prompt_functions(
@@ -199,7 +220,7 @@ class PromptLoaderMixin:
         raise NotImplementedError
 
     @classmethod
-    def load_assets(
+    def load_user_assets(
         cls, agent_description_filename, code_filename, location, system_template_filename, user_template_filename
     ):
         with open(location / agent_description_filename, "r") as f:
@@ -238,6 +259,26 @@ class PromptLoaderMixin:
 
         return template
 
+    @classmethod
+    def load_template_from_package(cls, package_name: str, template_name: str) -> Template:
+        """
+        Loads a Jinja2 template from the specified package's assets folder.
+
+        :param package_name: The full package name where the assets are located (e.g., 'diskurs.assets').
+        :param template_name: The name of the template file (e.g., 'json_formatting_prompt.j2').
+        :return: Jinja2 Template object.
+        :raises FileNotFoundError: If the template file does not exist.
+        """
+        logger.info(f"Loading template '{template_name}' from package '{package_name}'")
+        try:
+            with resources.open_text(package_name, template_name) as f:
+                template_content = f.read()
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Template '{template_name}' not found in package '{package_name}'")
+
+        template = jinja2.Template(template_content)
+        return template
+
 
 @register_prompt("multistep_prompt")
 class MultistepPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin, MultistepPromptProtocol):
@@ -248,17 +289,18 @@ class MultistepPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
         user_template: Template,
         system_prompt_argument_class: Type[SystemPromptArg],
         user_prompt_argument_class: Type[UserPromptArg],
+        json_formatting_template: Optional[Template] = None,
         is_valid: Optional[Callable[[Any], bool]] = None,
         is_final: Optional[Callable[[Any], bool]] = None,
     ):
-        PromptRendererMixin.__init__(
-            self,
-            system_prompt_argument_class,
-            user_prompt_argument_class,
-            system_template,
-            user_template,
-            is_valid,
-            is_final,
+        super().__init__(
+            system_prompt_argument_class=system_prompt_argument_class,
+            user_prompt_argument_class=user_prompt_argument_class,
+            system_template=system_template,
+            user_template=user_template,
+            json_formatting_template=json_formatting_template,
+            is_valid=is_valid,
+            is_final=is_final,
         )
         self.agent_description = agent_description
 
@@ -288,8 +330,7 @@ class MultistepPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
 
         :return: An instance of the Prompt class.
         """
-
-        agent_description, prompt_functions, system_template, user_template = cls.prepare_create(
+        agent_description, prompt_functions, system_template, user_template, json_render_template = cls.prepare_create(
             agent_description_filename,
             code_filename,
             kwargs,
@@ -304,6 +345,7 @@ class MultistepPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
             agent_description=agent_description,
             system_template=system_template,
             user_template=user_template,
+            json_formatting_template=json_render_template,
             **prompt_functions,
         )
 
@@ -318,20 +360,35 @@ class MultistepPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
             "user_prompt_argument_class": cls.load_symbol(user_prompt_argument_class, loaded_module),
         }
 
+    def render_json_formatting_prompt(self, prompt_args: dict) -> str:
+        if self.json_formatting_template is None:
+            raise ValueError("json_render_template is not set.")
+        keys = prompt_args.keys()
+        rendered_prompt = self.json_formatting_template.render(keys=keys)
+        return rendered_prompt
+
     def render_user_template(
-        self, name: str, prompt_args: PromptArgument, message_type: MessageType = MessageType.CONVERSATION
+        self,
+        name: str,
+        prompt_args: PromptArgument,
+        message_type: MessageType = MessageType.CONVERSATION,
+        return_json: bool = True,
     ) -> ChatMessage:
         try:
             if self.is_valid(prompt_args):
+                content = self.user_template.render(**asdict(prompt_args))
+                if return_json:
+                    json_prompt = self.render_json_formatting_prompt(asdict(prompt_args))
+                    content += "\n" + json_prompt
                 return ChatMessage(
                     role=Role.USER,
                     name=name,
-                    content=self.user_template.render(**asdict(prompt_args)),
+                    content=content,
                     type=message_type,
                 )
         except PromptValidationError as e:
             return ChatMessage(role=Role.USER, name=name, content=str(e), type=message_type)
-        except Exception as e:  # Handle other unforeseen errors separately
+        except Exception as e:
             return ChatMessage(role=Role.USER, content=f"An error occurred: {str(e)}")
 
 
@@ -344,16 +401,17 @@ class ConductorPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
         user_template: Template,
         system_prompt_argument_class: Type[SystemPromptArg],
         user_prompt_argument_class: Type[UserPromptArg],
-        longterm_memory_class: Type[GenericConductorLongtermMemory],
-        can_finalize: Callable[[GenericConductorLongtermMemory], bool],
-        finalize: Callable[[GenericConductorLongtermMemory], bool],
+        json_formatting_template: Optional[Template] = None,
+        longterm_memory_class: Type[GenericConductorLongtermMemory] = None,
+        can_finalize: Callable[[GenericConductorLongtermMemory], bool] = None,
+        finalize: Callable[[GenericConductorLongtermMemory], bool] = None,
     ):
-        PromptRendererMixin.__init__(
-            self,
+        super().__init__(
             system_prompt_argument_class=system_prompt_argument_class,
             user_prompt_argument_class=user_prompt_argument_class,
             system_template=system_template,
             user_template=user_template,
+            json_formatting_template=json_formatting_template,  # Pass the JSON template
         )
         self.agent_description = agent_description
         self.longterm_memory = longterm_memory_class
@@ -372,26 +430,7 @@ class ConductorPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
         system_template_filename: str = "system_template.jinja2",
         **kwargs,
     ) -> "ConductorPrompt":
-        """
-        Factory method to create a Prompt object. Loads templates and code dynamically
-        based on the provided directory and filenames.
-
-        :param location: Base path where prompt.py and templates are located.
-        :param system_prompt_argument_class: Name of the class that specifies the placeholders of the system prompt template
-        :param user_prompt_argument_class:  Name of the class that specifies the placeholders of the user prompt template
-        :param location: Optional path to a separate template directory. If not provided, will use `location`.
-        :param agent_description_filename: location of the text file containing the agent's description
-        :param code_filename: Name of the file containing PromptArguments and validation logic.
-        :param user_template_filename: Filename of the user template (Jinja2 format).
-        :param system_template_filename: Filename of the system template (Jinja2 format).
-        :param kwargs:
-            can_finalize_name: Name of the function that determines if the user prompt is final.
-
-
-
-        :return: An instance of the Prompt class.
-        """
-        agent_description, prompt_functions, system_template, user_template = cls.prepare_create(
+        agent_description, prompt_functions, system_template, user_template, json_render_template = cls.prepare_create(
             agent_description_filename,
             code_filename,
             kwargs,
@@ -406,6 +445,7 @@ class ConductorPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
             agent_description=agent_description,
             system_template=system_template,
             user_template=user_template,
+            json_formatting_template=json_render_template,  # Pass the JSON template
             **prompt_functions,
         )
 
@@ -433,11 +473,19 @@ class ConductorPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
         return self.longterm_memory(**kwargs)
 
     def render_user_template(
-        self, name: str, prompt_args: PromptArgument, message_type: MessageType = MessageType.ROUTING
+        self,
+        name: str,
+        prompt_args: PromptArgument,
+        message_type: MessageType = MessageType.ROUTING,
+        return_json: bool = True,
     ) -> ChatMessage:
+        content = self.user_template.render(**asdict(prompt_args))
+        if return_json:
+            json_prompt = self.render_json_formatting_prompt(asdict(prompt_args))
+            content += "\n" + json_prompt
         return ChatMessage(
             role=Role.USER,
             name=name,
-            content=self.user_template.render(**asdict(prompt_args)),
+            content=content,
             type=message_type,
         )

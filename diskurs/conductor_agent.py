@@ -47,6 +47,11 @@ class ConductorAgent(BaseAgent):
         max_trials = kwargs.get("max_trials", 5)
         topics = kwargs.get("topics", [])
 
+        # TODO: make it, such that if the prompt is not provided, the default prompt is used.
+
+        # TODO: think if the json description of the agents should be used directly from the prompt, or if we
+        #  want to use the option here too (but we'll always need json output from the conductor anyways)
+
         return cls(
             name=name,
             prompt=prompt,

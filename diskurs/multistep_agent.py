@@ -1,10 +1,10 @@
 from typing import Optional, Callable, Self
 
-from agent import BaseAgent
-from entities import ToolDescription, Conversation, ChatMessage, Role, ToolCall
-from protocols import LLMClient, ConversationDispatcher, MultistepPromptProtocol
-from registry import register_agent
-from tools import ToolExecutor
+from diskurs.agent import BaseAgent
+from diskurs.entities import ToolDescription, Conversation, ChatMessage, Role, ToolCall, MessageType, PromptArgument
+from diskurs.protocols import LLMClient, ConversationDispatcher, MultistepPromptProtocol
+from diskurs.registry import register_agent
+from diskurs.tools import ToolExecutor
 
 
 @register_agent("multistep")
@@ -78,7 +78,7 @@ class MultiStepAgent(BaseAgent):
         """
         tool_responses = []
         for tool in response.last_message.tool_calls:
-            tool_call_result = self.tool_executor.execute_tool(tool)
+            tool_call_result = self.tool_executor.execute_tool(tool, response.metadata)
             tool_responses.append(
                 ChatMessage(
                     role=Role.TOOL,
@@ -88,21 +88,33 @@ class MultiStepAgent(BaseAgent):
             )
         return tool_responses
 
-    def perform_reasoning(self, conversation: Conversation) -> Conversation:
-        """
-        Performs a single reasoning step on the conversation, generating a response from the LLM model,
-        updating the conversation with the response, generating the next user prompt and returning
-        the updated conversation.
-        :param conversation: The conversation object to perform reasoning on.
-        :return: Updated conversation object after reasoning step.
-        """
-        response = self.llm_client.generate(conversation, self.tools)
+    def generate_validated_response(
+        self, conversation: Conversation, message_type: MessageType = MessageType.CONVERSATION
+    ) -> Conversation:
+        for max_trials in range(self.max_trials):
 
-        if response.has_pending_tool_call():
-            tool_responses = self.compute_tool_response(response)
-            return response.update(user_prompt=tool_responses)
-        else:
-            return self.generate_validated_response(response)
+            response = self.llm_client.generate(conversation, getattr(self, "tools", None))
+
+            if response.has_pending_tool_call():
+                tool_responses = self.compute_tool_response(response)
+                conversation = response.update(user_prompt=tool_responses)
+            else:
+
+                parsed_response = self.prompt.parse_user_prompt(
+                    response.last_message.content, message_type=message_type
+                )
+
+                if isinstance(parsed_response, PromptArgument):
+                    return response.update(
+                        user_prompt_argument=parsed_response,
+                        user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=parsed_response),
+                    )
+                elif isinstance(parsed_response, ChatMessage):
+                    conversation = response.update(user_prompt=parsed_response)
+                else:
+                    raise ValueError(f"Failed to parse response from LLM model: {parsed_response}")
+
+        # TODO: handle case where max_trials is reached, and no valid answer is found
 
     def invoke(self, conversation: Conversation) -> Conversation:
         """
@@ -123,9 +135,13 @@ class MultiStepAgent(BaseAgent):
         )
 
         for reasoning_step in range(self.max_reasoning_steps):
-            conversation = self.perform_reasoning(conversation)
+            # conversation = self.perform_reasoning(conversation)
+            conversation = self.generate_validated_response(conversation)
 
-            if self.prompt.is_final(conversation.user_prompt_argument):
+            if (
+                self.prompt.is_final(conversation.user_prompt_argument)
+                and not conversation.has_pending_tool_response()
+            ):
                 self.max_reasoning_steps = 0
                 break
 

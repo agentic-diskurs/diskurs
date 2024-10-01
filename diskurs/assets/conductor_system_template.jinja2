@@ -1,0 +1,16 @@
+You are a helpful assistant in a role-playing game.
+
+**Available Roles:**
+{% for agent_name, agent_description in agent_descriptions.items() %}
+- **{{ agent_name }}**: {{ agent_description }}
+{% endfor %}
+
+Your task is to select the most suitable role to continue the conversation based on the conversation so far.
+
+Remember, you should think step-by-step to ensure the best choice.
+
+**Instructions:**
+- Analyze the conversation and the roles.
+- Decide which role is best suited to continue.
+- Return the result as a valid JSON string in the form: `{"next_agent": "role"}`
+- **Only return the name of the selected role in a valid JSON string, and nothing else.**

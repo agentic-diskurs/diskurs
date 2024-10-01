@@ -99,7 +99,7 @@ class BaseOaiApiLLMClient(LLMClient):
         tool_call_id = {"tool_call_id": message.tool_call_id} if message.tool_call_id else {}
         return {
             "role": str(message.role),
-            "content": message.content,
+            "content": str(message.content),
             **tool_calls,
             **tool_call_id,
         }
