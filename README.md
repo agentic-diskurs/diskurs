@@ -1,4 +1,5 @@
 # Diskurs
+*Please note: diskurs is currently under development (meaning early alpha state) and not yet ready for production use.*
 
 Diskurs is a Python is a hackable and extendable framework for developing LLM-based multi-agentic systems to tackle complex workflow automation tasks. It allows developers to set up complex agent interactions using customizable configurations.
 
