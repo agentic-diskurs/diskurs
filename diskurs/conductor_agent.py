@@ -3,7 +3,7 @@ from dataclasses import fields
 from typing import Optional, Self, Any
 
 from diskurs.agent import BaseAgent
-from diskurs.entities import Conversation, MessageType, ChatMessage, Role
+from diskurs.entities import Conversation, MessageType, ChatMessage, Role, DiskursInput
 from diskurs.protocols import LLMClient, ConversationDispatcher, ConductorPromptProtocol
 
 from diskurs.registry import register_agent
@@ -113,18 +113,13 @@ class ConductorAgent(BaseAgent):
             next_agent = json.loads(conversation.last_message.content).get("next_agent")
             self.dispatcher.publish(topic=next_agent, conversation=conversation)
 
-    def start_conversation(self, user_request: dict) -> None:
-        assert user_request.get("user_query"), "Initial user request dict must have a user_query key"
-
-        conversation = Conversation()
-
-        # TODO: handle metadata as well, meaning, we need to differentiate between longterm memory and metadata,
-        #  where metadata should be specifically for the tool calls and longterm memory for the agent's prompts
+    def start_conversation(self, diskurs_input: DiskursInput) -> None:
+        conversation = Conversation(metadata=diskurs_input.metadata)
 
         conversation = conversation.update_agent_longterm_memory(
-            agent_name=self.name, longterm_memory=self.prompt.init_longterm_memory(**user_request)
+            agent_name=self.name, longterm_memory=self.prompt.init_longterm_memory(user_query=diskurs_input.user_query)
         ).append(
-            ChatMessage(Role.USER, content=user_request["user_query"], name=self.name, type=MessageType.CONVERSATION)
+            ChatMessage(Role.USER, content=diskurs_input.user_query, name=self.name, type=MessageType.CONVERSATION)
         )
 
         self.process_conversation(conversation)

@@ -138,6 +138,8 @@ class ConductorPromptConfig(PromptConfig):
     """
 
     type: str = "conductor_prompt"
+    user_prompt_argument_class: Optional[str] = None
+    system_prompt_argument_class: Optional[str] = None
     longterm_memory_class: str
     can_finalize_name: str
 

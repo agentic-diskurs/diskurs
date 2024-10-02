@@ -1,11 +1,9 @@
-from importlib import resources
 from pathlib import Path
 import json
 import logging
 from dataclasses import dataclass, is_dataclass, fields, MISSING, asdict
 from typing import Optional, Callable, Any, Type, TypeVar, Self
 
-import jinja2
 from jinja2 import Environment, FileSystemLoader, Template
 
 from diskurs.entities import (
@@ -17,7 +15,7 @@ from diskurs.entities import (
 )
 from diskurs.protocols import MultistepPromptProtocol, ConductorPromptProtocol
 from diskurs.registry import register_prompt
-from diskurs.utils import load_module_from_path
+from diskurs.utils import load_module_from_path, load_template_from_package
 
 IS_VALID_DEFAULT_VALUE_NAME = "is_valid"
 IS_FINAL_DEFAULT_VALUE_NAME = "is_final"
@@ -30,6 +28,16 @@ logger = logging.getLogger(__name__)
 class PromptValidationError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
+
+
+@dataclass
+class DefaultConductorSystemPromptArgument(PromptArgument):
+    agent_descriptions: dict[str, str]
+
+
+@dataclass
+class DefaultConductorUserPromptArgument(PromptArgument):
+    next_agent: Optional[str] = None
 
 
 class PromptParserMixin:
@@ -166,18 +174,25 @@ class PromptRendererMixin:
     def create_user_prompt_argument(self, **prompt_args: dict) -> UserPromptArg:
         return self.user_prompt_argument(**prompt_args)
 
-    def render_system_template(self, name: str, prompt_args: PromptArgument) -> ChatMessage:
-        return ChatMessage(role=Role.SYSTEM, name=name, content=self.system_template.render(**asdict(prompt_args)))
+    def render_json_formatting_prompt(self, prompt_args: dict) -> str:
+        if self.json_formatting_template is None:
+            raise ValueError("json_render_template is not set.")
+        keys = prompt_args.keys()
+        rendered_prompt = self.json_formatting_template.render(keys=keys)
+        return rendered_prompt
+
+    def render_system_template(self, name: str, prompt_args: PromptArgument, return_json: bool = True) -> ChatMessage:
+        content = self.system_template.render(**asdict(prompt_args))
+
+        if return_json:
+            content += "\n" + self.render_json_formatting_prompt(asdict(self.user_prompt_argument()))
+
+        return ChatMessage(role=Role.SYSTEM, name=name, content=content)
 
     def render_user_template(
         self, name: str, prompt_args: PromptArgument, message_type: MessageType = MessageType.CONVERSATION
     ) -> ChatMessage:
         raise NotImplementedError
-
-    def render_json_formatting_prompt(self, prompt_args: dict) -> str:
-        keys = prompt_args.keys()
-        rendered_prompt = self.json_formatting_template.render(keys=keys)
-        return rendered_prompt
 
 
 class PromptLoaderMixin:
@@ -198,14 +213,10 @@ class PromptLoaderMixin:
             agent_description_filename, code_filename, location, system_template_filename, user_template_filename
         )
 
-        json_template_filename = kwargs.get("json_template_filename", "json_instruction.jinja2")
-        json_template_path = location / json_template_filename
-
-        if json_template_path.exists():
-            json_render_template = cls.load_template(json_template_path)
+        if json_formatting_filename := kwargs.get("json_formatting_filename", None):
+            json_render_template = cls.load_template(location / json_formatting_filename)
         else:
-            # Load the template from the package assets
-            json_render_template = cls.load_template_from_package("diskurs.assets", json_template_filename)
+            json_render_template = load_template_from_package("diskurs.assets", "json_formatting.jinja2")
 
         prompt_functions = cls.load_prompt_functions(
             system_prompt_argument_class, user_prompt_argument_class, loaded_module, kwargs
@@ -225,8 +236,8 @@ class PromptLoaderMixin:
     ):
         with open(location / agent_description_filename, "r") as f:
             agent_description = f.read()
-        system_template = cls.load_template(location / system_template_filename)
-        user_template = cls.load_template(location / user_template_filename)
+        system_template = cls.load_template(location / system_template_filename) if system_template_filename else None
+        user_template = cls.load_template(location / user_template_filename) if user_template_filename else None
         module_path = location / code_filename
         loaded_module = load_module_from_path(module_name=module_path.stem, module_path=module_path)
         return agent_description, loaded_module, system_template, user_template
@@ -257,26 +268,6 @@ class PromptLoaderMixin:
         env = Environment(loader=file_loader)
         template = env.get_template(location.name)
 
-        return template
-
-    @classmethod
-    def load_template_from_package(cls, package_name: str, template_name: str) -> Template:
-        """
-        Loads a Jinja2 template from the specified package's assets folder.
-
-        :param package_name: The full package name where the assets are located (e.g., 'diskurs.assets').
-        :param template_name: The name of the template file (e.g., 'json_formatting_prompt.j2').
-        :return: Jinja2 Template object.
-        :raises FileNotFoundError: If the template file does not exist.
-        """
-        logger.info(f"Loading template '{template_name}' from package '{package_name}'")
-        try:
-            with resources.open_text(package_name, template_name) as f:
-                template_content = f.read()
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Template '{template_name}' not found in package '{package_name}'")
-
-        template = jinja2.Template(template_content)
         return template
 
 
@@ -330,22 +321,24 @@ class MultistepPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
 
         :return: An instance of the Prompt class.
         """
-        agent_description, prompt_functions, system_template, user_template, json_render_template = cls.prepare_create(
-            agent_description_filename,
-            code_filename,
-            kwargs,
-            location,
-            system_prompt_argument_class,
-            system_template_filename,
-            user_prompt_argument_class,
-            user_template_filename,
+        agent_description, prompt_functions, system_template, user_template, json_formatting_template = (
+            cls.prepare_create(
+                agent_description_filename,
+                code_filename,
+                kwargs,
+                location,
+                system_prompt_argument_class,
+                system_template_filename,
+                user_prompt_argument_class,
+                user_template_filename,
+            )
         )
 
         return cls(
             agent_description=agent_description,
             system_template=system_template,
             user_template=user_template,
-            json_formatting_template=json_render_template,
+            json_formatting_template=json_formatting_template,
             **prompt_functions,
         )
 
@@ -360,26 +353,15 @@ class MultistepPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
             "user_prompt_argument_class": cls.load_symbol(user_prompt_argument_class, loaded_module),
         }
 
-    def render_json_formatting_prompt(self, prompt_args: dict) -> str:
-        if self.json_formatting_template is None:
-            raise ValueError("json_render_template is not set.")
-        keys = prompt_args.keys()
-        rendered_prompt = self.json_formatting_template.render(keys=keys)
-        return rendered_prompt
-
     def render_user_template(
         self,
         name: str,
         prompt_args: PromptArgument,
         message_type: MessageType = MessageType.CONVERSATION,
-        return_json: bool = True,
     ) -> ChatMessage:
         try:
             if self.is_valid(prompt_args):
                 content = self.user_template.render(**asdict(prompt_args))
-                if return_json:
-                    json_prompt = self.render_json_formatting_prompt(asdict(prompt_args))
-                    content += "\n" + json_prompt
                 return ChatMessage(
                     role=Role.USER,
                     name=name,
@@ -423,29 +405,36 @@ class ConductorPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
         cls,
         location: Path,
         system_prompt_argument_class: str,
-        user_prompt_argument_class: str,
-        agent_description_filename: str = "agent_description.txt",
+        user_prompt_argument_class: Optional[str] = None,
+        agent_description_filename: Optional[str] = "agent_description.txt",
         code_filename: str = "prompt.py",
-        user_template_filename: str = "user_template.jinja2",
-        system_template_filename: str = "system_template.jinja2",
+        user_template_filename: Optional[str] = None,
+        system_template_filename: Optional[str] = None,
         **kwargs,
     ) -> "ConductorPrompt":
-        agent_description, prompt_functions, system_template, user_template, json_render_template = cls.prepare_create(
-            agent_description_filename,
-            code_filename,
-            kwargs,
-            location,
-            system_prompt_argument_class,
-            system_template_filename,
-            user_prompt_argument_class,
-            user_template_filename,
+        agent_description, prompt_functions, system_template, user_template, json_formatting_template = (
+            cls.prepare_create(
+                agent_description_filename,
+                code_filename,
+                kwargs,
+                location,
+                system_prompt_argument_class,
+                system_template_filename,
+                user_prompt_argument_class,
+                user_template_filename,
+            )
         )
+
+        system_template = system_template or load_template_from_package(
+            "diskurs.assets", "conductor_system_template.jinja2"
+        )
+        user_template = user_template or load_template_from_package("diskurs.assets", "conductor_user_template.jinja2")
 
         return cls(
             agent_description=agent_description,
             system_template=system_template,
             user_template=user_template,
-            json_formatting_template=json_render_template,  # Pass the JSON template
+            json_formatting_template=json_formatting_template,  # Pass the JSON template
             **prompt_functions,
         )
 
@@ -454,8 +443,16 @@ class ConductorPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
         cls, system_prompt_argument_class, user_prompt_argument_class, loaded_module, kwargs
     ) -> dict[str, Callable]:
         return {
-            "system_prompt_argument_class": cls.load_symbol(system_prompt_argument_class, loaded_module),
-            "user_prompt_argument_class": cls.load_symbol(user_prompt_argument_class, loaded_module),
+            "system_prompt_argument_class": (
+                cls.load_symbol(system_prompt_argument_class, loaded_module)
+                if system_prompt_argument_class
+                else DefaultConductorSystemPromptArgument
+            ),
+            "user_prompt_argument_class": (
+                cls.load_symbol(user_prompt_argument_class, loaded_module)
+                if user_prompt_argument_class
+                else DefaultConductorUserPromptArgument
+            ),
             "can_finalize": cls.load_symbol(
                 kwargs.get("can_finalize_name", CAN_FINALIZE_DEFAULT_VALUE_NAME), loaded_module
             ),
@@ -477,12 +474,8 @@ class ConductorPrompt(PromptRendererMixin, PromptParserMixin, PromptLoaderMixin,
         name: str,
         prompt_args: PromptArgument,
         message_type: MessageType = MessageType.ROUTING,
-        return_json: bool = True,
     ) -> ChatMessage:
         content = self.user_template.render(**asdict(prompt_args))
-        if return_json:
-            json_prompt = self.render_json_formatting_prompt(asdict(prompt_args))
-            content += "\n" + json_prompt
         return ChatMessage(
             role=Role.USER,
             name=name,

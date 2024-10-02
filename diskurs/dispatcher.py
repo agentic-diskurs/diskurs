@@ -1,6 +1,6 @@
 from concurrent.futures import Future
 
-from diskurs.entities import Conversation
+from diskurs.entities import Conversation, DiskursInput
 from diskurs.protocols import ConversationParticipant, ConversationDispatcher
 from diskurs.registry import register_dispatcher
 
@@ -37,9 +37,9 @@ class SynchronousConversationDispatcher(ConversationDispatcher):
         if not self.future.done():
             self.future.set_result(response)
 
-    def run(self, participant: ConversationParticipant, question: dict) -> dict:
+    def run(self, participant: ConversationParticipant, diskurs_input: DiskursInput) -> dict:
         """Finish the conversation."""
-        participant.start_conversation(question)
+        participant.start_conversation(diskurs_input)
 
         final_result = self.future.result()
         return final_result

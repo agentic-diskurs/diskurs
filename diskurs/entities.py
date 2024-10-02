@@ -309,6 +309,12 @@ class LongtermMemory:
 
 
 @dataclass
+class DiskursInput:
+    user_query: str
+    metadata: Optional[dict[str, Any]]
+
+
+@dataclass
 class ToolDescription:
     name: str
     description: str

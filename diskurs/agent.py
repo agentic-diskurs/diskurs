@@ -5,7 +5,7 @@ from typing import Optional, Self
 
 from typing_extensions import TypeVar
 
-from diskurs.entities import ChatMessage, PromptArgument, MessageType, Conversation
+from diskurs.entities import ChatMessage, PromptArgument, MessageType, Conversation, Role
 from diskurs.protocols import ConversationDispatcher, LLMClient, Agent, ConversationParticipant
 
 logger = logging.getLogger(__name__)
@@ -101,9 +101,18 @@ class BaseAgent(ABC, Agent, ConversationParticipant):
             user_prompt=user_prompt,
         )
 
+    def return_fail_validation_message(self, response):
+        return response.append(
+            ChatMessage(
+                role=Role.USER, content=f"No valid answer found after {self.max_trials} trials.", name=self.name
+            )
+        )
+
     def generate_validated_response(
         self, conversation: Conversation, message_type: MessageType = MessageType.CONVERSATION
     ) -> Conversation:
+        response = None
+
         for max_trials in range(self.max_trials):
 
             response = self.llm_client.generate(conversation, getattr(self, "tools", None))
@@ -119,3 +128,5 @@ class BaseAgent(ABC, Agent, ConversationParticipant):
                 conversation = response.update(user_prompt=parsed_response)
             else:
                 raise ValueError(f"Failed to parse response from LLM model: {parsed_response}")
+
+        return self.return_fail_validation_message(response or conversation)

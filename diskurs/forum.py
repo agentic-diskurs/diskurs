@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Callable
 
 from diskurs.config import load_config_from_yaml
-from diskurs.entities import ToolDescription
+from diskurs.entities import ToolDescription, DiskursInput
 from diskurs.protocols import Agent, ConversationParticipant
 from diskurs.registry import AGENT_REGISTRY, LLM_REGISTRY, TOOL_EXECUTOR_REGISTRY, DISPATCHER_REGISTRY, PROMPT_REGISTRY
 from diskurs.tools import load_tools
@@ -27,9 +27,9 @@ class Forum:
         self.tool_executor = tool_executor
         self.conductor = first_contact
 
-    def ama(self, question: dict):
+    def ama(self, diskurs_input: DiskursInput):
         # TODO:  initialize metadata and longterm memory
-        answer = self.dispatcher.run(self.conductor, question)
+        answer = self.dispatcher.run(self.conductor, diskurs_input)
         return answer
 
 

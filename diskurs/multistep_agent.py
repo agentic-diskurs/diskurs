@@ -1,7 +1,7 @@
 from typing import Optional, Callable, Self
 
 from diskurs.agent import BaseAgent
-from diskurs.entities import ToolDescription, Conversation, ChatMessage, Role, ToolCall, MessageType, PromptArgument
+from diskurs.entities import ToolDescription, Conversation, ChatMessage, Role, MessageType, PromptArgument
 from diskurs.protocols import LLMClient, ConversationDispatcher, MultistepPromptProtocol
 from diskurs.registry import register_agent
 from diskurs.tools import ToolExecutor
@@ -84,6 +84,7 @@ class MultiStepAgent(BaseAgent):
                     role=Role.TOOL,
                     tool_call_id=tool_call_result.tool_call_id,
                     content=tool_call_result.result,
+                    name=self.name,
                 )
             )
         return tool_responses
@@ -91,6 +92,8 @@ class MultiStepAgent(BaseAgent):
     def generate_validated_response(
         self, conversation: Conversation, message_type: MessageType = MessageType.CONVERSATION
     ) -> Conversation:
+        response = None
+
         for max_trials in range(self.max_trials):
 
             response = self.llm_client.generate(conversation, getattr(self, "tools", None))
@@ -114,7 +117,7 @@ class MultiStepAgent(BaseAgent):
                 else:
                     raise ValueError(f"Failed to parse response from LLM model: {parsed_response}")
 
-        # TODO: handle case where max_trials is reached, and no valid answer is found
+        return self.return_fail_validation_message(response or conversation)
 
     def invoke(self, conversation: Conversation) -> Conversation:
         """
@@ -135,14 +138,12 @@ class MultiStepAgent(BaseAgent):
         )
 
         for reasoning_step in range(self.max_reasoning_steps):
-            # conversation = self.perform_reasoning(conversation)
             conversation = self.generate_validated_response(conversation)
 
             if (
                 self.prompt.is_final(conversation.user_prompt_argument)
                 and not conversation.has_pending_tool_response()
             ):
-                self.max_reasoning_steps = 0
                 break
 
         return conversation.update()

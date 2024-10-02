@@ -2,7 +2,7 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict, Union, Self, TypeVar, Protocol, Type, Optional, Any
 
-from diskurs.entities import ToolDescription, ChatMessage, LongtermMemory, PromptArgument, MessageType
+from diskurs.entities import ToolDescription, ChatMessage, LongtermMemory, PromptArgument, MessageType, DiskursInput
 
 
 class LongtermMemoryHandler(Protocol):
@@ -166,7 +166,7 @@ class ConversationParticipant(Protocol):
 
     def register_dispatcher(self, dispatcher: "ConversationDispatcher") -> None: ...
 
-    def start_conversation(self, question: dict) -> None: ...
+    def start_conversation(self, question: DiskursInput) -> None: ...
 
 
 class ConversationDispatcher(Protocol):
