@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Callable, Self
 
 from diskurs.agent import BaseAgent
@@ -5,6 +6,8 @@ from diskurs.entities import ToolDescription, Conversation, ChatMessage, Role, M
 from diskurs.protocols import LLMClient, ConversationDispatcher, MultistepPromptProtocol
 from diskurs.registry import register_agent
 from diskurs.tools import ToolExecutor
+
+logger = logging.getLogger(__name__)
 
 
 @register_agent("multistep")
@@ -155,5 +158,6 @@ class MultiStepAgent(BaseAgent):
 
         :param conversation: The conversation object to process.
         """
+        logger.info(f"Agent: {self.name}")
         conversation = self.invoke(conversation)
         self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)

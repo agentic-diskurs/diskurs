@@ -2,9 +2,9 @@ import logging
 from pathlib import Path
 from pprint import pprint
 
-from config import ToolConfig
-from tools import tool, ToolExecutor, create_func_with_closure, load_tools
-from entities import ToolDescription
+from diskurs.config import ToolConfig
+from diskurs.tools import tool, ToolExecutor, create_func_with_closure, load_tools
+from diskurs.entities import ToolDescription
 
 import pytest
 

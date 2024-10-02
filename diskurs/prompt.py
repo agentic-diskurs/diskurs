@@ -112,7 +112,9 @@ class PromptParserMixin:
             )
             raise PromptValidationError(error_message)
 
-    def parse_user_prompt(self, llm_response: str, message_type: MessageType) -> PromptArgument | ChatMessage:
+    def parse_user_prompt(
+        self, llm_response: str, message_type: MessageType = MessageType.ROUTING
+    ) -> PromptArgument | ChatMessage:
         """
         Parse the text returned from the LLM into a structured prompt argument.
         First validate the text, then parse it into the prompt argument.

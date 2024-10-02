@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import fields
 from typing import Optional, Self, Any
 
@@ -7,6 +8,8 @@ from diskurs.entities import Conversation, MessageType, ChatMessage, Role, Disku
 from diskurs.protocols import LLMClient, ConversationDispatcher, ConductorPromptProtocol
 
 from diskurs.registry import register_agent
+
+logger = logging.getLogger(__name__)
 
 
 @register_agent("conductor")
@@ -102,6 +105,7 @@ class ConductorAgent(BaseAgent):
         return self.prompt.finalize(conversation.get_agent_longterm_memory(self.name))
 
     def process_conversation(self, conversation: Conversation) -> None:
+        logger.info(f"Agent: {self.name}")
 
         if conversation.get_agent_longterm_memory(self.name) and self.prompt.can_finalize(
             conversation.get_agent_longterm_memory(self.name)

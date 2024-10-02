@@ -5,8 +5,8 @@ import openai
 import pytest
 from dotenv import load_dotenv
 
-from llm_client import LLMClient
-from entities import Conversation, ChatMessage, Role, PromptArgument
+from diskurs.llm_client import LLMClient
+from diskurs.entities import Conversation, ChatMessage, Role, PromptArgument
 
 load_dotenv()
 
