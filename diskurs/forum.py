@@ -45,7 +45,14 @@ class ForumFactory:
         self.first_contact = None
         self.modules_to_import = [
             Path(__file__).parent / mdls
-            for mdls in ["llm_client.py", "dispatcher.py", "agent.py", "conductor_agent.py", "prompt.py"]
+            for mdls in [
+                "llm_client.py",
+                "azure_llm_client.py",
+                "dispatcher.py",
+                "agent.py",
+                "conductor_agent.py",
+                "prompt.py",
+            ]
         ]
 
     # TODO: find a cleaner solution for modules_to_import

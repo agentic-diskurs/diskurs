@@ -1,5 +1,5 @@
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 from enum import Enum
 from typing import Optional, TypeVar, Any, Callable
 
@@ -192,6 +192,29 @@ class Conversation:
         updated_longterm_memory[agent_name] = longterm_memory
 
         return self.update(longterm_memory=updated_longterm_memory)
+
+    def update_prompt_argument_with_longterm_memory(self, conductor_name: str) -> "Conversation":
+        """
+        Updates the prompt arguments with the longterm memory of the conductor agent, by copying the values from the
+        longterm memory to the prompt arguments, where the properties match (both are dataclasses)
+
+        :param conductor_name: The name of the conductor agent.
+        :return: A new instance of the Conversation class with the updated prompt arguments.
+        """
+        longterm_memory = self.get_agent_longterm_memory(conductor_name)
+        prompt_argument = self.user_prompt_argument
+
+        updated_fields = {}
+
+        for field in fields(prompt_argument):
+            if hasattr(longterm_memory, field.name):
+                longterm_value = getattr(longterm_memory, field.name)
+                if longterm_value:
+                    updated_fields[field.name] = longterm_value
+
+        updated_user_prompt_argument = replace(prompt_argument, **updated_fields)
+
+        return self.update(user_prompt_argument=updated_user_prompt_argument)
 
     def update(
         self,

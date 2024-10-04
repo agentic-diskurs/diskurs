@@ -165,6 +165,7 @@ class MultistepAgentConfig(AgentConfig):
     llm: str
     prompt: PromptConfig
     tools: Optional[list[str]] = None
+    init_prompt_arguments_with_longterm_memory: Optional[bool] = True
 
 
 @dataclass(kw_only=True)
@@ -186,6 +187,7 @@ class LLMConfig(YamlSerializable, Registrable):
 
     type: str
     name: str
+    model_max_tokens: int
 
 
 @dataclass(kw_only=True)
@@ -199,6 +201,7 @@ class AzureLLMConfig(LLMConfig):
     api_version: str
     model_name: str
     endpoint: str
+    use_entra_id: bool = False
 
 
 @dataclass

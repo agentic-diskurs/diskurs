@@ -1,12 +1,13 @@
 import json
 import logging
-import os
 from abc import abstractmethod
-from typing import Any, Optional
+from typing import Any, Optional, Callable
+
+import tiktoken
 from typing_extensions import Self
 
 from openai import APIError, APITimeoutError, RateLimitError, UnprocessableEntityError, AuthenticationError
-from openai import OpenAI, BadRequestError, AzureOpenAI
+from openai import OpenAI, BadRequestError
 from openai.types.chat import ChatCompletion
 
 from diskurs.entities import Conversation, ChatMessage, Role, ToolCall, ToolDescription, MessageType
@@ -18,7 +19,9 @@ logger = logging.getLogger(__name__)
 
 
 class BaseOaiApiLLMClient(LLMClient):
-    def __init__(self, client: OpenAI, model: str, max_repeat: int = 3):
+    def __init__(
+        self, client: OpenAI, model: str, tokenizer: Callable[[str], int], max_tokens: int, max_repeat: int = 3
+    ):
         """
         :param client: The OpenAI client instance used to interact
             with the OpenAI API.
@@ -27,6 +30,8 @@ class BaseOaiApiLLMClient(LLMClient):
         """
         self.client = client
         self.model = model
+        self.tokenizer = tokenizer
+        self.max_tokens = max_tokens
         self.max_repeat = max_repeat
 
     @classmethod
@@ -127,6 +132,10 @@ class BaseOaiApiLLMClient(LLMClient):
             else:
                 messages.append(self.format_message_for_llm(message))
 
+        n_tokens_tool_descriptions = self.count_tokens_of_tool_descriptions(formatted_tools)
+        if (self.count_tokens_in_conversation(messages) + n_tokens_tool_descriptions) > self.max_tokens:
+            messages = self.truncate_chat_history(messages, n_tokens_tool_descriptions)
+
         return {
             **formatted_tools,
             "model": self.model,
@@ -181,6 +190,125 @@ class BaseOaiApiLLMClient(LLMClient):
         message_type = next((m.type for m in user_prompt))
         return user_prompt + [cls.llm_response_to_chat_message(completion, message_type=message_type)]
 
+    def count_tokens(self, text: str) -> int:
+        """
+        Returns the number of tokens in a text string, using the tiktoken tokenizer.
+        :param text: The text to count the tokens of
+        :return: The number of tokens in the text
+        """
+        num_tokens = len(self.tokenizer.encode(text))
+        return num_tokens
+
+    def count_tokens_in_conversation(self, messages: list[dict]) -> int:
+        """
+        Count the number of tokens used by a list of messages i.e. chat history.
+        The implementation is from:
+        https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
+
+        :param messages: The list of messages in the conversation
+        :return: The number of tokens used by the messages
+        """
+
+        if self.model in {
+            "gpt-3.5-turbo-0613",
+            "gpt-3.5-turbo-16k-0613",
+            "gpt-4-0314",
+            "gpt-4-32k-0314",
+            "gpt-4-0613",
+            "gpt-4-32k-0613",
+        }:
+            tokens_per_message = 3
+            tokens_per_name = 1
+        elif self.model == "gpt-3.5-turbo-0301":
+            tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
+            tokens_per_name = -1  # if there's a name, the role is omitted
+        else:
+            raise NotImplementedError(f"""num_tokens_from_messages() is not implemented for model {self.model}.""")
+        num_tokens = 0
+        for message in messages:
+            num_tokens += tokens_per_message
+            for key, value in message.items():
+                num_tokens += self.count_tokens(value)
+                if key == "name":
+                    num_tokens += tokens_per_name
+        num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
+        return num_tokens
+
+    def count_tokens_of_tool_descriptions(self, tool_descriptions) -> int:
+        """
+        Return the number of tokens used by the tool i.e. function description.
+        Unfortunately, there's no documented way of counting those tokens, therefore we resort to best effort approach,
+        hoping this implementation is a true upper bound.
+        The implementation is taken from:
+        https://community.openai.com/t/how-to-calculate-the-tokens-when-using-function-call/266573/11
+
+        :param tool_descriptions: The description of all the tools
+        :return: The number of tokens used by the tools
+        """
+
+        num_tokens = 0
+        for tool_description in tool_descriptions:
+            function = tool_description["function"]
+            function_tokens = self.count_tokens(function["name"])
+            function_tokens += self.count_tokens(function["description"])
+
+            if "parameters" in function:
+                parameters = function["parameters"]
+                if "properties" in parameters:
+                    for propertiesKey in parameters["properties"]:
+                        function_tokens += self.count_tokens(propertiesKey)
+                        v = parameters["properties"][propertiesKey]
+                        for field in v:
+                            if field == "type":
+                                function_tokens += 2
+                                function_tokens += self.count_tokens(v["type"])
+                            elif field == "description":
+                                function_tokens += 2
+                                function_tokens += self.count_tokens(v["description"])
+                            elif field == "enum":
+                                function_tokens -= 3
+                                for o in v["enum"]:
+                                    function_tokens += 3
+                                    function_tokens += self.count_tokens(o)
+                            else:
+                                print(f"Warning: not supported field {field}")
+                    function_tokens += 11
+
+            num_tokens += function_tokens
+
+        num_tokens += 12
+        return num_tokens
+
+    def truncate_chat_history(self, messages, n_tokens_tool_descriptions) -> list[dict]:
+        """
+        Truncate the chat history to fit within the maximum token limit. The token limit is calculated as follows:
+        We retain the first two messages i.e. system prompt and initial user prompt and the last message.
+        We then truncate from left, removing messages from the chat history until the total token count is within the
+        limit. We also account for the token count of the tool descriptions.
+
+        :param messages: The list of messages in the conversation
+        :param n_tokens_tool_descriptions: The number of tokens used by the tool descriptions
+        :return: The truncated chat history
+        """
+        chat_start = messages[:2]
+        user_prompt = messages[-1]
+
+        max_tokens = (
+            self.max_tokens
+            - self.count_tokens_in_conversation(chat_start + [user_prompt])
+            - n_tokens_tool_descriptions
+        )
+
+        truncated_chat = messages[2:-1]
+
+        for _ in range(len(truncated_chat)):
+            truncated_chat = truncated_chat[1:]
+
+            if self.count_tokens_in_conversation(truncated_chat) > max_tokens:
+                break
+
+        return chat_start + truncated_chat + [user_prompt]
+
     def generate(self, conversation: Conversation, tools: Optional[ToolDescription] = None) -> Conversation:
         """
         Generates a response from the LLM model for the given conversation.
@@ -225,25 +353,11 @@ class OpenAILLMClient(BaseOaiApiLLMClient):
     def create(cls, **kwargs) -> Self:
         api_key = kwargs.get("api_key", None)
         model = kwargs.get("model", "")
+        max_tokens = kwargs.get("model_max_tokens", 2048)
+
+        tokenizer = tiktoken.encoding_for_model(model)
 
         client = OpenAI()
         client.api_key = api_key
 
-        return cls(client=client, model=model)
-
-
-@register_llm(name="azure")
-class AzureOpenAIClient(BaseOaiApiLLMClient):
-    @classmethod
-    def create(cls, **kwargs) -> Self:
-        api_key = kwargs.get("api_key", None)
-        model = kwargs.get("model_name", "")
-        api_version = kwargs.get("api_version", "")
-        azure_endpoint = kwargs.get("endpoint", "")
-
-        client = AzureOpenAI(
-            api_key=api_key,
-            api_version=api_version,
-            azure_endpoint=azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT"),
-        )
-        return cls(client=client, model=model, max_repeat=3)
+        return cls(client=client, model=model, tokenizer=tokenizer, max_tokens=max_tokens)

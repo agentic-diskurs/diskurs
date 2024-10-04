@@ -24,11 +24,13 @@ class MultiStepAgent(BaseAgent):
         tools: Optional[list[ToolDescription]] = None,
         max_reasoning_steps: int = 5,
         max_trials: int = 5,
+        init_prompt_arguments_with_longterm_memory: bool = True,
     ):
         super().__init__(name, prompt, llm_client, topics, dispatcher, max_trials)
         self.tool_executor = tool_executor
         self.tools = tools or []
         self.max_reasoning_steps = max_reasoning_steps
+        self.init_prompt_arguments_with_longterm_memory = init_prompt_arguments_with_longterm_memory
 
     @classmethod
     def create(
@@ -44,6 +46,7 @@ class MultiStepAgent(BaseAgent):
         max_reasoning_steps = kwargs.get("max_reasoning_steps", 5)
         max_trials = kwargs.get("max_trials", 5)
         topics = kwargs.get("topics", [])
+        init_prompt_arguments_with_longterm_memory = kwargs.get("init_prompt_arguments_with_longterm_memory", True)
 
         return cls(
             name=name,
@@ -55,6 +58,7 @@ class MultiStepAgent(BaseAgent):
             max_reasoning_steps=max_reasoning_steps,
             max_trials=max_trials,
             topics=topics,
+            init_prompt_arguments_with_longterm_memory=init_prompt_arguments_with_longterm_memory,
         )
 
     def get_conductor_name(self) -> str:
@@ -139,6 +143,8 @@ class MultiStepAgent(BaseAgent):
             system_prompt_argument=self.prompt.create_system_prompt_argument(),
             user_prompt_argument=self.prompt.create_user_prompt_argument(),
         )
+        if self.init_prompt_arguments_with_longterm_memory:
+            conversation.update_prompt_argument_with_longterm_memory(conductor_name=self.get_conductor_name())
 
         for reasoning_step in range(self.max_reasoning_steps):
             conversation = self.generate_validated_response(conversation)
