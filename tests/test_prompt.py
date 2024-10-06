@@ -3,10 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from diskurs.entities import MessageType
-from diskurs.prompt import MultistepPrompt, PromptValidationError
-
 from diskurs import PromptArgument
+from diskurs.prompt import MultistepPrompt, PromptValidationError, ConductorPrompt
 from diskurs.prompt import PromptParserMixin
 
 
@@ -51,9 +49,9 @@ def test_fail_parse_prompt(prompt_instance):
     res = prompt_instance.parse_user_prompt(mock_illegal_llm_response)
 
     assert (
-        res.content
-        == "LLM response is not valid JSON. Error: Expecting ',' delimiter at line 3, column 3. Please ensure "
-        + "the response is valid JSON and follows the correct format."
+            res.content
+            == "LLM response is not valid JSON. Error: Expecting ',' delimiter at line 3, column 3. Please ensure "
+            + "the response is valid JSON and follows the correct format."
     )
 
 
@@ -77,9 +75,9 @@ def test_validate_dataclass():
     )
 
     assert (
-        res_prompt_arg.url == response["url"]
-        and res_prompt_arg.comment == response["comment"]
-        and res_prompt_arg.username == response["username"]
+            res_prompt_arg.url == response["url"]
+            and res_prompt_arg.comment == response["comment"]
+            and res_prompt_arg.username == response["username"]
     )
 
 
@@ -91,6 +89,28 @@ def test_validate_dataclass_additional_fields():
             parsed_response=response, user_prompt_argument=ExamplePromptArg
         )
     assert (
-        str(exc_info.value)
-        == "Extra fields provided: foo. Please remove them. Valid fields are: url, comment, username."
+            str(exc_info.value)
+            == "Extra fields provided: foo. Please remove them. Valid fields are: url, comment, username."
     )
+
+
+prompt_config = {
+    "location": Path(__file__).parent / "test_files" / "conductor_test_files",
+    "user_prompt_argument_class": "ConductorUserPromptArgument",
+    "system_prompt_argument_class": "ConductorSystemPromptArgument",
+    "longterm_memory_class": "MyConductorLongtermMemory",
+    "can_finalize_name": "can_finalize"
+}
+
+
+def test_conductor_custom_system_prompt():
+    prompt = ConductorPrompt.create(**prompt_config)
+    rendered_system_prompt = prompt.render_system_template(name="test_conductor", prompt_args=prompt.system_prompt_argument(
+        agent_descriptions={
+            "first_agent": "I am the first agent",
+            "second_agen": "I am the second agent"
+        }
+
+    ))
+    print(rendered_system_prompt)
+    assert rendered_system_prompt.content.startswith("Custom system template")
