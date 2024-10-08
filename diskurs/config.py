@@ -204,6 +204,17 @@ class AzureLLMConfig(LLMConfig):
     use_entra_id: bool = False
 
 
+@dataclass(kw_only=True)
+class OpenAILLMConfig(LLMConfig):
+    """
+    Represents the LLM configuration.
+    """
+
+    type: str = "openai"
+    api_key: str
+    model_name: str
+
+
 @dataclass
 class ToolConfig(YamlSerializable):
     """

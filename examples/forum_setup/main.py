@@ -1,7 +1,7 @@
 from pathlib import Path
 from dotenv import load_dotenv
 
-from diskurs import create_forum_from_config
+from diskurs import create_forum_from_config, DiskursInput
 
 load_dotenv()
 
@@ -9,7 +9,12 @@ load_dotenv()
 def main(config: Path):
     forum = create_forum_from_config(config_path=config, base_path=Path(__file__).parent)
 
-    res = forum.ama({"user_query": "What is the meaning of life?"})
+    diskurs_input = DiskursInput(
+        user_query="What is the meaning of life?",
+        metadata={"user_id": "1234"},
+    )
+
+    res = forum.ama(diskurs_input)
     print(res)
 
 

@@ -5,7 +5,7 @@ dispatcherType: "synchronous"
 agents:
   - name: "conductor_agent"
     type: "conductor"
-    llm: "gpt-4-switzerland-north"
+    llm: "gpt-4-o-openai"
     prompt:
       type: "conductor_prompt"
       location: "agents/conductor_agent"
@@ -19,12 +19,12 @@ agents:
     finalizerName: "finalizer_agent"
   - name: "first_agent"
     type: "multistep"
-    llm: "gpt-4-switzerland-north"
+    llm: "gpt-4-o-openai"
     prompt:
       type: "multistep_prompt"
       location: "agents/first_agent"
-      userPromptArgumentClass: "FirstSystemPromptArgument"
-      systemPromptArgumentClass: "FirstUserPromptArgument"
+      systemPromptArgumentClass: "FirstSystemPromptArgument"
+      userPromptArgumentClass: "FirstUserPromptArgument"
       isValidName: "is_valid"
       isFinalName: "is_final"
     tools:
@@ -34,12 +34,12 @@ agents:
       - "conductor_agent"
   - name: "second_agent"
     type: "multistep"
-    llm: "gpt-4-switzerland-north"
+    llm: "gpt-4-o-openai"
     prompt:
       type: "multistep_prompt"
       location: "agents/second_agent"
-      userPromptArgumentClass: "SecondUserPromptArgument"
       systemPromptArgumentClass: "SecondSystemPromptArgument"
+      userPromptArgumentClass: "SecondUserPromptArgument"
       isValidName: "is_valid"
       isFinalName: "is_final"
     tools:
@@ -49,12 +49,11 @@ agents:
         - "conductor_agent"
 
 llms:
-  - name: "gpt-4-switzerland-north"
-    type: "azure"
-    modelName: "gpt-4-0613"
-    endpoint: "https://<my-workspace>.openai.azure.com"
-    apiVersion: "2023-03-15-preview"
-    apiKey: "${AZURE_OPENAI_API_KEY}"
+  - name: "gpt-4-o-openai"
+    type: "openai"
+    modelName: "gpt-4o"
+    modelMaxTokens: 8192
+    apiKey: "${OPENAI_API_KEY}"
 
 tools:
   - name: "example_tool1"
@@ -67,5 +66,6 @@ tools:
       foo: "bar"
       baz: "qux"
 toolDependencies:
-  oracle:
-    ...
+  someExternalDependency:
+    userName: "Jane"
+    street: "Maint st."

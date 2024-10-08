@@ -1,0 +1,15 @@
+User Prompt:
+------------
+{% if not name or not topic or not user_question %}
+Extract all the following entities from the user's query':
+- name: the user's name
+- topic: the topic of the user's query
+- user_question: a concise description of the user's question
+And return them as valid JSON:
+User's query: {{ content }}
+{% else %}
+- The users name is {{ name }}
+- They are asking questions about {{ topic }}.
+- The user's query is: {{ user_question }}.
+Answer the user's question, and output the answer in a valid JSON with the key "answer".
+{% endif %}

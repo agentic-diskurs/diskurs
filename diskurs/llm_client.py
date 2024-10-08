@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class BaseOaiApiLLMClient(LLMClient):
     def __init__(
-        self, client: OpenAI, model: str, tokenizer: Callable[[str], int], max_tokens: int, max_repeat: int = 3
+            self, client: OpenAI, model: str, tokenizer: Callable[[str], int], max_tokens: int, max_repeat: int = 3
     ):
         """
         :param client: The OpenAI client instance used to interact
@@ -41,8 +41,8 @@ class BaseOaiApiLLMClient(LLMClient):
         pass
 
     def send_request(
-        self,
-        body: dict[str, Any],
+            self,
+            body: dict[str, Any],
     ) -> ChatCompletion:
         completion = self.client.chat.completions.create(**body)
         return completion
@@ -110,7 +110,7 @@ class BaseOaiApiLLMClient(LLMClient):
         }
 
     def format_conversation_for_llm(
-        self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None
+            self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None
     ) -> dict[str, Any]:
         """
         Formats the conversation object into a dictionary that can be sent to the LLM model.
@@ -132,7 +132,9 @@ class BaseOaiApiLLMClient(LLMClient):
             else:
                 messages.append(self.format_message_for_llm(message))
 
-        n_tokens_tool_descriptions = self.count_tokens_of_tool_descriptions(formatted_tools)
+        n_tokens_tool_descriptions = self.count_tokens_of_tool_descriptions(
+            formatted_tools["tools"]) if formatted_tools else 0
+
         if (self.count_tokens_in_conversation(messages) + n_tokens_tool_descriptions) > self.max_tokens:
             messages = self.truncate_chat_history(messages, n_tokens_tool_descriptions)
 
@@ -173,7 +175,7 @@ class BaseOaiApiLLMClient(LLMClient):
 
     @classmethod
     def concatenate_user_prompt_with_llm_response(
-        cls, conversation: Conversation, completion: ChatCompletion
+            cls, conversation: Conversation, completion: ChatCompletion
     ) -> list[ChatMessage]:
         """
         Creates a list of ChatMessages that combines the user prompt with the LLM response.
@@ -216,6 +218,7 @@ class BaseOaiApiLLMClient(LLMClient):
             "gpt-4-32k-0314",
             "gpt-4-0613",
             "gpt-4-32k-0613",
+            "gpt-4o"  # verify for 4-0
         }:
             tokens_per_message = 3
             tokens_per_name = 1
@@ -234,7 +237,7 @@ class BaseOaiApiLLMClient(LLMClient):
         num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
         return num_tokens
 
-    def count_tokens_of_tool_descriptions(self, tool_descriptions) -> int:
+    def count_tokens_of_tool_descriptions(self, tool_descriptions: list[dict[str, Any]]) -> int:
         """
         Return the number of tokens used by the tool i.e. function description.
         Unfortunately, there's no documented way of counting those tokens, therefore we resort to best effort approach,
@@ -294,9 +297,9 @@ class BaseOaiApiLLMClient(LLMClient):
         user_prompt = messages[-1]
 
         max_tokens = (
-            self.max_tokens
-            - self.count_tokens_in_conversation(chat_start + [user_prompt])
-            - n_tokens_tool_descriptions
+                self.max_tokens
+                - self.count_tokens_in_conversation(chat_start + [user_prompt])
+                - n_tokens_tool_descriptions
         )
 
         truncated_chat = messages[2:-1]
@@ -328,18 +331,18 @@ class BaseOaiApiLLMClient(LLMClient):
                 return conversation.append(self.concatenate_user_prompt_with_llm_response(conversation, completion))
 
             except (
-                UnprocessableEntityError,
-                AuthenticationError,
-                PermissionError,
-                BadRequestError,
+                    UnprocessableEntityError,
+                    AuthenticationError,
+                    PermissionError,
+                    BadRequestError,
             ) as e:
                 logger.error(f"Non-retryable error: {e}, aborting...")
                 raise e
 
             except (
-                APITimeoutError,
-                APIError,
-                RateLimitError,
+                    APITimeoutError,
+                    APIError,
+                    RateLimitError,
             ) as e:
                 fail_counter += 1
                 logger.warning(f"Retryable error encountered: {e}, retrying... ({fail_counter}/{self.max_repeat})")
@@ -352,7 +355,7 @@ class OpenAILLMClient(BaseOaiApiLLMClient):
     @classmethod
     def create(cls, **kwargs) -> Self:
         api_key = kwargs.get("api_key", None)
-        model = kwargs.get("model", "")
+        model = kwargs.get("model_name", "")
         max_tokens = kwargs.get("model_max_tokens", 2048)
 
         tokenizer = tiktoken.encoding_for_model(model)

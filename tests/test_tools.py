@@ -1,8 +1,9 @@
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from pprint import pprint
 
-from diskurs.config import ToolConfig
+from diskurs.config import ToolConfig, ToolDependency
 from diskurs.tools import tool, ToolExecutor, create_func_with_closure, load_tools
 from diskurs.entities import ToolDescription
 
@@ -32,7 +33,19 @@ def tool_params():
     return tool_configs, tool_dependencies
 
 
-def test_create_func_with_closure():
+@dataclass(kw_only=True)
+class DummyDependencyConfig(ToolDependency):
+    type: str = "dummy"
+    foo: str
+    bar: str
+
+@pytest.fixture()
+def dependency_config():
+    my_dep_conf = DummyDependencyConfig(foo="example_value1", bar="example_value2")
+    return my_dep_conf
+
+
+def test_create_func_with_closure(dependency_config):
 
     def create_dummy_func(configs, dep1=None, dep2=None):
 
@@ -49,7 +62,7 @@ def test_create_func_with_closure():
         configs={"param": "value"},
     )
 
-    dependency_config = {"dep1": "Dependency1", "dep2": "Dependency2"}
+    dependency_config = {"dep1": dependency_config}
 
     # Act
     result_func = create_func_with_closure(create_dummy_func, config, dependency_config)
