@@ -18,9 +18,8 @@ def test_azure_openai_client_creation_with_entra_id(mock_get_token, mock_credent
     )
 
     mock_credential.assert_called_once()
-    mock_get_token.assert_called_once_with(mock_credential(), "https://api.cognitive.microsoft.com/.default")
+    mock_get_token.assert_called_once_with(mock_credential(), "https://cognitiveservices.azure.com/.default")
     assert client.client
-
 
 @patch("diskurs.azure_llm_client.get_bearer_token_provider")
 def test_azure_openai_client_creation_without_entra_id(mock_credential):

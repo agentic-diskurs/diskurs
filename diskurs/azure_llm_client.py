@@ -9,7 +9,7 @@ from diskurs.llm_client import BaseOaiApiLLMClient
 from diskurs.registry import register_llm
 
 try:
-    from azure.identity import get_bearer_token_provider, DefaultAzureCredential
+    from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 except ImportError:
     DefaultAzureCredential = None
     get_bearer_token_provider = None
@@ -26,7 +26,7 @@ class AzureOpenAIClient(BaseOaiApiLLMClient):
         use_entra_id = kwargs.get("use_entra_id", False)
         max_tokens = kwargs.get("max_tokens")
 
-        tokenizer = (tiktoken.encoding_for_model(model),)
+        tokenizer = tiktoken.encoding_for_model(model)
 
         client_params = {
             "api_key": api_key,
@@ -36,7 +36,7 @@ class AzureOpenAIClient(BaseOaiApiLLMClient):
 
         if use_entra_id:
             client_params["azure_ad_token_provider"] = get_bearer_token_provider(
-                DefaultAzureCredential(), "https://api.cognitive.microsoft.com/.default"
+                DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
             )
 
         client = AzureOpenAI(**client_params)
