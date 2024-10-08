@@ -38,3 +38,16 @@ def test_azure_openai_client_creation_without_entra_id(mock_credential):
     assert client.client
     assert client.client.api_key == "mock_api_key"
     assert client
+
+def test_azure_openai_max_tokens():
+
+    client = AzureOpenAIClient.create(
+        api_key="mock_api_key",
+        model_name="gpt-4",
+        api_version="2023-03-15-preview",
+        endpoint="https://mock-azure-openai-endpoint.com",
+        use_entra_id=False,
+        model_max_tokens=1234
+    )
+
+    assert client.max_tokens == 1234

@@ -24,7 +24,7 @@ class AzureOpenAIClient(BaseOaiApiLLMClient):
         api_version = kwargs.get("api_version", "")
         azure_endpoint = kwargs.get("endpoint", "")
         use_entra_id = kwargs.get("use_entra_id", False)
-        max_tokens = kwargs.get("max_tokens")
+        max_tokens = kwargs.get("model_max_tokens", 2048)
 
         tokenizer = tiktoken.encoding_for_model(model)
 
