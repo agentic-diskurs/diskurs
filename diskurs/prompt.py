@@ -47,10 +47,10 @@ class PromptParserMixin:
 
     @classmethod
     def validate_dataclass(
-        cls,
-        parsed_response: dict[str, Any],
-        user_prompt_argument: Type[dataclass],
-        strict: bool = False,
+            cls,
+            parsed_response: dict[str, Any],
+            user_prompt_argument: Type[dataclass],
+            strict: bool = False,
     ) -> dataclass:
         """
         Validate that the JSON fields match the target dataclass.
@@ -104,16 +104,22 @@ class PromptParserMixin:
     @classmethod
     def validate_json(cls, llm_response: str) -> dict:
         """
-        Parse and validate the LLM response as JSON.
+        Parse and validate the LLM response as JSON, handling nested JSON strings.
 
         :param llm_response: The raw text response from the LLM.
         :return: Parsed dictionary if valid JSON.
         :raises PromptValidationError: If the response is not valid JSON.
         """
         try:
-            return json.loads(llm_response)
+            parsed = json.loads(llm_response)
+            # Recursively parse if the result is a string
+            while isinstance(parsed, str):
+                parsed = json.loads(parsed)
+            if isinstance(parsed, dict):
+                return parsed
+            else:
+                raise PromptValidationError("Parsed response is not a JSON object.")
         except json.JSONDecodeError as e:
-            # TODO: put into a jinja2 template in assets folder
             error_message = (
                 f"LLM response is not valid JSON. Error: {e.msg} at line {e.lineno}, column {e.colno}. "
                 "Please ensure the response is valid JSON and follows the correct format."
@@ -121,7 +127,7 @@ class PromptParserMixin:
             raise PromptValidationError(error_message)
 
     def parse_user_prompt(
-        self, llm_response: str, message_type: MessageType = MessageType.ROUTING
+            self, llm_response: str, message_type: MessageType = MessageType.ROUTING
     ) -> PromptArgument | ChatMessage:
         """
         Parse the text returned from the LLM into a structured prompt argument.
@@ -158,14 +164,14 @@ class PromptRendererMixin:
     """
 
     def __init__(
-        self,
-        system_prompt_argument_class: Type[SystemPromptArg],
-        user_prompt_argument_class: Type[UserPromptArg],
-        system_template: Template,
-        user_template: Template,
-        json_formatting_template: Optional[Template] = None,
-        is_valid: Optional[Callable[[UserPromptArg], bool]] = None,
-        is_final: Optional[Callable[[UserPromptArg], bool]] = None,
+            self,
+            system_prompt_argument_class: Type[SystemPromptArg],
+            user_prompt_argument_class: Type[UserPromptArg],
+            system_template: Template,
+            user_template: Template,
+            json_formatting_template: Optional[Template] = None,
+            is_valid: Optional[Callable[[UserPromptArg], bool]] = None,
+            is_final: Optional[Callable[[UserPromptArg], bool]] = None,
     ):
         self.system_prompt_argument = system_prompt_argument_class
         self.user_prompt_argument = user_prompt_argument_class
@@ -196,7 +202,7 @@ class PromptRendererMixin:
         return rendered_prompt
 
     def render_system_template(
-        self, name: str, prompt_args: PromptArgument, return_json: bool = True
+            self, name: str, prompt_args: PromptArgument, return_json: bool = True
     ) -> ChatMessage:
         content = self.system_template.render(**asdict(prompt_args))
 
@@ -208,10 +214,10 @@ class PromptRendererMixin:
         return ChatMessage(role=Role.SYSTEM, name=name, content=content)
 
     def render_user_template(
-        self,
-        name: str,
-        prompt_args: PromptArgument,
-        message_type: MessageType = MessageType.CONVERSATION,
+            self,
+            name: str,
+            prompt_args: PromptArgument,
+            message_type: MessageType = MessageType.CONVERSATION,
     ) -> ChatMessage:
         raise NotImplementedError
 
@@ -219,15 +225,15 @@ class PromptRendererMixin:
 class PromptLoaderMixin:
     @classmethod
     def prepare_create(
-        cls,
-        agent_description_filename,
-        code_filename,
-        kwargs,
-        location,
-        system_prompt_argument_class,
-        system_template_filename,
-        user_prompt_argument_class,
-        user_template_filename,
+            cls,
+            agent_description_filename,
+            code_filename,
+            kwargs,
+            location,
+            system_prompt_argument_class,
+            system_template_filename,
+            user_prompt_argument_class,
+            user_template_filename,
     ):
         logger.info(f"Loading templates from: {location}")
         agent_description, loaded_module, system_template, user_template = (
@@ -266,22 +272,22 @@ class PromptLoaderMixin:
 
     @classmethod
     def load_prompt_functions(
-        cls,
-        system_prompt_argument_class,
-        user_prompt_argument_class,
-        loaded_module,
-        kwargs,
+            cls,
+            system_prompt_argument_class,
+            user_prompt_argument_class,
+            loaded_module,
+            kwargs,
     ) -> dict[str, Callable]:
         raise NotImplementedError
 
     @classmethod
     def load_user_assets(
-        cls,
-        agent_description_filename,
-        code_filename,
-        location,
-        system_template_filename,
-        user_template_filename,
+            cls,
+            agent_description_filename,
+            code_filename,
+            location,
+            system_template_filename,
+            user_template_filename,
     ):
         with open(location / agent_description_filename, "r") as f:
             agent_description = f.read()
@@ -346,15 +352,15 @@ class MultistepPrompt(
     PromptRendererMixin, PromptParserMixin, PromptLoaderMixin, MultistepPromptProtocol
 ):
     def __init__(
-        self,
-        agent_description: str,
-        system_template: Template,
-        user_template: Template,
-        system_prompt_argument_class: Type[SystemPromptArg],
-        user_prompt_argument_class: Type[UserPromptArg],
-        json_formatting_template: Optional[Template] = None,
-        is_valid: Optional[Callable[[Any], bool]] = None,
-        is_final: Optional[Callable[[Any], bool]] = None,
+            self,
+            agent_description: str,
+            system_template: Template,
+            user_template: Template,
+            system_prompt_argument_class: Type[SystemPromptArg],
+            user_prompt_argument_class: Type[UserPromptArg],
+            json_formatting_template: Optional[Template] = None,
+            is_valid: Optional[Callable[[Any], bool]] = None,
+            is_final: Optional[Callable[[Any], bool]] = None,
     ):
         super().__init__(
             system_prompt_argument_class=system_prompt_argument_class,
@@ -369,15 +375,15 @@ class MultistepPrompt(
 
     @classmethod
     def create(
-        cls,
-        location: Path,
-        system_prompt_argument_class: str,
-        user_prompt_argument_class: str,
-        agent_description_filename: str = "agent_description.txt",
-        code_filename: str = "prompt.py",
-        user_template_filename: str = "user_template.jinja2",
-        system_template_filename: str = "system_template.jinja2",
-        **kwargs,
+            cls,
+            location: Path,
+            system_prompt_argument_class: str,
+            user_prompt_argument_class: str,
+            agent_description_filename: str = "agent_description.txt",
+            code_filename: str = "prompt.py",
+            user_template_filename: str = "user_template.jinja2",
+            system_template_filename: str = "system_template.jinja2",
+            **kwargs,
     ) -> Self:
         """
         Factory method to create a Prompt object. Loads templates and code dynamically
@@ -420,11 +426,11 @@ class MultistepPrompt(
 
     @classmethod
     def load_prompt_functions(
-        cls,
-        system_prompt_argument_class,
-        user_prompt_argument_class,
-        loaded_module,
-        kwargs,
+            cls,
+            system_prompt_argument_class,
+            user_prompt_argument_class,
+            loaded_module,
+            kwargs,
     ) -> dict[str, Callable]:
         return {
             "is_valid": cls.load_symbol(
@@ -442,10 +448,10 @@ class MultistepPrompt(
         }
 
     def render_user_template(
-        self,
-        name: str,
-        prompt_args: PromptArgument,
-        message_type: MessageType = MessageType.CONVERSATION,
+            self,
+            name: str,
+            prompt_args: PromptArgument,
+            message_type: MessageType = MessageType.CONVERSATION,
     ) -> ChatMessage:
         try:
             if self.is_valid(prompt_args):
@@ -469,16 +475,16 @@ class ConductorPrompt(
     PromptRendererMixin, PromptParserMixin, PromptLoaderMixin, ConductorPromptProtocol
 ):
     def __init__(
-        self,
-        agent_description: str,
-        system_template: Template,
-        user_template: Template,
-        system_prompt_argument_class: Type[SystemPromptArg],
-        user_prompt_argument_class: Type[UserPromptArg],
-        json_formatting_template: Optional[Template] = None,
-        longterm_memory_class: Type[GenericConductorLongtermMemory] = None,
-        can_finalize: Callable[[GenericConductorLongtermMemory], bool] = None,
-        finalize: Callable[[GenericConductorLongtermMemory], bool] = None,
+            self,
+            agent_description: str,
+            system_template: Template,
+            user_template: Template,
+            system_prompt_argument_class: Type[SystemPromptArg],
+            user_prompt_argument_class: Type[UserPromptArg],
+            json_formatting_template: Optional[Template] = None,
+            longterm_memory_class: Type[GenericConductorLongtermMemory] = None,
+            can_finalize: Callable[[GenericConductorLongtermMemory], bool] = None,
+            finalize: Callable[[GenericConductorLongtermMemory], bool] = None,
     ):
         super().__init__(
             system_prompt_argument_class=system_prompt_argument_class,
@@ -494,15 +500,15 @@ class ConductorPrompt(
 
     @classmethod
     def create(
-        cls,
-        location: Path,
-        system_prompt_argument_class: str,
-        user_prompt_argument_class: Optional[str] = None,
-        agent_description_filename: Optional[str] = "agent_description.txt",
-        code_filename: str = "prompt.py",
-        user_template_filename: Optional[str] = None,
-        system_template_filename: Optional[str] = None,
-        **kwargs,
+            cls,
+            location: Path,
+            system_prompt_argument_class: str,
+            user_prompt_argument_class: Optional[str] = None,
+            agent_description_filename: Optional[str] = "agent_description.txt",
+            code_filename: str = "prompt.py",
+            user_template_filename: Optional[str] = None,
+            system_template_filename: Optional[str] = None,
+            **kwargs,
     ) -> "ConductorPrompt":
         (
             agent_description,
@@ -538,11 +544,11 @@ class ConductorPrompt(
 
     @classmethod
     def load_prompt_functions(
-        cls,
-        system_prompt_argument_class,
-        user_prompt_argument_class,
-        loaded_module,
-        kwargs,
+            cls,
+            system_prompt_argument_class,
+            user_prompt_argument_class,
+            loaded_module,
+            kwargs,
     ) -> dict[str, Callable]:
         return {
             "system_prompt_argument_class": (
@@ -571,7 +577,7 @@ class ConductorPrompt(
         return self._can_finalize(longterm_memory)
 
     def finalize(
-        self, longterm_memory: GenericConductorLongtermMemory
+            self, longterm_memory: GenericConductorLongtermMemory
     ) -> GenericConductorLongtermMemory:
         return self._finalize(longterm_memory)
 
@@ -579,10 +585,10 @@ class ConductorPrompt(
         return self.longterm_memory(**kwargs)
 
     def render_user_template(
-        self,
-        name: str,
-        prompt_args: PromptArgument,
-        message_type: MessageType = MessageType.ROUTING,
+            self,
+            name: str,
+            prompt_args: PromptArgument,
+            message_type: MessageType = MessageType.ROUTING,
     ) -> ChatMessage:
         content = self.user_template.render(**asdict(prompt_args))
         return ChatMessage(

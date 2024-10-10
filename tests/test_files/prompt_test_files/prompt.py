@@ -13,7 +13,7 @@ class MySystemPromptArgument(PromptArgument):
 
 @dataclass
 class MyUserPromptArgument(PromptArgument):
-    name: str
+    name: str = ""
     topic: str = ""
     user_question: str = ""
     answer: str = ""

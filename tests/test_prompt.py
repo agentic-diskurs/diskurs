@@ -6,6 +6,7 @@ import pytest
 from diskurs import PromptArgument
 from diskurs.prompt import MultistepPrompt, PromptValidationError, ConductorPrompt
 from diskurs.prompt import PromptParserMixin
+from tests.test_files.prompt_test_files.prompt import MyUserPromptArgument
 
 
 @pytest.fixture
@@ -105,12 +106,21 @@ prompt_config = {
 
 def test_conductor_custom_system_prompt():
     prompt = ConductorPrompt.create(**prompt_config)
-    rendered_system_prompt = prompt.render_system_template(name="test_conductor", prompt_args=prompt.system_prompt_argument(
-        agent_descriptions={
-            "first_agent": "I am the first agent",
-            "second_agen": "I am the second agent"
-        }
+    rendered_system_prompt = prompt.render_system_template(
+        name="test_conductor",
+        prompt_args=prompt.system_prompt_argument(
+            agent_descriptions={
+                "first_agent": "I am the first agent",
+                "second_agen": "I am the second agent"
+            }
 
-    ))
+        ))
     print(rendered_system_prompt)
     assert rendered_system_prompt.content.startswith("Custom system template")
+
+
+def test_parse_user_prompt(prompt_instance):
+    res = prompt_instance.parse_user_prompt('"{\\"topic\\": \\"Secure Web Gateway\\"}"')
+
+    assert isinstance(res, PromptArgument)
+    assert res.topic == "Secure Web Gateway"
