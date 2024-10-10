@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "diskurs"
-version = "0.0.7"
+version = "0.0.9"
 description = "A hackable and extendable framework for developing LLM-based multi-agentic systems."
 authors = ["Flurin Gishamer <fgishamer@me.com>"]
 license = "MIT"

@@ -192,25 +192,11 @@ class BaseOaiApiLLMClient(LLMClient):
         message_type = next((m.type for m in user_prompt))
         return user_prompt + [cls.llm_response_to_chat_message(completion, message_type=message_type)]
 
-    def count_tokens(self, text: str) -> int:
-        """
-        Returns the number of tokens in a text string, using the tiktoken tokenizer.
-        :param text: The text to count the tokens of
-        :return: The number of tokens in the text
-        """
-        num_tokens = len(self.tokenizer.encode(text))
-        return num_tokens
-
     def count_tokens_in_conversation(self, messages: list[dict]) -> int:
         """
         Count the number of tokens used by a list of messages i.e. chat history.
-        The implementation is from:
-        https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
-
-        :param messages: The list of messages in the conversation
-        :return: The number of tokens used by the messages
+        The implementation is based on OpenAI's token counting guidelines.
         """
-
         if self.model in {
             "gpt-3.5-turbo-0613",
             "gpt-3.5-turbo-16k-0613",
@@ -222,6 +208,7 @@ class BaseOaiApiLLMClient(LLMClient):
         }:
             tokens_per_message = 3
             tokens_per_name = 1
+            tokens_per_function_call = 3  # tokens per function call
         elif self.model == "gpt-3.5-turbo-0301":
             tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
             tokens_per_name = -1  # if there's a name, the role is omitted
@@ -231,10 +218,42 @@ class BaseOaiApiLLMClient(LLMClient):
         for message in messages:
             num_tokens += tokens_per_message
             for key, value in message.items():
-                num_tokens += self.count_tokens(value)
                 if key == "name":
-                    num_tokens += tokens_per_name
+                    num_tokens += tokens_per_name + self.count_tokens(value)
+                elif key == "content":
+                    num_tokens += self.count_tokens(value)
+                elif key == "function_call" or key == "tool_calls":
+                    num_tokens += tokens_per_function_call
+                    num_tokens += self.count_tokens_recursively(value)
+                else:
+                    num_tokens += self.count_tokens_recursively(value)
         num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
+        return num_tokens
+
+    def count_tokens_recursively(self, value):
+        if isinstance(value, str):
+            return self.count_tokens(value)
+        elif isinstance(value, dict):
+            total = 0
+            for k, v in value.items():
+                total += self.count_tokens_recursively(k)
+                total += self.count_tokens_recursively(v)
+            return total
+        elif isinstance(value, list):
+            total = 0
+            for item in value:
+                total += self.count_tokens_recursively(item)
+            return total
+        else:
+            return self.count_tokens(str(value))
+
+    def count_tokens(self, text: str) -> int:
+        """
+        Counts the number of tokens in a text string.
+        :param text: The text string to tokenize.
+        :return: The number of tokens in the text string.
+        """
+        num_tokens = len(self.tokenizer.encode(text))
         return num_tokens
 
     def count_tokens_of_tool_descriptions(self, tool_descriptions: list[dict[str, Any]]) -> int:

@@ -66,6 +66,20 @@ example_tools = [
 
 example_messages_with_tools = {"tools": example_tools, "model": "gpt-4-0613", "messages": example_messages}
 
+tool_call = {
+    "role": "assistant",
+    "tool_calls": [
+        {
+            "id": "call_62136354",
+            "type": "function",
+            "function": {
+                "arguments": "{'order_id': 'order_12345'}",
+                "name": "get_delivery_date"
+            }
+        }
+    ]
+}
+
 
 @pytest.fixture
 def llm_client():
@@ -103,6 +117,12 @@ def test_format_for_llm(init_conversation, llm_client):
         and isinstance(message["content"], str)
         for message in formatted["messages"]
     )
+
+
+def test_count_tokens_in_conversation_tool_calls(llm_client):
+    n_tokens = llm_client.count_tokens_in_conversation([tool_call])
+
+    assert n_tokens == 34
 
 
 def test_count_tokens_in_conversation(llm_client):
