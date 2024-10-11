@@ -1,10 +1,7 @@
 from typing import Type, Dict
 
-# Existing registries
 AGENT_REGISTRY: Dict[str, Type] = {}
 LLM_REGISTRY: Dict[str, Type] = {}
-
-# New registries
 TOOL_EXECUTOR_REGISTRY: Dict[str, Type] = {}
 DISPATCHER_REGISTRY: Dict[str, Type] = {}
 PROMPT_REGISTRY: Dict[str, Type] = {}

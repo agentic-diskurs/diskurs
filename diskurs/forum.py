@@ -94,8 +94,9 @@ class ForumFactory:
 
     def load_and_register_tools(self):
         """Load and register tools with the tool executor."""
-        self.tools = load_tools(self.config.tools, self.config.tool_dependencies)
-        self.tool_executor.register_tools(self.tools)
+        if self.config.tools:
+            self.tools = load_tools(self.config.tools, self.config.tool_dependencies)
+            self.tool_executor.register_tools(self.tools)
 
     def create_dispatcher(self):
         """Create a dispatcher instance based on the configuration."""
@@ -116,8 +117,12 @@ class ForumFactory:
     def create_agents(self):
         """Create agent instances based on the configuration."""
         for agent_conf in self.config.agents:
-            additional_args = {}
+            additional_args = {
+                "max_trials": agent_conf.max_trials,
+            }
 
+            if hasattr(agent_conf, "max_reasoning_steps"):
+                additional_args["max_reasoning_steps"] = agent_conf.max_reasoning_steps
             if hasattr(agent_conf, "prompt"):
                 prompt_cls = PROMPT_REGISTRY.get(agent_conf.prompt.type)
                 prompt = prompt_cls.create(**asdict(agent_conf.prompt))

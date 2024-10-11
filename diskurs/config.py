@@ -131,6 +131,7 @@ class MultistepPromptConfig(PromptConfig):
     is_final_name: str
 
 
+
 @dataclass(kw_only=True)
 class ConductorPromptConfig(PromptConfig):
     """
@@ -153,6 +154,7 @@ class AgentConfig(YamlSerializable, Registrable):
     type: str
     name: str
     topics: list[str]
+    max_trials: Optional[int] = 5
 
 
 @dataclass(kw_only=True)
@@ -166,6 +168,7 @@ class MultistepAgentConfig(AgentConfig):
     prompt: PromptConfig
     tools: Optional[list[str]] = None
     init_prompt_arguments_with_longterm_memory: Optional[bool] = True
+    max_reasoning_steps: Optional[int] = 5
 
 
 @dataclass(kw_only=True)
@@ -245,7 +248,7 @@ class ForumConfig(YamlSerializable):
     tool_executor_type: str
     agents: list[AgentConfig]
     llms: list[LLMConfig]
-    tools: list[ToolConfig]
+    tools: Optional[list[ToolConfig]] = None
     custom_modules: list[str] = field(default_factory=list)
     tool_dependencies: list[ToolDependency] = field(default_factory=dict)
 
