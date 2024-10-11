@@ -248,7 +248,7 @@ class ForumConfig(YamlSerializable):
     tool_executor_type: str
     agents: list[AgentConfig]
     llms: list[LLMConfig]
-    tools: Optional[list[ToolConfig]] = None
+    tools: list[ToolConfig]
     custom_modules: list[str] = field(default_factory=list)
     tool_dependencies: list[ToolDependency] = field(default_factory=dict)
 

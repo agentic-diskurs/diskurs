@@ -6,6 +6,7 @@ agents:
   - name: "conductor_agent"
     type: "conductor"
     llm: "gpt-4-o-openai"
+    maxTrials: 10
     prompt:
       type: "conductor_prompt"
       location: "agents/conductor_agent"
@@ -20,6 +21,7 @@ agents:
   - name: "first_agent"
     type: "multistep"
     llm: "gpt-4-o-openai"
+    maxReasoningSteps: 25
     prompt:
       type: "multistep_prompt"
       location: "agents/first_agent"
