@@ -138,6 +138,7 @@ class MultiStepAgent(BaseAgent):
         :return: the updated conversation object after the agent has finished reasoning. Contains
             the chat history, with all the system and user messages, as well as the final answer.
         """
+        # TODO: add system prompt arguments to config.yml
         conversation = self.prepare_conversation(
             conversation,
             system_prompt_argument=self.prompt.create_system_prompt_argument(),
