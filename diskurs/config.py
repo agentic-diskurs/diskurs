@@ -107,6 +107,7 @@ class Registrable:
         return cls.registry.get(key, cls)
 
 
+# TODO: Add default values for can_finalize, finalize, is_valid, is_final, and fail
 @dataclass(kw_only=True)
 class PromptConfig(YamlSerializable, Registrable):
     """
@@ -131,7 +132,6 @@ class MultistepPromptConfig(PromptConfig):
     is_final_name: str
 
 
-
 @dataclass(kw_only=True)
 class ConductorPromptConfig(PromptConfig):
     """
@@ -143,6 +143,7 @@ class ConductorPromptConfig(PromptConfig):
     system_prompt_argument_class: Optional[str] = None
     longterm_memory_class: str
     can_finalize_name: str
+    fail_name: str
 
 
 @dataclass(kw_only=True)
@@ -180,6 +181,7 @@ class ConductorAgentConfig(AgentConfig):
     type: str = "conductor"
     llm: str
     prompt: PromptConfig
+    max_dispatches: Optional[int] = 50
 
 
 @dataclass(kw_only=True)

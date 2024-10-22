@@ -27,3 +27,7 @@ def can_finalize(longterm_memory: MyConductorLongtermMemory) -> bool:
 
 def finalize(longterm_memory: MyConductorLongtermMemory) -> dict[str, Any]:
     return asdict(longterm_memory)
+
+
+def fail(longterm_memory: MyConductorLongtermMemory) -> dict[str, Any]:
+    return {"error": "Failed to finalize", **asdict(longterm_memory)}

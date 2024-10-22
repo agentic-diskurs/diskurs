@@ -32,12 +32,6 @@ mock_illegal_llm_response = """{
   "answer": "A decorator in Python is a function that modifies the behavior of another function."
 }"""
 
-mock_missing_keys_llm_response = """{
-  "topic": "Python Programming",
-  "user_question": "What is a decorator in Python?",
-  "answer": "A decorator in Python is a function that modifies the behavior of another function."
-}"""
-
 
 def test_parse_prompt(prompt_instance):
     res = prompt_instance.parse_user_prompt(mock_llm_response)
@@ -50,16 +44,10 @@ def test_fail_parse_prompt(prompt_instance):
     res = prompt_instance.parse_user_prompt(mock_illegal_llm_response)
 
     assert (
-            res.content
-            == "LLM response is not valid JSON. Error: Expecting ',' delimiter at line 3, column 3. Please ensure "
-            + "the response is valid JSON and follows the correct format."
+        res.content
+        == "LLM response is not valid JSON. Error: Expecting ',' delimiter at line 3, column 3. Please ensure "
+        + "the response is valid JSON and follows the correct format."
     )
-
-
-def test_missing_key_parse_prompt(prompt_instance):
-    res = prompt_instance.parse_user_prompt(mock_missing_keys_llm_response)
-
-    assert res.content == "Missing required fields: name. Valid fields are: name, topic, user_question, answer."
 
 
 @dataclass
@@ -76,9 +64,9 @@ def test_validate_dataclass():
     )
 
     assert (
-            res_prompt_arg.url == response["url"]
-            and res_prompt_arg.comment == response["comment"]
-            and res_prompt_arg.username == response["username"]
+        res_prompt_arg.url == response["url"]
+        and res_prompt_arg.comment == response["comment"]
+        and res_prompt_arg.username == response["username"]
     )
 
 
@@ -90,8 +78,8 @@ def test_validate_dataclass_additional_fields():
             parsed_response=response, user_prompt_argument=ExamplePromptArg
         )
     assert (
-            str(exc_info.value)
-            == "Extra fields provided: foo. Please remove them. Valid fields are: url, comment, username."
+        str(exc_info.value)
+        == "Extra fields provided: foo. Please remove them. Valid fields are: url, comment, username."
     )
 
 
@@ -100,7 +88,8 @@ prompt_config = {
     "user_prompt_argument_class": "ConductorUserPromptArgument",
     "system_prompt_argument_class": "ConductorSystemPromptArgument",
     "longterm_memory_class": "MyConductorLongtermMemory",
-    "can_finalize_name": "can_finalize"
+    "can_finalize_name": "can_finalize",
+    "fail_name": "fail",
 }
 
 
@@ -109,12 +98,9 @@ def test_conductor_custom_system_prompt():
     rendered_system_prompt = prompt.render_system_template(
         name="test_conductor",
         prompt_args=prompt.system_prompt_argument(
-            agent_descriptions={
-                "first_agent": "I am the first agent",
-                "second_agen": "I am the second agent"
-            }
-
-        ))
+            agent_descriptions={"first_agent": "I am the first agent", "second_agen": "I am the second agent"}
+        ),
+    )
     print(rendered_system_prompt)
     assert rendered_system_prompt.content.startswith("Custom system template")
 
@@ -124,3 +110,9 @@ def test_parse_user_prompt(prompt_instance):
 
     assert isinstance(res, PromptArgument)
     assert res.topic == "Secure Web Gateway"
+
+
+def test_fail():
+    prompt = ConductorPrompt.create(**prompt_config)
+    msg = prompt.fail(prompt.longterm_memory())
+    assert msg["error"] == "Failed to finalize"

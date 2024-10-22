@@ -55,6 +55,8 @@ class ConductorPromptProtocol(Prompt):
 
     def finalize(self, longterm_memory: Any) -> Any: ...
 
+    def fail(self, longterm_memory: Any) -> Any: ...
+
 
 class Conversation(Protocol):
     @property

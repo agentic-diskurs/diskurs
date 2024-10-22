@@ -80,7 +80,6 @@ class Conversation:
     and prompts. This class is immutable; any modifications result in new instances.
     """
 
-    # TODO:  We need to handle ...prompt_arguments in a better way i.e. reset them reliably after each agent.
     def __init__(
         self,
         system_prompt: Optional[ChatMessage] = None,
