@@ -168,7 +168,7 @@ class ConversationParticipant(Protocol):
 
     def register_dispatcher(self, dispatcher: "ConversationDispatcher") -> None: ...
 
-    def start_conversation(self, question: DiskursInput) -> None: ...
+    def start_conversation(self, conversation: Conversation) -> None: ...
 
 
 class ConversationDispatcher(Protocol):
@@ -184,13 +184,19 @@ class ConversationDispatcher(Protocol):
         """Dispatch a conversation to all participants subscribed to the topic."""
         pass
 
-    def run(self, participant: ConversationParticipant, question: dict) -> dict:
+    def run(self, participant: ConversationParticipant, conversation: dict) -> dict:
         """Finish the conversation."""
         pass
 
     def finalize(self, response: dict) -> None:
         """Finalize a conversation by adding metadata or other final touches."""
         pass
+
+
+class ConversationStore(Protocol):
+    def persist(self, conversation: Conversation) -> None: ...
+
+    def fetch(self, conversation_id: str) -> Conversation: ...
 
 
 GenericAgent = TypeVar("GenericAgent")

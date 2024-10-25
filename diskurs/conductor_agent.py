@@ -115,6 +115,9 @@ class ConductorAgent(BaseAgent):
     def finalize(self, conversation: Conversation) -> dict[str, Any]:
         return self.prompt.finalize(conversation.get_agent_longterm_memory(self.name))
 
+    def fail(self, conversation: Conversation) -> dict[str, Any]:
+        return self.prompt.fail(conversation.get_agent_longterm_memory(self.name))
+
     def process_conversation(self, conversation: Conversation) -> None:
         logger.info(f"Agent: {self.name}")
         self.n_dispatches += 1
@@ -124,24 +127,28 @@ class ConductorAgent(BaseAgent):
             conversation.get_agent_longterm_memory(self.name)
         ):
             formated_response = self.finalize(conversation=conversation)
+            self.n_dispatches = 0
             self.dispatcher.finalize(response=formated_response)
+
         elif self.max_dispatches <= self.n_dispatches:
-            return self.prompt.fail(conversation.get_agent_longterm_memory(self.name))
+            formatted_response = self.fail(conversation=conversation)
+            self.n_dispatches = 0
+            self.dispatcher.finalize(response=formatted_response)
+
         else:
             conversation = self.invoke(conversation)
             next_agent = json.loads(conversation.last_message.content).get("next_agent")
             self.dispatcher.publish(topic=next_agent, conversation=conversation)
 
-    def start_conversation(self, diskurs_input: DiskursInput) -> None:
-        conversation = Conversation(metadata=diskurs_input.metadata)
+    def start_conversation(self, conversation: Conversation) -> None:
 
         conversation = conversation.update_agent_longterm_memory(
             agent_name=self.name,
-            longterm_memory=self.prompt.init_longterm_memory(user_query=diskurs_input.user_query),
+            longterm_memory=self.prompt.init_longterm_memory(user_query=conversation.user_query),
         ).append(
             ChatMessage(
                 Role.USER,
-                content=diskurs_input.user_query,
+                content=conversation.user_query,
                 name=self.name,
                 type=MessageType.CONVERSATION,
             )

@@ -5,7 +5,7 @@ from typing import List, Callable
 
 from diskurs.config import load_config_from_yaml
 from diskurs.entities import ToolDescription, DiskursInput
-from diskurs.protocols import Agent, ConversationParticipant
+from diskurs.protocols import Agent, ConversationParticipant, Conversation, ConversationStore
 from diskurs.registry import AGENT_REGISTRY, LLM_REGISTRY, TOOL_EXECUTOR_REGISTRY, DISPATCHER_REGISTRY, PROMPT_REGISTRY
 from diskurs.tools import load_tools
 from diskurs.utils import load_module_from_path
@@ -20,15 +20,20 @@ class Forum:
         dispatcher,
         tool_executor,
         first_contact: ConversationParticipant,
+        conversation_store: ConversationStore,
     ):
         self.agents = agents
         self.dispatcher = dispatcher
         self.tool_executor = tool_executor
+        self.conversation_store = conversation_store
         self.conductor = first_contact
 
+    def fetch_or_create_conversation(self, diskurs_input: DiskursInput) -> Conversation:
+        pass
+
     def ama(self, diskurs_input: DiskursInput):
-        # TODO:  initialize metadata and longterm memory
-        answer = self.dispatcher.run(self.conductor, diskurs_input)
+        conversation = self.fetch_or_create_conversation(diskurs_input)
+        answer = self.dispatcher.run(self.conductor, conversation)
         return answer
 
 
