@@ -1,7 +1,65 @@
 import copy
-from dataclasses import dataclass, fields, replace
+from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import replace
 from enum import Enum
-from typing import Optional, TypeVar, Any, Callable
+from typing import Any, get_args, get_origin
+from typing import Optional, TypeVar, Callable
+
+
+@dataclass
+class JsonSerializable:
+    def to_dict(self):
+        def serialize(obj):
+            if is_dataclass(obj):
+                return {f.name: serialize(getattr(obj, f.name)) for f in fields(obj)}
+            elif isinstance(obj, Enum):
+                return obj.value  # or obj.name
+            elif isinstance(obj, list):
+                return [serialize(item) for item in obj]
+            elif isinstance(obj, dict):
+                return {key: serialize(value) for key, value in obj.items()}
+            else:
+                return obj
+
+        return serialize(self)
+
+    @classmethod
+    def from_dict(cls, data):
+        def deserialize(cls_or_type, data):
+            if is_dataclass(cls_or_type):
+                kwargs = {}
+                for field in fields(cls_or_type):
+                    field_name = field.name
+                    field_type = field.type
+                    value = data.get(field_name)
+                    if value is None:
+                        kwargs[field_name] = None
+                    else:
+                        kwargs[field_name] = deserialize_field(field_type, value)
+                return cls_or_type(**kwargs)
+            elif isinstance(cls_or_type, type) and issubclass(cls_or_type, Enum):
+                return cls_or_type(data)
+            else:
+                return data
+
+        def deserialize_field(field_type, value):
+            origin = get_origin(field_type)
+            args = get_args(field_type)
+
+            if origin is list:
+                item_type = args[0]
+                return [deserialize_field(item_type, item) for item in value]
+            elif origin is dict:
+                key_type, val_type = args
+                return {deserialize_field(key_type, k): deserialize_field(val_type, v) for k, v in value.items()}
+            elif is_dataclass(field_type):
+                return deserialize(field_type, value)
+            elif isinstance(field_type, type) and issubclass(field_type, Enum):
+                return field_type(value)
+            else:
+                return value
+
+        return deserialize(cls, data)
 
 
 class Role(Enum):
@@ -38,7 +96,7 @@ GenericConductorLongtermMemory = TypeVar("GenericConductorLongtermMemory", bound
 
 
 @dataclass
-class ToolCall:
+class ToolCall(JsonSerializable):
     tool_call_id: str
     function_name: str
     arguments: dict[str, Any]
@@ -52,7 +110,7 @@ class ToolCallResult:
 
 
 @dataclass
-class ChatMessage:
+class ChatMessage(JsonSerializable):
     role: Role
     content: Optional[str] = ""
     name: Optional[str] = ""
@@ -60,18 +118,15 @@ class ChatMessage:
     tool_calls: Optional[list[ToolCall]] = None
     type: MessageType = MessageType.CONVERSATION
 
-    def to_dict(self) -> dict:
-        """
-        Render the ChatMessage into a JSON serializable dictionary, suitable for submission to an API endpoint.
-        Automatically converts Role enum into a string.
+    def __post_init__(self):
+        if isinstance(self.role, str):
+            self.role = Role(self.role)
 
-        :return: A dictionary with role as a string and other message attributes.
-        """
-        return {
-            "role": str(self.role),
-            "content": self.content,
-            "name": self.name,
-        }
+        if isinstance(self.type, str):
+            self.type = MessageType(self.type)
+
+        if self.tool_calls and len(self.tool_calls) > 0 and isinstance(self.tool_calls[0], dict):
+            self.tool_calls = [ToolCall.from_dict(tc) for tc in self.tool_calls]
 
 
 class Conversation:
@@ -89,6 +144,7 @@ class Conversation:
         chat=None,
         longterm_memory: Optional[dict[str, "LongtermMemory"]] = None,
         metadata: Optional[dict[str, str]] = None,
+        active_agent: str = "",
     ):
         """
         Initializes a new immutable instance of the Conversation class.
@@ -114,6 +170,7 @@ class Conversation:
         self._system_prompt_argument = copy.deepcopy(system_prompt_argument) if system_prompt_argument else None
         self._longterm_memory = copy.deepcopy(longterm_memory) or {}
         self._metadata = copy.deepcopy(metadata) or {}
+        self.active_agent = active_agent
 
     @property
     def chat(self) -> list[ChatMessage]:
@@ -224,6 +281,7 @@ class Conversation:
         user_prompt: Optional[ChatMessage | list[ChatMessage]] = None,
         longterm_memory: Optional[dict[str, Any]] = None,
         metadata: Optional[dict[str, str]] = None,
+        active_agent: Optional[str] = None,
     ) -> "Conversation":
         """
         Returns a new instance of Conversation with updated fields, preserving immutability.
@@ -236,6 +294,8 @@ class Conversation:
         :param user_prompt_argument:d user_prompt_arguments i.e. placeholders for the user prompt (default is None).
         :param longterm_memory: Updated long-term memory for the conversation (default is None).
         :param metadata: Updated metadata for the conversation (default is None).
+        :param active_agent: The name of the agent that is currently mutating the conversation,
+            used for de-serialization (default is None).
         :return: A new instance of the Conversation class with updated fields.
         """
         return Conversation(
@@ -246,6 +306,7 @@ class Conversation:
             user_prompt_argument=user_prompt_argument or self._user_prompt_argument,
             longterm_memory=longterm_memory or self._longterm_memory,
             metadata=metadata or self._metadata,
+            active_agent=active_agent or self.active_agent,
         )
 
     def append(
@@ -319,19 +380,70 @@ class Conversation:
             raise AttributeError(f"{key} is immutable and cannot be changed")
         super().__setattr__(key, value)
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any], agents: list):
+        active_agent = next(agent for agent in agents if agent.name == data["active_agent"])
 
+        system_prompt_argument_class = active_agent.prompt.system_prompt_argument
+        system_prompt_argument = (
+            system_prompt_argument_class.from_dict(data["system_prompt_argument"])
+            if data["system_prompt_argument"]
+            else None
+        )
+        system_prompt = ChatMessage.from_dict(data["system_prompt"]) if data["system_prompt"] else None
+
+        user_prompt_argument_class = active_agent.prompt.user_prompt_argument
+        user_prompt_argument = (
+            user_prompt_argument_class.from_dict(data["user_prompt_argument"])
+            if data["user_prompt_argument"]
+            else None
+        )
+        user_prompt = ChatMessage.from_dict(data["user_prompt"]) if data["user_prompt"] else None
+
+        ltm_cls_map = {
+            conductor_name: next(agent for agent in agents if agent.name == conductor_name).prompt.longterm_memory
+            for conductor_name in data["longterm_memory"].keys()
+        }
+        longterm_memory = {k: ltm_cls_map[k].from_dict(v) for k, v in data.get("longterm_memory", {}).items()}
+
+        return cls(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            system_prompt_argument=system_prompt_argument,
+            user_prompt_argument=user_prompt_argument,
+            chat=[ChatMessage.from_dict(msg) for msg in data.get("chat", [])],
+            longterm_memory=longterm_memory,
+            metadata=data.get("metadata", {}),
+            active_agent=data["active_agent"],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "system_prompt": self.system_prompt.to_dict() if self.system_prompt else None,
+            "user_prompt": self.user_prompt.to_dict() if self.user_prompt else None,
+            "system_prompt_argument": self.system_prompt_argument.to_dict() if self.system_prompt_argument else None,
+            "user_prompt_argument": self.user_prompt_argument.to_dict() if self.user_prompt_argument else None,
+            "chat": [msg.to_dict() for msg in self.chat],
+            "longterm_memory": {k: v.to_dict() for k, v in self._longterm_memory.items()},
+            "metadata": self.metadata,
+            "active_agent": self.active_agent,
+        }
+
+
+# TODO: Automatically add all prompt.py files to the registry
 @dataclass
-class PromptArgument:
+class PromptArgument(JsonSerializable):
     pass
 
 
 @dataclass
-class LongtermMemory:
+class LongtermMemory(JsonSerializable):
     user_query: str
 
 
 @dataclass
-class DiskursInput:
+class DiskursInput(JsonSerializable):
+    ticket_id: int
     user_query: str
     metadata: Optional[dict[str, Any]]
 

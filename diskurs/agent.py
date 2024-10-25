@@ -99,6 +99,7 @@ class BaseAgent(ABC, Agent, ConversationParticipant):
             user_prompt_argument=user_prompt_argument,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
+            active_agent=self.name,
         )
 
     def return_fail_validation_message(self, response):
