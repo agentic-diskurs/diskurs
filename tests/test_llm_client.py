@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from diskurs.llm_client import OpenAILLMClient, BaseOaiApiLLMClient
-from diskurs.entities import Conversation, ChatMessage, Role, PromptArgument
+from diskurs.entities import ChatMessage, Role, PromptArgument
+from diskurs import ImmutableConversation
 
 load_dotenv()
 
@@ -72,12 +73,9 @@ tool_call = {
         {
             "id": "call_62136354",
             "type": "function",
-            "function": {
-                "arguments": "{'order_id': 'order_12345'}",
-                "name": "get_delivery_date"
-            }
+            "function": {"arguments": "{'order_id': 'order_12345'}", "name": "get_delivery_date"},
         }
-    ]
+    ],
 }
 
 
@@ -98,7 +96,7 @@ def init_conversation():
     system_prompt_arg = PromptArgument()
     user_prompt_arg = PromptArgument()
 
-    return Conversation(system_prompt, user_prompt, system_prompt_arg, user_prompt_arg)
+    return ImmutableConversation(system_prompt, user_prompt, system_prompt_arg, user_prompt_arg)
 
 
 def test_format_for_llm(init_conversation, llm_client):

@@ -12,6 +12,7 @@ def main(config: Path):
     diskurs_input = DiskursInput(
         user_query="What is the meaning of life?",
         metadata={"user_id": "1234"},
+        conversation_id="1234",
     )
 
     res = forum.ama(diskurs_input)

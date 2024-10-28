@@ -1,16 +1,22 @@
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import List, Callable
+from typing import List, Callable, Type
 
 from diskurs.config import load_config_from_yaml
-from diskurs.entities import ToolDescription, DiskursInput
-from diskurs.protocols import Agent, ConversationParticipant, Conversation, ConversationStore
-from diskurs.registry import AGENT_REGISTRY, LLM_REGISTRY, TOOL_EXECUTOR_REGISTRY, DISPATCHER_REGISTRY, PROMPT_REGISTRY
+from diskurs.entities import ToolDescription, DiskursInput, ChatMessage, Role, MessageType
+from diskurs.protocols import Agent, ConversationParticipant, ConversationStore, Conversation
+from diskurs.registry import (
+    AGENT_REGISTRY, LLM_REGISTRY, TOOL_EXECUTOR_REGISTRY, DISPATCHER_REGISTRY,
+    PROMPT_REGISTRY,
+    CONVERSATION_REGISTRY
+)
 from diskurs.tools import load_tools
 from diskurs.utils import load_module_from_path
 
 logging.basicConfig(level=logging.WARNING)
+
+# TODO: implement conversation factory i.e. a way to create conversation without having to import the concrete class
 
 
 class Forum:
@@ -21,24 +27,41 @@ class Forum:
         tool_executor,
         first_contact: ConversationParticipant,
         conversation_store: ConversationStore,
+        conversation_class: Type[Conversation],
     ):
         self.agents = agents
         self.dispatcher = dispatcher
         self.tool_executor = tool_executor
         self.conversation_store = conversation_store
         self.conductor = first_contact
+        self.conversation_class = conversation_class
 
     def fetch_or_create_conversation(self, diskurs_input: DiskursInput) -> Conversation:
-        pass
+        if self.conversation_store and self.conversation_store.exists(diskurs_input.conversation_id):
+            return self.conversation_store.fetch(diskurs_input.conversation_id)
+        else:
+            conversation = self.conversation_class(
+                metadata=diskurs_input.metadata, conversation_id=diskurs_input.conversation_id
+            ).append(
+                ChatMessage(
+                    Role.USER,
+                    content=diskurs_input.user_query,
+                    name="forum",
+                    type=MessageType.CONVERSATION,
+                )
+            )
+            return conversation
 
     def ama(self, diskurs_input: DiskursInput):
         conversation = self.fetch_or_create_conversation(diskurs_input)
-        answer = self.dispatcher.run(self.conductor, conversation)
+        answer = self.dispatcher.run(
+            participant=self.conductor, conversation=conversation, user_query=diskurs_input.user_query
+        )
         return answer
 
 
 class ForumFactory:
-    def __init__(self, config_path: Path, base_path: Path):
+    def __init__(self, config_path: Path, base_path: Path, conversation_store: ConversationStore = None):
         self.base_path = base_path
         self.config = load_config_from_yaml(config=config_path, base_path=base_path)
         self.llm_clients = {}
@@ -56,8 +79,11 @@ class ForumFactory:
                 "agent.py",
                 "conductor_agent.py",
                 "prompt.py",
+                "immutableconversation.py",
             ]
         ]
+        self.conversation_store = conversation_store
+        self.conversation_cls = None
 
     # TODO: find a cleaner solution for modules_to_import
 
@@ -71,12 +97,15 @@ class ForumFactory:
         self.create_agents()
         self.prepare_conductors()
         self.identify_first_contact_agent()
+        self.load_conversation()
 
         return Forum(
             agents=self.agents,
             dispatcher=self.dispatcher,
             tool_executor=self.tool_executor,
             first_contact=self.first_contact,
+            conversation_store=self.conversation_store,
+            conversation_class=self.conversation_cls,
         )
 
     def import_modules(self):
@@ -96,6 +125,13 @@ class ForumFactory:
         if tool_executor_cls is None:
             raise ValueError(f"ToolExecutor type '{self.config.tool_executor_type}' is not registered.")
         self.tool_executor = tool_executor_cls()
+
+    def load_conversation(self):
+        """Load conversation class from the configuration."""
+        conversation_cls = CONVERSATION_REGISTRY.get(self.config.conversation_class)
+        self.conversation_cls = AGENT_REGISTRY.get(conversation_cls)
+        if self.conversation_cls is None:
+            raise ValueError(f"Conversation class '{self.config.conversation_class}' is not registered.")
 
     def load_and_register_tools(self):
         """Load and register tools with the tool executor."""

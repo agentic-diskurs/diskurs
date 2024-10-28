@@ -2,8 +2,7 @@ import os
 
 from dotenv import load_dotenv
 
-from diskurs import MultiStepAgent
-from diskurs.entities import Conversation
+from diskurs import MultiStepAgent, ImmutableConversation
 
 load_dotenv()
 
@@ -17,6 +16,6 @@ def test_invoke():
     agent = MultiStepAgent.create(os.getenv("OPENAI_API_KEY"))
     agent_input = "Hello World"
 
-    res = agent.invoke(Conversation(agent_input))
-    assert isinstance(res, Conversation)
+    res = agent.invoke(ImmutableConversation(agent_input))
+    assert isinstance(res, ImmutableConversation)
     print(res)

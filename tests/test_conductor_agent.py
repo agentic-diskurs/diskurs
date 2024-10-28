@@ -4,8 +4,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from diskurs import ConductorAgent, PromptArgument, LongtermMemory
-from diskurs.entities import Conversation, ChatMessage, Role
+from diskurs import ConductorAgent, PromptArgument, LongtermMemory, ImmutableConversation
+from diskurs.entities import ChatMessage, Role
 from diskurs.protocols import (
     LLMClient,
     ConversationDispatcher,
@@ -72,7 +72,7 @@ def conductor_agent(mock_prompt, mock_llm_client, mock_dispatcher):
 
 
 def test_update_longterm_memory(conductor_agent):
-    conversation = Conversation(
+    conversation = ImmutableConversation(
         user_prompt_argument=MyUserPromptArgument(field1="value1", field2="value2", field3="value3")
     )
     longterm_memory = MyLongTermMemory()
@@ -91,7 +91,7 @@ def test_update_longterm_memory(conductor_agent):
 
 
 def test_update_longterm_memory_existing_fields(conductor_agent):
-    conversation = Conversation(
+    conversation = ImmutableConversation(
         user_prompt_argument=MyUserPromptArgument(field1="value1", field2="value2", field3="value3")
     )
     longterm_memory = MyLongTermMemory(field1="existing_value1")
@@ -110,7 +110,7 @@ def test_update_longterm_memory_existing_fields(conductor_agent):
 
 
 def test_update_longterm_memory_with_overwrite(conductor_agent):
-    conversation = Conversation(user_prompt_argument=MyUserPromptArgument(field1="new_value1"))
+    conversation = ImmutableConversation(user_prompt_argument=MyUserPromptArgument(field1="new_value1"))
     longterm_memory = MyLongTermMemory(field1="existing_value1")
 
     conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
@@ -129,12 +129,14 @@ from unittest.mock import patch
 
 
 def test_process_conversation_updates_longterm_memory(conductor_agent):
-    conversation = Conversation(
+    conversation = ImmutableConversation(
         user_prompt_argument=MyUserPromptArgument(field1="value1", field2="value2", field3="value3")
     ).append(ChatMessage(Role.ASSISTANT, content='{"next_agent": "agent1"}'))
     longterm_memory = MyLongTermMemory()
 
-    with patch.object(Conversation, "update_agent_longterm_memory", return_value=conversation) as mock_update_longterm:
+    with patch.object(
+        ImmutableConversation, "update_agent_longterm_memory", return_value=conversation
+    ) as mock_update_longterm:
         conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
         conductor_agent.prompt.init_longterm_memory.return_value = longterm_memory
         conductor_agent.prompt.can_finalize.return_value = False
@@ -155,7 +157,7 @@ def test_process_conversation_updates_longterm_memory(conductor_agent):
 
 
 def test_process_conversation_finalize(conductor_agent):
-    conversation = Conversation(user_prompt_argument=MyUserPromptArgument())
+    conversation = ImmutableConversation(user_prompt_argument=MyUserPromptArgument())
     longterm_memory = MyLongTermMemory()
 
     conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
@@ -174,7 +176,7 @@ def test_process_conversation_finalize(conductor_agent):
 
 
 def test_process_conversation_update_longterm_memory(conductor_agent, mock_prompt):
-    conversation = Conversation(user_prompt_argument=MyUserPromptArgument()).append(
+    conversation = ImmutableConversation(user_prompt_argument=MyUserPromptArgument()).append(
         ChatMessage(Role.ASSISTANT, content='{"next_agent": "agent1"}')
     )
     longterm_memory = MyLongTermMemory()
@@ -196,7 +198,7 @@ def test_process_conversation_update_longterm_memory(conductor_agent, mock_promp
 
 def test_max_dispatches(conductor_agent):
     conductor_agent.n_dispatches = 49
-    conversation = Conversation(user_prompt_argument=MyUserPromptArgument()).append(
+    conversation = ImmutableConversation(user_prompt_argument=MyUserPromptArgument()).append(
         ChatMessage(Role.ASSISTANT, content='{"next_agent": "agent1"}')
     )
     longterm_memory = MyLongTermMemory()

@@ -5,17 +5,9 @@ from typing import Optional, Self, Any
 
 from diskurs.agent import BaseAgent
 from diskurs.entities import (
-    Conversation,
     MessageType,
-    ChatMessage,
-    Role,
-    DiskursInput,
 )
-from diskurs.protocols import (
-    LLMClient,
-    ConversationDispatcher,
-    ConductorPromptProtocol,
-)
+from diskurs.protocols import LLMClient, ConversationDispatcher, ConductorPromptProtocol, Conversation
 from diskurs.registry import register_agent
 
 logger = logging.getLogger(__name__)
@@ -140,18 +132,11 @@ class ConductorAgent(BaseAgent):
             next_agent = json.loads(conversation.last_message.content).get("next_agent")
             self.dispatcher.publish(topic=next_agent, conversation=conversation)
 
-    def start_conversation(self, conversation: Conversation) -> None:
+    def start_conversation(self, conversation: Conversation, user_query: str) -> None:
 
         conversation = conversation.update_agent_longterm_memory(
             agent_name=self.name,
-            longterm_memory=self.prompt.init_longterm_memory(user_query=conversation.user_query),
-        ).append(
-            ChatMessage(
-                Role.USER,
-                content=conversation.user_query,
-                name=self.name,
-                type=MessageType.CONVERSATION,
-            )
+            longterm_memory=self.prompt.init_longterm_memory(user_query=user_query),
         )
 
         self.process_conversation(conversation)

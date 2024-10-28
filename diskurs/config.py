@@ -8,7 +8,6 @@ from typing import Type
 
 import yaml
 
-from diskurs.entities import ToolDescription
 from diskurs.utils import load_module_from_path
 
 T = TypeVar("T", bound="YamlSerializable")
@@ -253,6 +252,8 @@ class ForumConfig(YamlSerializable):
     tools: list[ToolConfig]
     custom_modules: list[str] = field(default_factory=list)
     tool_dependencies: list[ToolDependency] = field(default_factory=dict)
+    conversation_class: str = "ImperativeConversation"
+
 
 
 def resolve_env_vars(data):

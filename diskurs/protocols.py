@@ -1,8 +1,7 @@
-from abc import abstractmethod
 from dataclasses import dataclass
-from typing import List, Dict, Union, Self, TypeVar, Protocol, Type, Optional, Any
+from typing import List, Dict, Union, Self, TypeVar, Protocol, Type, Optional, Any, Generic
 
-from diskurs.entities import ToolDescription, ChatMessage, LongtermMemory, PromptArgument, MessageType, DiskursInput
+from diskurs.entities import ToolDescription, ChatMessage, LongtermMemory, PromptArgument, MessageType
 
 
 class LongtermMemoryHandler(Protocol):
@@ -58,97 +57,205 @@ class ConductorPromptProtocol(Prompt):
     def fail(self, longterm_memory: Any) -> Any: ...
 
 
-class Conversation(Protocol):
+SystemPromptArgT = TypeVar("SystemPromptArgT")
+UserPromptArgT = TypeVar("UserPromptArgT")
+
+
+class Conversation(Protocol[SystemPromptArgT, UserPromptArgT]):
+
     @property
-    @abstractmethod
     def chat(self) -> List[ChatMessage]:
-        """Provides a deep copy of the chat messages to ensure immutability."""
-        pass
+        """
+        Provides a deep copy of the chat messages to ensure immutability.
+
+        :return: A deep copy of the list of chat messages.
+        """
+        ...
 
     @property
-    @abstractmethod
-    def system_prompt(self) -> ChatMessage:
-        """Retrieves the system prompt of the conversation."""
-        pass
+    def system_prompt(self) -> Optional[ChatMessage]:
+        """
+        Retrieves the system prompt of the conversation.
+
+        :return: The system prompt message.
+        """
+        ...
 
     @property
-    @abstractmethod
-    def user_prompt(self) -> ChatMessage:
-        """Retrieves the user prompt of the conversation."""
-        pass
+    def user_prompt(self) -> Optional[ChatMessage]:
+        """
+        Retrieves the user prompt of the conversation.
+
+        :return: The user prompt message.
+        """
+        ...
 
     @property
-    @abstractmethod
-    def system_prompt_argument(self) -> PromptArgument:
-        """Returns the system prompt arguments."""
-        pass
+    def system_prompt_argument(self) -> Optional[SystemPromptArgT]:
+        """
+        Retrieves the system prompt arguments.
+
+        :return: The system prompt arguments.
+        """
+        ...
 
     @property
-    @abstractmethod
-    def user_prompt_argument(self) -> PromptArgument:
-        """Returns the user prompt arguments."""
-        pass
+    def user_prompt_argument(self) -> Optional[UserPromptArgT]:
+        """
+        Retrieves the user prompt arguments.
+
+        :return: The user prompt arguments.
+        """
+        ...
 
     @property
-    @abstractmethod
     def metadata(self) -> Dict[str, str]:
-        """Provides a deep copy of the metadata dictionary to ensure immutability."""
-        pass
+        """
+        Provides a deep copy of the metadata dictionary to ensure immutability.
+
+        :return: A deep copy of the metadata dictionary.
+        """
+        ...
 
     @property
-    @abstractmethod
     def last_message(self) -> ChatMessage:
-        """Retrieves the last message in the conversation."""
-        pass
+        """
+        Retrieves the last message in the conversation.
 
-    @abstractmethod
+        :return: The last message in the chat.
+        """
+        ...
+
+    @property
+    def active_agent(self) -> str:
+        """
+        Retrieves the name of the active agent.
+
+        :return: The name of the active agent.
+        """
+        ...
+
+    @property
+    def conversation_id(self) -> str:
+        """
+        Retrieves the conversation ID.
+
+        :return: The conversation ID.
+        """
+        ...
+
     def get_agent_longterm_memory(self, agent_name: str) -> Optional[LongtermMemory]:
-        """Provides a deep copy of the long-term memory dictionary for the specified agent."""
-        pass
+        """
+        Provides a deep copy of the long-term memory for the specified agent.
 
-    @abstractmethod
-    def update_agent_longterm_memory(self, agent_name: str, longterm_memory: LongtermMemory) -> Self:
-        """Updates the long-term memory for a specific agent and returns a new Conversation instance."""
-        pass
+        :param agent_name: The name of the agent.
+        :return: A deep copy of the agent's long-term memory.
+        """
+        ...
 
-    @abstractmethod
+    def update_agent_longterm_memory(self, agent_name: str, longterm_memory: LongtermMemory) -> "Conversation":
+        """
+        Updates the long-term memory for a specific agent.
+
+        :param agent_name: The name of the agent.
+        :param longterm_memory: The new long-term memory for the agent.
+        :return: A new instance of the Conversation with updated long-term memory.
+        """
+        ...
+
+    def update_prompt_argument_with_longterm_memory(self, conductor_name: str) -> "Conversation":
+        """
+        Updates the prompt arguments with the long-term memory of the conductor agent.
+
+        :param conductor_name: The name of the conductor agent.
+        :return: A new instance of the Conversation with updated prompt arguments.
+        """
+        ...
+
     def update(
         self,
         chat: Optional[List[ChatMessage]] = None,
-        system_prompt_argument: Optional[PromptArgument] = None,
-        user_prompt_argument: Optional[PromptArgument] = None,
+        system_prompt_argument: Optional[SystemPromptArgT] = None,
+        user_prompt_argument: Optional[UserPromptArgT] = None,
         system_prompt: Optional[ChatMessage] = None,
         user_prompt: Optional[Union[ChatMessage, List[ChatMessage]]] = None,
         longterm_memory: Optional[Dict[str, LongtermMemory]] = None,
         metadata: Optional[Dict[str, str]] = None,
-    ) -> Self:
-        """Returns a new instance of Conversation with updated fields, preserving immutability."""
-        pass
+        active_agent: Optional[str] = None,
+    ) -> "Conversation":
+        """
+        Returns a new instance of Conversation with updated fields, preserving immutability.
 
-    @abstractmethod
+        :return: A new instance of the Conversation class with updated fields.
+        """
+        ...
+
     def append(
         self,
-        message: Union[str, ChatMessage, List[ChatMessage]],
+        message: Union[ChatMessage, List[ChatMessage], str],
         role: Optional[str] = "",
         name: Optional[str] = "",
-    ) -> Self:
-        """Appends a new chat message and returns a new instance of Conversation."""
-        pass
+    ) -> "Conversation":
+        """
+        Appends a new chat message and returns a new instance of Conversation.
 
-    @abstractmethod
-    def render_chat(self) -> List[ChatMessage]:
-        """Returns the complete chat with the system prompt prepended and the user prompt appended."""
-        pass
+        :param message: The message to be added.
+        :param role: The role of the message sender.
+        :param name: The name of the message sender.
+        :return: A new instance of Conversation with the appended message.
+        """
+        ...
 
-    @abstractmethod
+    def render_chat(self, message_type: MessageType = MessageType.CONVERSATION) -> List[ChatMessage]:
+        """
+        Returns the complete chat with the system prompt prepended and the user prompt appended.
+
+        :return: A list representing the full chat.
+        """
+        ...
+
     def is_empty(self) -> bool:
-        """Checks if the chat is empty."""
-        pass
+        """
+        Checks if the chat is empty.
 
-    @abstractmethod
+        :return: True if the chat is empty, False otherwise.
+        """
+        ...
+
     def has_pending_tool_call(self) -> bool:
-        """Checks if there is a pending tool call."""
-        pass
+        """
+        Checks if there is a pending tool call in the conversation.
+
+        :return: True if there is a pending tool call, False otherwise.
+        """
+        ...
+
+    def has_pending_tool_response(self) -> bool:
+        """
+        Checks if there is a pending tool response in the conversation.
+
+        :return: True if there is a pending tool response, False otherwise.
+        """
+        ...
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any], agents: List[Any]) -> "Conversation":
+        """
+        Creates a Conversation instance from a dictionary.
+
+        :param data: The data dictionary.
+        :param agents: A list of agent instances.
+        :return: A new instance of Conversation.
+        """
+        ...
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Converts the Conversation instance to a dictionary.
+
+        :return: A dictionary representation of the Conversation.
+        """
+        ...
 
 
 class LLMClient(Protocol):
@@ -168,7 +275,7 @@ class ConversationParticipant(Protocol):
 
     def register_dispatcher(self, dispatcher: "ConversationDispatcher") -> None: ...
 
-    def start_conversation(self, conversation: Conversation) -> None: ...
+    def start_conversation(self, conversation: Conversation, user_query) -> None: ...
 
 
 class ConversationDispatcher(Protocol):
@@ -184,7 +291,7 @@ class ConversationDispatcher(Protocol):
         """Dispatch a conversation to all participants subscribed to the topic."""
         pass
 
-    def run(self, participant: ConversationParticipant, conversation: dict) -> dict:
+    def run(self, participant: ConversationParticipant, conversation: dict, user_query: str) -> dict:
         """Finish the conversation."""
         pass
 
@@ -197,6 +304,10 @@ class ConversationStore(Protocol):
     def persist(self, conversation: Conversation) -> None: ...
 
     def fetch(self, conversation_id: str) -> Conversation: ...
+
+    def delete(self, conversation_id: str) -> None: ...
+
+    def exists(self, conversation_id: str) -> bool: ...
 
 
 GenericAgent = TypeVar("GenericAgent")

@@ -1,7 +1,8 @@
 from .config import ToolDependency
 from .dispatcher import SynchronousConversationDispatcher
 from .forum import create_forum_from_config, ForumFactory
-from .entities import Conversation, PromptArgument, LongtermMemory, DiskursInput
+from .entities import PromptArgument, LongtermMemory, DiskursInput
+from .immutableconversation import ImmutableConversation
 from .prompt import PromptValidationError
 from .tools import tool
 
@@ -11,7 +12,6 @@ from .conductor_agent import ConductorAgent
 __all__ = [
     "create_forum_from_config",
     "ForumFactory",
-    "Conversation",
     "PromptArgument",
     "LongtermMemory",
     "DiskursInput",
@@ -19,6 +19,7 @@ __all__ = [
     "ConductorAgent",
     "SynchronousConversationDispatcher",
     "ToolDependency",
+    "ImmutableConversation",
     "PromptValidationError",
     "tool",
 ]

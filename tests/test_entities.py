@@ -1,40 +1,12 @@
 from dataclasses import dataclass
-from unittest.mock import Mock
 
-import pytest
-
-from diskurs import Conversation, PromptArgument, LongtermMemory, ConductorAgent
+from conftest import MyLongtermMemory, MyUserPromptArgument, conductor_mock, conductor_mock2, conversation
+from diskurs import ImmutableConversation, PromptArgument
 from diskurs.entities import ChatMessage, Role
-from diskurs.protocols import ConductorPromptProtocol
-
-
-@dataclass
-class MyLongtermMemory(LongtermMemory):
-    field1: str = ""
-    field2: str = ""
-    field3: str = ""
-
-
-class MyLongtermMemory2(LongtermMemory):
-    field4: str = ""
-    field5: str = ""
-    field6: str = ""
-
-
-@dataclass
-class MyUserPromptArgument(PromptArgument):
-    field1: str = ""
-    field2: str = ""
-    field3: str = ""
-
-
-class MySystemPromptArgument(PromptArgument):
-    field1: str = ""
-    field2: str = ""
 
 
 def test_basic_update():
-    conversation = Conversation()
+    conversation = ImmutableConversation()
     longterm_memory = MyLongtermMemory(
         field1="longterm_val1", field2="longterm_val2", field3="longterm_val3", user_query="How's the weather?"
     )
@@ -52,7 +24,7 @@ def test_basic_update():
 
 
 def test_partial_update():
-    conversation = Conversation()
+    conversation = ImmutableConversation()
     longterm_memory = MyLongtermMemory(field1="longterm_val1", field3="longterm_val3", user_query="How's the weather?")
     conversation = conversation.update_agent_longterm_memory(
         agent_name="my_conductor", longterm_memory=longterm_memory
@@ -70,7 +42,7 @@ def test_partial_update():
 
 
 def test_empty_longterm_memory():
-    conversation = Conversation()
+    conversation = ImmutableConversation()
     longterm_memory = MyLongtermMemory(user_query="How's the weather?")  # user query must always be present
     conversation = conversation.update_agent_longterm_memory(
         agent_name="my_conductor", longterm_memory=longterm_memory
@@ -149,31 +121,6 @@ def test_prompt_argument_to_dict():
     assert arg_dict["spirit_animal"] == "unicorn"
 
 
-@pytest.fixture
-def conversation():
-    conversation = Conversation(
-        chat=[ChatMessage(role=Role.USER, content="Hello, world!", name="Alice")],
-        user_prompt_argument=MyUserPromptArgument(
-            field1="user prompt field 1",
-            field2="user prompt field 2",
-            field3="user prompt field 3",
-        ),
-        longterm_memory={
-            "my_conductor": MyLongtermMemory(
-                field1="longterm_val1",
-                field2="longterm_val2",
-                field3="longterm_val3",
-                user_query="How's the weather?",
-            ),
-            "my_conductor2": MyLongtermMemory2(
-                user_query="How's the aquarium?",
-            ),
-        },
-        active_agent="my_conductor",
-    )
-    return conversation
-
-
 def test_conversation_to_dict(conversation):
 
     conversation_dict = conversation.to_dict()
@@ -186,42 +133,12 @@ def test_conversation_to_dict(conversation):
     assert conversation_dict["active_agent"] == "my_conductor"
 
 
-def create_conductor_mock(name, system_prompt_argument, user_prompt_argument, longterm_memory):
-    agent_mock = Mock(spec=ConductorAgent)
-    prompt = Mock(spec=ConductorPromptProtocol)
-    prompt.system_prompt_argument = system_prompt_argument
-    prompt.user_prompt_argument = user_prompt_argument
-    prompt.longterm_memory = longterm_memory
-    agent_mock.prompt = prompt
-    agent_mock.name = name
-
-    return agent_mock
-
-
-@pytest.fixture
-def conductor_mock():
-    return create_conductor_mock(
-        name="my_conductor",
-        system_prompt_argument=MySystemPromptArgument(),
-        user_prompt_argument=MyUserPromptArgument(),
-        longterm_memory=MyLongtermMemory,
-    )
-
-
-@pytest.fixture()
-def conductor_mock2():
-    return create_conductor_mock(
-        name="my_conductor2",
-        system_prompt_argument=MySystemPromptArgument(),
-        user_prompt_argument=MyUserPromptArgument(),
-        longterm_memory=MyLongtermMemory2,
-    )
-
-
 def test_conversation_from_dict(conversation, conductor_mock, conductor_mock2):
 
     conversation_dict = conversation.to_dict()
-    new_conversation = Conversation.from_dict(data=conversation_dict, agents=[conductor_mock, conductor_mock2])
+    new_conversation = ImmutableConversation.from_dict(
+        data=conversation_dict, agents=[conductor_mock, conductor_mock2]
+    )
 
     assert new_conversation.chat[0].role == conversation.chat[0].role
     assert new_conversation.chat[0].content == conversation.chat[0].content
