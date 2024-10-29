@@ -147,7 +147,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
             user_prompt_argument=self.prompt.create_user_prompt_argument(),
         )
         if self.init_prompt_arguments_with_longterm_memory:
-            conversation.update_prompt_argument_with_longterm_memory(conductor_name=self.get_conductor_name())
+            conversation = conversation.update_prompt_argument_with_longterm_memory(conductor_name=self.get_conductor_name())
 
         for reasoning_step in range(self.max_reasoning_steps):
             conversation = self.generate_validated_response(conversation)
