@@ -3,23 +3,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from pprint import pprint
 
-from diskurs.config import ToolConfig, ToolDependency
-from diskurs.tools import tool, ToolExecutor, create_func_with_closure, load_tools
-from diskurs.entities import ToolDescription
-
 import pytest
+
+from diskurs.config import ToolConfig, ToolDependency
+from diskurs.entities import ToolDescription
+from diskurs.tools import tool, ToolExecutor, create_func_with_closure, load_tools
 
 
 @pytest.fixture()
 def tool_params():
-    tool_dependencies = {"dep1": "Dependency1", "dep2": "Dependency2"}
-
     tool_configs = [
         ToolConfig(
             name="sample_function",
             module_path=Path("test_files") / "tool_test_files" / "dummy_module.py",
             function_name="sample_function",
-            dependencies=["dep1", "dep2"],
+            dependencies=["dep1"],
             configs={"param": "value"},
         ),
         ToolConfig(
@@ -30,7 +28,7 @@ def tool_params():
             configs=None,
         ),
     ]
-    return tool_configs, tool_dependencies
+    return tool_configs
 
 
 @dataclass(kw_only=True)
@@ -39,18 +37,19 @@ class DummyDependencyConfig(ToolDependency):
     foo: str
     bar: str
 
+
 @pytest.fixture()
 def dependency_config():
-    my_dep_conf = DummyDependencyConfig(foo="example_value1", bar="example_value2")
+    my_dep_conf = DummyDependencyConfig(foo="example_value1", bar="example_value2", name="dep1")
     return my_dep_conf
 
 
 def test_create_func_with_closure(dependency_config):
 
-    def create_dummy_func(configs, dep1=None, dep2=None):
+    def create_dummy_func(configs, dep1=None):
 
         def dummy_func():
-            return f"Configs: {configs}, Dependencies: {dep1}, {dep2}"
+            return {"config_param": configs["param"], "dep_foo": dep1.foo, "dep_bar": dep1.bar}
 
         return dummy_func
 
@@ -58,24 +57,22 @@ def test_create_func_with_closure(dependency_config):
         name="dummy_func",
         module_path=Path("test_files") / "tool_test_files" / "dummy_module.py",
         function_name="dummy_func",
-        dependencies=["dep1", "dep2"],
+        dependencies=["dep1"],
         configs={"param": "value"},
     )
 
-    dependency_config = {"dep1": dependency_config}
-
-    # Act
-    result_func = create_func_with_closure(create_dummy_func, config, dependency_config)
+    result_func = create_func_with_closure(create_dummy_func, config, [dependency_config])
     result = result_func()
 
-    # Assert
-    assert result == "Configs: {'param': 'value'}, Dependencies: Dependency1, Dependency2"
+    assert result["config_param"] == "value"
+    assert result["dep_foo"] == dependency_config.foo
+    assert result["dep_bar"] == dependency_config.bar
 
 
-def test_load_tools(tool_params):
-    tool_configs, tool_dependencies = tool_params
+def test_load_tools(tool_params, dependency_config):
+    tool_configs = tool_params
 
-    loaded_functions = load_tools(tool_configs, tool_dependencies)
+    loaded_functions = load_tools(tool_configs, [dependency_config])
 
     assert len(loaded_functions) == len(tool_configs)
     for func in loaded_functions:

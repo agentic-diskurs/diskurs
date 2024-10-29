@@ -5,7 +5,7 @@ import pytest
 
 from diskurs import LongtermMemory, PromptArgument, ConductorAgent, ImmutableConversation
 from diskurs.entities import ChatMessage, Role
-from diskurs.protocols import ConductorPromptProtocol
+from diskurs.protocols import ConductorPrompt
 
 
 @dataclass
@@ -45,7 +45,7 @@ def longterm_memories():
 
 def create_conductor_mock(name, system_prompt_argument, user_prompt_argument, longterm_memory):
     agent_mock = Mock(spec=ConductorAgent)
-    prompt = Mock(spec=ConductorPromptProtocol)
+    prompt = Mock(spec=ConductorPrompt)
     prompt.system_prompt_argument = system_prompt_argument
     prompt.user_prompt_argument = user_prompt_argument
     prompt.longterm_memory = longterm_memory

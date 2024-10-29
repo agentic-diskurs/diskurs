@@ -9,7 +9,7 @@ from diskurs.entities import ChatMessage, Role
 from diskurs.protocols import (
     LLMClient,
     ConversationDispatcher,
-    ConductorPromptProtocol,
+    ConductorPrompt,
 )
 
 
@@ -30,7 +30,7 @@ class MyUserPromptArgument(PromptArgument):
 
 @pytest.fixture
 def mock_prompt():
-    prompt = Mock(spec=ConductorPromptProtocol)
+    prompt = Mock(spec=ConductorPrompt)
     prompt.init_longterm_memory.return_value = MyLongTermMemory()
     prompt.create_system_prompt_argument.return_value = Mock()
     prompt.create_user_prompt_argument.return_value = Mock()

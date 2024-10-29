@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from typing import List, Dict, Union, Self, TypeVar, Protocol, Type, Optional, Any, Generic
+from typing import List, Dict, Self, Protocol, Type, Any
 
-from diskurs.entities import ToolDescription, ChatMessage, LongtermMemory, PromptArgument, MessageType
+from diskurs.entities import ToolDescription, LongtermMemory
 
 
 class LongtermMemoryHandler(Protocol):
@@ -25,36 +25,78 @@ class PromptValidator(Protocol):
         pass
 
 
+from typing import Protocol, Any, Type, TypeVar, Optional, Union
+from diskurs.entities import PromptArgument, ChatMessage, MessageType
+
+UserPromptArg = TypeVar("UserPromptArg", bound=PromptArgument)
+SystemPromptArg = TypeVar("SystemPromptArg", bound=PromptArgument)
+
+
 class Prompt(Protocol):
-    """Protocol for rendering templates in prompts."""
+    """Protocol for prompt implementations."""
 
-    def render_system_template(self, name: str, prompt_args: PromptArgument) -> ChatMessage: ...
+    system_prompt_argument: Type[SystemPromptArg]
+    user_prompt_argument: Type[UserPromptArg]
 
-    def render_user_template(self, name: str, prompt_args: PromptArgument) -> ChatMessage: ...
+    def create_system_prompt_argument(self, **prompt_args: Any) -> SystemPromptArg:
+        """Creates an instance of the system prompt argument dataclass."""
+        ...
 
-    def parse_user_prompt(self, llm_response: str, message_type: MessageType) -> PromptArgument | ChatMessage: ...
+    def create_user_prompt_argument(self, **prompt_args: Any) -> UserPromptArg:
+        """Creates an instance of the user prompt argument dataclass."""
+        ...
 
-    def create_system_prompt_argument(self, **prompt_args: dict) -> PromptArgument: ...
+    def render_system_template(self, name: str, prompt_args: PromptArgument, return_json: bool = True) -> ChatMessage:
+        """Renders the system template with the provided prompt arguments."""
+        ...
 
-    def create_user_prompt_argument(self, **prompt_args: dict) -> PromptArgument: ...
+    def render_user_template(
+        self, name: str, prompt_args: PromptArgument, message_type: MessageType = MessageType.CONVERSATION
+    ) -> ChatMessage:
+        """Renders the user template with the provided prompt arguments."""
+        ...
+
+    def parse_user_prompt(
+        self,
+        llm_response: str,
+        old_user_prompt_argument: PromptArgument,
+        message_type: MessageType = MessageType.ROUTING,
+    ) -> Union[PromptArgument, ChatMessage]:
+        """Parses the LLM response into a prompt argument or ChatMessage."""
+        ...
 
 
-class MultistepPromptProtocol(Prompt):
+class MultistepPrompt(Prompt):
 
-    def is_final(self, user_prompt_argument: PromptArgument) -> bool: ...
+    def is_final(self, user_prompt_argument: PromptArgument) -> bool:
+        """Determines if the user prompt argument indicates the final state."""
+        ...
 
-    def is_valid(self, user_prompt_argument: PromptArgument) -> bool: ...
+    def is_valid(self, user_prompt_argument: PromptArgument) -> bool:
+        """Validates the user prompt argument."""
+        ...
 
 
-class ConductorPromptProtocol(Prompt):
+class ConductorPrompt(Prompt):
+    """Protocol for conductor prompts."""
 
-    def init_longterm_memory(self) -> Any: ...
+    longterm_memory: Type[LongtermMemory]
 
-    def can_finalize(self, longterm_memory: Any) -> Any: ...
+    def can_finalize(self, longterm_memory: LongtermMemory) -> bool:
+        """Determines if the conductor can finalize based on the long-term memory."""
+        ...
 
-    def finalize(self, longterm_memory: Any) -> Any: ...
+    def finalize(self, longterm_memory: LongtermMemory) -> dict[str, Any]:
+        """Finalizes the conversation based on the long-term memory."""
+        ...
 
-    def fail(self, longterm_memory: Any) -> Any: ...
+    def fail(self, longterm_memory: LongtermMemory) -> dict[str, Any]:
+        """Handles failure based on the long-term memory."""
+        ...
+
+    def init_longterm_memory(self, **kwargs: Any) -> LongtermMemory:
+        """Initializes the long-term memory."""
+        ...
 
 
 SystemPromptArgT = TypeVar("SystemPromptArgT")
@@ -325,6 +367,6 @@ class Agent(Protocol[GenericAgent]):
 
 class Conductor(Protocol):
     @classmethod
-    def create(cls, name: str, prompt: MultistepPromptProtocol, llm_client: LLMClient, **kwargs) -> Self: ...
+    def create(cls, name: str, prompt: MultistepPrompt, llm_client: LLMClient, **kwargs) -> Self: ...
 
     def update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation: ...

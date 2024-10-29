@@ -21,8 +21,6 @@ logging.basicConfig(level=logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
-# TODO: implement conversation factory i.e. a way to create conversation without having to import the concrete class
-
 
 class Forum:
     def __init__(

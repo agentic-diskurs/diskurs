@@ -7,7 +7,7 @@ from diskurs.agent import BaseAgent
 from diskurs.entities import (
     MessageType,
 )
-from diskurs.protocols import LLMClient, ConversationDispatcher, ConductorPromptProtocol, Conversation
+from diskurs.protocols import LLMClient, ConversationDispatcher, ConductorPrompt, Conversation
 from diskurs.registry import register_agent
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ class ConductorAgent(BaseAgent):
     def __init__(
         self,
         name: str,
-        prompt: ConductorPromptProtocol,
+        prompt: ConductorPrompt,
         llm_client: LLMClient,
         topics: list[str],
         agent_descriptions: dict[str, str],

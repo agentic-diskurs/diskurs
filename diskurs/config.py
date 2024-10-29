@@ -249,7 +249,7 @@ class ForumConfig(YamlSerializable):
     tool_executor_type: str
     agents: list[AgentConfig]
     llms: list[LLMConfig]
-    tools: list[ToolConfig]
+    tools: list[ToolConfig] = field(default_factory=list)
     custom_modules: list[str] = field(default_factory=list)
     tool_dependencies: list[ToolDependency] = field(default_factory=dict)
     conversation_class: str = "immutable_conversation"

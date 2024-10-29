@@ -3,8 +3,7 @@ from typing import Optional, Callable, Self
 
 from diskurs.agent import BaseAgent
 from diskurs.entities import ToolDescription, ChatMessage, Role, MessageType, PromptArgument
-from diskurs import ImmutableConversation
-from diskurs.protocols import LLMClient, ConversationDispatcher, MultistepPromptProtocol
+from diskurs.protocols import LLMClient, ConversationDispatcher, MultistepPrompt, Conversation
 from diskurs.registry import register_agent
 from diskurs.tools import ToolExecutor
 
@@ -17,7 +16,7 @@ class MultiStepAgent(BaseAgent):
     def __init__(
         self,
         name: str,
-        prompt: MultistepPromptProtocol,
+        prompt: MultistepPrompt,
         llm_client: LLMClient,
         topics: Optional[list[str]] = None,
         dispatcher: Optional[ConversationDispatcher] = None,
@@ -37,7 +36,7 @@ class MultiStepAgent(BaseAgent):
     def create(
         cls,
         name: str,
-        prompt: MultistepPromptProtocol,
+        prompt: MultistepPrompt,
         llm_client: LLMClient,
         **kwargs,
     ) -> Self:
@@ -77,7 +76,7 @@ class MultiStepAgent(BaseAgent):
         else:
             self.tools = self.tools + new_tools
 
-    def compute_tool_response(self, response: ImmutableConversation) -> list[ChatMessage]:
+    def compute_tool_response(self, response: Conversation) -> list[ChatMessage]:
         """
         Executes the tool calls in the response and returns the tool responses.
 
@@ -98,8 +97,8 @@ class MultiStepAgent(BaseAgent):
         return tool_responses
 
     def generate_validated_response(
-        self, conversation: ImmutableConversation, message_type: MessageType = MessageType.CONVERSATION
-    ) -> ImmutableConversation:
+        self, conversation: Conversation, message_type: MessageType = MessageType.CONVERSATION
+    ) -> Conversation:
         response = None
 
         for max_trials in range(self.max_trials):
@@ -129,7 +128,7 @@ class MultiStepAgent(BaseAgent):
 
         return self.return_fail_validation_message(response or conversation)
 
-    def invoke(self, conversation: ImmutableConversation) -> ImmutableConversation:
+    def invoke(self, conversation: Conversation) -> Conversation:
         """
         Runs the agent on a conversation, performing reasoning steps until the user prompt is final,
         meaning all the conditions, as specified in the prompt's is_final function, are met.
@@ -161,7 +160,7 @@ class MultiStepAgent(BaseAgent):
 
         return conversation.update()
 
-    def process_conversation(self, conversation: ImmutableConversation) -> None:
+    def process_conversation(self, conversation: Conversation) -> None:
         """
         Receives a conversation from the dispatcher, i.e. message bus, processes it and finally publishes
         a deep copy of the resulting conversation back to the dispatcher.
