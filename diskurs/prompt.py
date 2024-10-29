@@ -13,7 +13,7 @@ from diskurs.entities import (
     GenericConductorLongtermMemory,
     MessageType,
 )
-from diskurs.protocols import MultistepPrompt, ConductorPrompt
+from diskurs.protocols import MultistepPrompt as MultistepPromptProtocol, ConductorPrompt as ConductorPromptProtocol
 from diskurs.registry import register_prompt
 from diskurs.utils import load_module_from_path, load_template_from_package
 
@@ -321,7 +321,7 @@ class MultistepPrompt(
     PromptRendererMixin,
     PromptParserMixin,
     PromptLoaderMixin,
-    MultistepPrompt,
+    MultistepPromptProtocol,
 ):
     def __init__(
         self,
@@ -443,7 +443,7 @@ class ConductorPrompt(
     PromptRendererMixin,
     PromptParserMixin,
     PromptLoaderMixin,
-    ConductorPrompt,
+    ConductorPromptProtocol,
 ):
     def __init__(
         self,

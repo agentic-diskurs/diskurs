@@ -1,22 +1,22 @@
 import logging
 from abc import abstractmethod, ABC
-from typing import Optional
+from typing import Optional, Generic
 
 from typing_extensions import TypeVar
 
 from diskurs.entities import ChatMessage, PromptArgument, MessageType, Role
-from diskurs.protocols import ConversationDispatcher, LLMClient, Agent, ConversationParticipant, Conversation
+from diskurs.protocols import ConversationDispatcher, LLMClient, Agent, ConversationParticipant, Conversation, Prompt
 
 logger = logging.getLogger(__name__)
 
-Prompt = TypeVar("Prompt")
+Prompt = TypeVar("Prompt", bound=Prompt)
 
 # TODO: ensure maximum context length is 8192 tokens, if exceeds, truncate from left
 
 # TODO: implement conditional rendering i.e. for each agent, only the information relevant to it is shown
 
 
-class BaseAgent(ABC, Agent, ConversationParticipant):
+class BaseAgent(ABC, Agent, ConversationParticipant, Generic[Prompt]):
     def __init__(
         self,
         name: str,

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 @register_agent("conductor")
-class ConductorAgent(BaseAgent):
+class ConductorAgent(BaseAgent[ConductorPrompt]):
     def __init__(
         self,
         name: str,

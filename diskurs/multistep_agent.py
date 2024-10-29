@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 @register_agent("multistep")
-class MultiStepAgent(BaseAgent):
+class MultiStepAgent(BaseAgent[MultistepPrompt]):
     # TODO: fix mess with TypeVars
     def __init__(
         self,
