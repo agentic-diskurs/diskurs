@@ -134,9 +134,9 @@ class LongtermMemory(JsonSerializable):
 
 @dataclass
 class DiskursInput(JsonSerializable):
-    conversation_id: str
     user_query: str
     metadata: Optional[dict[str, Any]]
+    conversation_id: Optional[str] = ""
 
 
 @dataclass
