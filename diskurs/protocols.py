@@ -343,6 +343,9 @@ class ConversationDispatcher(Protocol):
 
 
 class ConversationStore(Protocol):
+    @classmethod
+    def create(cls, **kwargs) -> Self: ...
+
     def persist(self, conversation: Conversation) -> None: ...
 
     def fetch(self, conversation_id: str) -> Conversation: ...

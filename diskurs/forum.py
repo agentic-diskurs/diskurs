@@ -13,6 +13,7 @@ from diskurs.registry import (
     DISPATCHER_REGISTRY,
     PROMPT_REGISTRY,
     CONVERSATION_REGISTRY,
+    CONVERSATION_STORE_REGISTRY,
 )
 from diskurs.tools import load_tools
 from diskurs.utils import load_module_from_path
@@ -88,6 +89,7 @@ class ForumFactory:
                 "conductor_agent.py",
                 "prompt.py",
                 "immutable_conversation.py",
+                "filesystem_conversation_store.py",
             ]
         ]
         self.conversation_store = conversation_store
@@ -106,6 +108,7 @@ class ForumFactory:
         self.prepare_conductors()
         self.identify_first_contact_agent()
         self.load_conversation()
+        self.load_conversation_store()
 
         return Forum(
             agents=self.agents,
@@ -136,9 +139,9 @@ class ForumFactory:
 
     def load_conversation(self):
         """Load conversation class from the configuration."""
-        self.conversation_cls = CONVERSATION_REGISTRY.get(self.config.conversation_class)
+        self.conversation_cls = CONVERSATION_REGISTRY.get(self.config.conversation_type)
         if self.conversation_cls is None:
-            raise ValueError(f"Conversation class '{self.config.conversation_class}' is not registered.")
+            raise ValueError(f"Conversation class '{self.config.conversation_type}' is not registered.")
 
     def load_and_register_tools(self):
         """Load and register tools with the tool executor."""
@@ -217,6 +220,19 @@ class ForumFactory:
         self.first_contact = next((agent for agent in self.agents if agent.name == first_contact_name), None)
         if self.first_contact is None:
             raise ValueError(f"First contact agent '{first_contact_name}' not found among agents.")
+
+    def load_conversation_store(self):
+        """Load conversation store class from the configuration."""
+        conversation_store_cls = CONVERSATION_STORE_REGISTRY.get(self.config.conversation_store.type)
+        conversation_store_config = asdict(self.config.conversation_store)
+        conversation_store_config.pop("type")
+
+        self.conversation_store = conversation_store_cls.create(
+            **{"agents": self.agents, "conversation_class": self.conversation_cls},
+            **conversation_store_config,
+        )
+        if self.conversation_store is None:
+            raise ValueError(f"Conversation store '{self.config.conversation_store}' is not registered.")
 
 
 def create_forum_from_config(config_path: Path, base_path: Path) -> Forum:

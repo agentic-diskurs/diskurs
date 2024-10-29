@@ -239,6 +239,17 @@ class ToolDependency(YamlSerializable, Registrable):
 
 
 @dataclass
+class ConversationStoreConfig(YamlSerializable, Registrable):
+    type: str
+
+
+@dataclass(kw_only=True)
+class FilesystemConversationStoreConfig(ConversationStoreConfig):
+    type: str = "filesystem"
+    directory: Path
+
+
+@dataclass
 class ForumConfig(YamlSerializable):
     """
     Represents the entire config file structure.
@@ -252,7 +263,10 @@ class ForumConfig(YamlSerializable):
     tools: list[ToolConfig] = field(default_factory=list)
     custom_modules: list[str] = field(default_factory=list)
     tool_dependencies: list[ToolDependency] = field(default_factory=dict)
-    conversation_class: str = "immutable_conversation"
+    conversation_type: str = "immutable_conversation"
+    conversation_store: Optional[ConversationStoreConfig] = field(
+        default_factory=lambda: FilesystemConversationStoreConfig(directory=Path(__file__).parent / "conversations")
+    )
 
 
 def resolve_env_vars(data):

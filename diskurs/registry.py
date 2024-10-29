@@ -1,11 +1,12 @@
-from typing import Type, Dict
+from typing import Type
 
-AGENT_REGISTRY: Dict[str, Type] = {}
-LLM_REGISTRY: Dict[str, Type] = {}
-TOOL_EXECUTOR_REGISTRY: Dict[str, Type] = {}
-DISPATCHER_REGISTRY: Dict[str, Type] = {}
-PROMPT_REGISTRY: Dict[str, Type] = {}
-CONVERSATION_REGISTRY: Dict[str, Type] = {}
+AGENT_REGISTRY: dict[str, Type] = {}
+LLM_REGISTRY: dict[str, Type] = {}
+TOOL_EXECUTOR_REGISTRY: dict[str, Type] = {}
+DISPATCHER_REGISTRY: dict[str, Type] = {}
+PROMPT_REGISTRY: dict[str, Type] = {}
+CONVERSATION_REGISTRY: dict[str, Type] = {}
+CONVERSATION_STORE_REGISTRY: dict[str, Type] = {}
 
 
 def register_agent(name: str):
@@ -57,11 +58,22 @@ def register_prompt(name: str):
 
     return decorator
 
+
 def register_conversation(name: str):
     """Decorator to register a Conversation class."""
 
     def decorator(cls):
         CONVERSATION_REGISTRY[name] = cls
+        return cls
+
+    return decorator
+
+
+def register_conversation_store(name: str):
+    """Decorator to register a ConversationStore class."""
+
+    def decorator(cls):
+        CONVERSATION_STORE_REGISTRY[name] = cls
         return cls
 
     return decorator
