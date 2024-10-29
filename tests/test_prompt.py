@@ -3,7 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from diskurs import PromptArgument
+from diskurs import PromptArgument, ImmutableConversation
+from diskurs.entities import ChatMessage, Role
 from diskurs.prompt import MultistepPrompt, PromptValidationError, ConductorPrompt
 from diskurs.prompt import PromptParserMixin
 from tests.test_files.prompt_test_files.prompt import MyUserPromptArgument
@@ -16,6 +17,34 @@ def prompt_instance():
         system_prompt_argument_class="MySystemPromptArgument",
         user_prompt_argument_class="MyUserPromptArgument",
     )
+
+
+@pytest.fixture
+def prompt_testing_conversation(longterm_memories):
+    ltm1, ltm2 = longterm_memories
+    conversation = ImmutableConversation(
+        conversation_id="my_conversation_id",
+        user_prompt_argument=MyUserPromptArgument(
+            name="",
+            topic="",
+            user_question="",
+            answer="",
+        ),
+        chat=[ChatMessage(role=Role.USER, content="Hello, world!", name="Alice")],
+        longterm_memory={
+            "my_conductor": ltm1(
+                field1="longterm_val1",
+                field2="longterm_val2",
+                field3="longterm_val3",
+                user_query="How's the weather?",
+            ),
+            "my_conductor_2": ltm2(
+                user_query="How's the aquarium?",
+            ),
+        },
+        active_agent="my_conductor",
+    )
+    return conversation
 
 
 mock_llm_response = """{
@@ -33,15 +62,17 @@ mock_illegal_llm_response = """{
 }"""
 
 
-def test_parse_prompt(prompt_instance):
-    res = prompt_instance.parse_user_prompt(mock_llm_response)
+def test_parse_prompt(prompt_instance, prompt_testing_conversation):
+    res = prompt_instance.parse_user_prompt(mock_llm_response, prompt_testing_conversation.user_prompt_argument)
 
     assert res.name == "John Doe"
     assert res.topic == "Python Programming"
 
 
-def test_fail_parse_prompt(prompt_instance):
-    res = prompt_instance.parse_user_prompt(mock_illegal_llm_response)
+def test_fail_parse_prompt(prompt_instance, prompt_testing_conversation):
+    res = prompt_instance.parse_user_prompt(
+        mock_illegal_llm_response, prompt_testing_conversation.user_prompt_argument
+    )
 
     assert (
         res.content
@@ -105,8 +136,27 @@ def test_conductor_custom_system_prompt():
     assert rendered_system_prompt.content.startswith("Custom system template")
 
 
-def test_parse_user_prompt(prompt_instance):
-    res = prompt_instance.parse_user_prompt('"{\\"topic\\": \\"Secure Web Gateway\\"}"')
+def test_parse_user_prompt_partial_update(prompt_instance, prompt_testing_conversation):
+    old_user_prompt_argument = MyUserPromptArgument(name="Alice", topic="Wonderland")
+    returned_property = """{
+        "user_question": "Am I updated correctly?"
+        }"""
+    conversation_with_prompt_args = prompt_testing_conversation.update(user_prompt_argument=old_user_prompt_argument)
+    print(conversation_with_prompt_args.user_prompt_argument)
+
+    res = prompt_instance.parse_user_prompt(
+        llm_response=returned_property, old_user_prompt_argument=conversation_with_prompt_args.user_prompt_argument
+    )
+
+    assert res.name == "Alice"
+    assert res.topic == "Wonderland"
+    assert res.user_question == "Am I updated correctly?"
+
+
+def test_parse_user_prompt(prompt_instance, prompt_testing_conversation):
+    res = prompt_instance.parse_user_prompt(
+        '"{\\"topic\\": \\"Secure Web Gateway\\"}"', prompt_testing_conversation.user_prompt_argument
+    )
 
     assert isinstance(res, PromptArgument)
     assert res.topic == "Secure Web Gateway"

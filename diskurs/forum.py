@@ -19,6 +19,8 @@ from diskurs.utils import load_module_from_path
 
 logging.basicConfig(level=logging.WARNING)
 
+logger = logging.getLogger(__name__)
+
 # TODO: implement conversation factory i.e. a way to create conversation without having to import the concrete class
 
 
@@ -56,7 +58,12 @@ class Forum:
             return conversation
 
     def ama(self, diskurs_input: DiskursInput):
+        if not diskurs_input.conversation_id:
+            logger.warning("Conversation ID not provided. Using default value 'default'.")
+            diskurs_input.conversation_id = "default"
+
         conversation = self.fetch_or_create_conversation(diskurs_input)
+
         answer = self.dispatcher.run(
             participant=self.conductor, conversation=conversation, user_query=diskurs_input.user_query
         )

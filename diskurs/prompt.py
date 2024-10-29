@@ -1,7 +1,7 @@
-from pathlib import Path
 import json
 import logging
 from dataclasses import dataclass, is_dataclass, fields, MISSING, asdict
+from pathlib import Path
 from typing import Optional, Callable, Any, Type, TypeVar, Self
 
 from jinja2 import Environment, FileSystemLoader, Template
@@ -122,6 +122,7 @@ class PromptParserMixin:
     def parse_user_prompt(
         self,
         llm_response: str,
+        old_user_prompt_argument: PromptArgument,
         message_type: MessageType = MessageType.ROUTING,
     ) -> PromptArgument | ChatMessage:
         """
@@ -131,13 +132,16 @@ class PromptParserMixin:
         for the LLM to correct its output.
 
         :param llm_response: Response from the LLM.
+        :param old_user_prompt_argument
         :param message_type: Type of message to be created.
         :return: Validated prompt argument or a ChatMessage with an error message.
         :raises PromptValidationError: If the text is not valid.
         """
         try:
-            parsed_response = self.validate_json(llm_response)  # Use the parse_json method
-            validated_response = self.validate_dataclass(parsed_response, self.user_prompt_argument)
+            parsed_response = self.validate_json(llm_response)
+            merged_arguments = {**vars(old_user_prompt_argument), **parsed_response}
+            validated_response = self.validate_dataclass(merged_arguments, self.user_prompt_argument)
+
             return validated_response
         except PromptValidationError as e:
             return ChatMessage(role=Role.USER, content=str(e), type=message_type)

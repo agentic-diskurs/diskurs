@@ -112,7 +112,9 @@ class MultiStepAgent(BaseAgent):
             else:
 
                 parsed_response = self.prompt.parse_user_prompt(
-                    response.last_message.content, message_type=message_type
+                    llm_response=response.last_message.content,
+                    old_user_prompt_argument=response.user_prompt_argument,
+                    message_type=message_type,
                 )
 
                 if isinstance(parsed_response, PromptArgument):

@@ -117,7 +117,11 @@ class BaseAgent(ABC, Agent, ConversationParticipant):
 
             response = self.llm_client.generate(conversation, getattr(self, "tools", None))
 
-            parsed_response = self.prompt.parse_user_prompt(response.last_message.content, message_type=message_type)
+            parsed_response = self.prompt.parse_user_prompt(
+                llm_response=response.last_message.content,
+                old_user_prompt_argument=response.user_prompt_argument,
+                message_type=message_type,
+            )
 
             if isinstance(parsed_response, PromptArgument):
                 return response.update(
