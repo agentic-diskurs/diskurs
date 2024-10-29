@@ -201,7 +201,7 @@ class AzureLLMConfig(LLMConfig):
     """
 
     type: str = "azure"
-    api_key: str
+    api_key: str = ""
     api_version: str
     model_name: str
     endpoint: str
@@ -252,8 +252,7 @@ class ForumConfig(YamlSerializable):
     tools: list[ToolConfig]
     custom_modules: list[str] = field(default_factory=list)
     tool_dependencies: list[ToolDependency] = field(default_factory=dict)
-    conversation_class: str = "ImperativeConversation"
-
+    conversation_class: str = "immutable_conversation"
 
 
 def resolve_env_vars(data):

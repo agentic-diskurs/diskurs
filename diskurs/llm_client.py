@@ -206,6 +206,7 @@ class BaseOaiApiLLMClient(LLMClient):
             "gpt-4-32k-0314",
             "gpt-4-0613",
             "gpt-4-32k-0613",
+            "gpt-4",
             "gpt-4o",  # verify for 4-0
         }:
             tokens_per_message = 3

@@ -7,9 +7,12 @@ from diskurs.config import load_config_from_yaml
 from diskurs.entities import ToolDescription, DiskursInput, ChatMessage, Role, MessageType
 from diskurs.protocols import Agent, ConversationParticipant, ConversationStore, Conversation
 from diskurs.registry import (
-    AGENT_REGISTRY, LLM_REGISTRY, TOOL_EXECUTOR_REGISTRY, DISPATCHER_REGISTRY,
+    AGENT_REGISTRY,
+    LLM_REGISTRY,
+    TOOL_EXECUTOR_REGISTRY,
+    DISPATCHER_REGISTRY,
     PROMPT_REGISTRY,
-    CONVERSATION_REGISTRY
+    CONVERSATION_REGISTRY,
 )
 from diskurs.tools import load_tools
 from diskurs.utils import load_module_from_path
@@ -79,7 +82,7 @@ class ForumFactory:
                 "agent.py",
                 "conductor_agent.py",
                 "prompt.py",
-                "immutableconversation.py",
+                "immutable_conversation.py",
             ]
         ]
         self.conversation_store = conversation_store
@@ -128,8 +131,7 @@ class ForumFactory:
 
     def load_conversation(self):
         """Load conversation class from the configuration."""
-        conversation_cls = CONVERSATION_REGISTRY.get(self.config.conversation_class)
-        self.conversation_cls = AGENT_REGISTRY.get(conversation_cls)
+        self.conversation_cls = CONVERSATION_REGISTRY.get(self.config.conversation_class)
         if self.conversation_cls is None:
             raise ValueError(f"Conversation class '{self.config.conversation_class}' is not registered.")
 

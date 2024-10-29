@@ -29,7 +29,6 @@ class AzureOpenAIClient(BaseOaiApiLLMClient):
         tokenizer = tiktoken.encoding_for_model(model)
 
         client_params = {
-            "api_key": api_key,
             "api_version": api_version,
             "azure_endpoint": azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT"),
         }
@@ -38,6 +37,8 @@ class AzureOpenAIClient(BaseOaiApiLLMClient):
             client_params["azure_ad_token_provider"] = get_bearer_token_provider(
                 DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
             )
+        else:
+            client_params["api_key"] = api_key
 
         client = AzureOpenAI(**client_params)
 

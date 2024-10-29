@@ -5,7 +5,7 @@ dispatcherType: "synchronous"
 agents:
   - name: "conductor_agent"
     type: "conductor"
-    llm: "gpt-4-o-openai"
+    llm: "gpt-4-azure"
     maxTrials: 10
     prompt:
       type: "conductor_prompt"
@@ -21,7 +21,7 @@ agents:
     finalizerName: "finalizer_agent"
   - name: "first_agent"
     type: "multistep"
-    llm: "gpt-4-o-openai"
+    llm: "gpt-4-azure"
     maxReasoningSteps: 25
     prompt:
       type: "multistep_prompt"
@@ -37,7 +37,7 @@ agents:
       - "conductor_agent"
   - name: "second_agent"
     type: "multistep"
-    llm: "gpt-4-o-openai"
+    llm: "gpt-4-azure"
     prompt:
       type: "multistep_prompt"
       location: "agents/second_agent"
@@ -52,11 +52,18 @@ agents:
         - "conductor_agent"
 
 llms:
-  - name: "gpt-4-o-openai"
-    type: "openai"
-    modelName: "gpt-4o"
+#  - name: "gpt-4-o-openai"
+#    type: "openai"
+#    modelName: "gpt-4o"
+#    modelMaxTokens: 8192
+#    apiKey: "${OPENAI_API_KEY}"
+  - name: "gpt-4-azure"
+    type: "azure"
+    api_version: "2024-08-01-preview"
+    model_name: "gpt-4-0613"
+    endpoint: "https://<workspace>.openai.azure.com"
+    use_entra_id: True
     modelMaxTokens: 8192
-    apiKey: "${OPENAI_API_KEY}"
 
 tools:
   - name: "example_tool1"

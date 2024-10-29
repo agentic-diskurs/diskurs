@@ -12,7 +12,7 @@ GenericUserPromptArg = TypeVar("GenericUserPromptArg", bound="PromptArgument")
 GenericSystemPromptArg = TypeVar("GenericSystemPromptArg", bound="PromptArgument")
 
 
-@register_conversation("immutable")
+@register_conversation("immutable_conversation")
 class ImmutableConversation(Conversation):
     """
     Represents a conversation between a user and an agent, containing messages
