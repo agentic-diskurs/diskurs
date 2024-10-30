@@ -6,7 +6,16 @@ from .forum import create_forum_from_config, ForumFactory
 from .immutable_conversation import ImmutableConversation
 from .multistep_agent import MultiStepAgent
 from .prompt import PromptValidationError
-from .protocols import ConversationStore, Conversation, Agent
+from .protocols import (
+    ConversationStore,
+    Conversation,
+    Agent,
+    MultistepPrompt,
+    ConductorPrompt,
+    Prompt,
+    LLMClient,
+    ConversationDispatcher
+)
 from .registry import (
     register_conversation_store,
     register_llm,
@@ -42,4 +51,9 @@ __all__ = [
     "register_prompt",
     "Conversation",
     "Agent",
+    "MultistepPrompt",
+    "ConductorPrompt",
+    "Prompt",
+    "LLMClient",
+    "ConversationDispatcher",
 ]
