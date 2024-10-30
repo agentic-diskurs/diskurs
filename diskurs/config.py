@@ -264,7 +264,7 @@ class ForumConfig(YamlSerializable):
     custom_modules: list[str] = field(default_factory=list)
     tool_dependencies: list[ToolDependency] = field(default_factory=dict)
     conversation_type: str = "immutable_conversation"
-    conversation_store: Optional[ConversationStoreConfig] = field(
+    conversation_store: ConversationStoreConfig = field(
         default_factory=lambda: FilesystemConversationStoreConfig(directory=Path(__file__).parent / "conversations")
     )
 
