@@ -12,11 +12,10 @@ from openai.types.chat import ChatCompletion
 
 from diskurs.entities import ChatMessage, Role, ToolCall, ToolDescription, MessageType
 from diskurs import ImmutableConversation
+from diskurs.logger_setup import get_logger
 from diskurs.protocols import LLMClient
 from diskurs.registry import register_llm
 from diskurs.tools import map_python_type_to_json
-
-logger = logging.getLogger(__name__)
 
 
 class BaseOaiApiLLMClient(LLMClient):
@@ -34,6 +33,9 @@ class BaseOaiApiLLMClient(LLMClient):
         self.tokenizer = tokenizer
         self.max_tokens = max_tokens
         self.max_repeat = max_repeat
+        self.logger = get_logger(f"diskurs.llm.{self.__class__.__name__}")
+
+        self.logger.info(f"LLM client '{self.__class__.__name__}' initialized.")
 
     @classmethod
     @abstractmethod
@@ -45,7 +47,9 @@ class BaseOaiApiLLMClient(LLMClient):
         self,
         body: dict[str, Any],
     ) -> ChatCompletion:
+        self.logger.debug("Sending request to API.")
         completion = self.client.chat.completions.create(**body)
+        self.logger.debug("Received response from API.")
         return completion
 
     @staticmethod
@@ -120,6 +124,7 @@ class BaseOaiApiLLMClient(LLMClient):
         :param tools: The descriptions of all tools that the agent can use
         :return: A JSON-serializable dictionary containing the conversation data ready for the LLM
         """
+        self.logger.debug(f"Formatting conversation for LLM")
 
         formatted_tools = {"tools": [self.format_tool_description_for_llm(tool) for tool in tools]} if tools else {}
 
@@ -199,6 +204,8 @@ class BaseOaiApiLLMClient(LLMClient):
         Count the number of tokens used by a list of messages i.e. chat history.
         The implementation is based on OpenAI's token counting guidelines.
         """
+        self.logger.debug(f"Counting tokens in conversation")
+
         if self.model in {
             "gpt-3.5-turbo-0613",
             "gpt-3.5-turbo-16k-0613",
@@ -231,6 +238,8 @@ class BaseOaiApiLLMClient(LLMClient):
                 else:
                     num_tokens += self.count_tokens_recursively(value)
         num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
+
+        self.logger.debug(f"Counted {num_tokens} tokens in conversation")
         return num_tokens
 
     def count_tokens_recursively(self, value):
@@ -302,6 +311,8 @@ class BaseOaiApiLLMClient(LLMClient):
             num_tokens += function_tokens
 
         num_tokens += 12
+
+        self.logger.debug(f"Counted {num_tokens} tokens for tool descriptions")
         return num_tokens
 
     def truncate_chat_history(self, messages, n_tokens_tool_descriptions) -> list[dict]:
@@ -315,6 +326,8 @@ class BaseOaiApiLLMClient(LLMClient):
         :param n_tokens_tool_descriptions: The number of tokens used by the tool descriptions
         :return: The truncated chat history
         """
+        self.logger.warn(f"Max tokens exceeded, truncating chat history")
+
         chat_start = messages[:2]
         user_prompt = messages[-1]
 
@@ -331,6 +344,7 @@ class BaseOaiApiLLMClient(LLMClient):
 
             if self.count_tokens_in_conversation(truncated_chat) > max_tokens:
                 break
+        self.logger.warn(f"Removed {len(messages) - len(truncated_chat)} messages from chat history")
 
         return chat_start + truncated_chat + [user_prompt]
 
@@ -360,7 +374,7 @@ class BaseOaiApiLLMClient(LLMClient):
                 PermissionError,
                 BadRequestError,
             ) as e:
-                logger.error(f"Non-retryable error: {e}, aborting...")
+                self.logger.error(f"Non-retryable error: {e}, aborting...")
                 raise e
 
             except (
@@ -369,7 +383,9 @@ class BaseOaiApiLLMClient(LLMClient):
                 RateLimitError,
             ) as e:
                 fail_counter += 1
-                logger.warning(f"Retryable error encountered: {e}, retrying... ({fail_counter}/{self.max_repeat})")
+                self.logger.warning(
+                    f"Retryable error encountered: {e}, retrying... ({fail_counter}/{self.max_repeat})"
+                )
 
         raise RuntimeError("Failed to generate response after multiple attempts.")
 

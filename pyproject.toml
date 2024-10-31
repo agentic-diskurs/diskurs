@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "diskurs"
-version = "0.0.21"
+version = "0.0.22"
 description = "A hackable and extendable framework for developing LLM-based multi-agentic systems."
 authors = ["Flurin Gishamer <fgishamer@me.com>"]
 license = "MIT"
@@ -44,8 +44,8 @@ azure-identity = { version = "^1.18.0", optional = true }
 [tool.poetry.extras]
 azure = ["azure-identity"]
 
-[tool.poetry.dev-dependencies]
-black = "^24.8.0"
+[tool.poetry.group.dev.dependencies]
+black = "^24.10.0"
 pytest = "^8.3.2"
 pytest-cov = "5.0.0"
 

@@ -5,6 +5,7 @@ from typing import List, Callable, Type
 
 from diskurs.config import load_config_from_yaml
 from diskurs.entities import ToolDescription, DiskursInput, ChatMessage, Role, MessageType
+from diskurs.logger_setup import get_logger
 from diskurs.protocols import Agent, ConversationParticipant, ConversationStore, Conversation
 from diskurs.registry import (
     AGENT_REGISTRY,
@@ -39,6 +40,9 @@ class Forum:
         self.conversation_store = conversation_store
         self.conductor = first_contact
         self.conversation_class = conversation_class
+        self.logger = get_logger(f"diskurs.{__name__}")
+
+        self.logger.info("Initializing forum")
 
     def fetch_or_create_conversation(self, diskurs_input: DiskursInput) -> Conversation:
         if self.conversation_store and self.conversation_store.exists(diskurs_input.conversation_id):
@@ -217,6 +221,9 @@ class ForumFactory:
     def identify_first_contact_agent(self):
         """Identify the first contact agent from the list of agents."""
         first_contact_name = self.config.first_contact
+
+        self.logger.info(f"Identifying first contact agent {first_contact_name}")
+
         self.first_contact = next((agent for agent in self.agents if agent.name == first_contact_name), None)
         if self.first_contact is None:
             raise ValueError(f"First contact agent '{first_contact_name}' not found among agents.")

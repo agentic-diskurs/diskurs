@@ -8,7 +8,10 @@ from typing import Type
 
 import yaml
 
+from diskurs.logger_setup import get_logger
 from diskurs.utils import load_module_from_path
+
+logger = get_logger(f"diskurs.{__name__}")
 
 T = TypeVar("T", bound="YamlSerializable")
 
@@ -334,6 +337,8 @@ def dataclass_loader(dataclass_type, data, base_path: Optional[Path] = None):
 
 def pre_load_custom_modules(yaml_data, base_path: Path):
     custom_modules = yaml_data.get("custom_modules", [])
+    logger.info(f"Pre-loading custom modules: {custom_modules}")
+
     for module_name in custom_modules:
         module_full_path = (base_path / f"{module_name.replace('.', '/')}.py").resolve()
         load_module_from_path(module_full_path.stem, module_full_path)
@@ -349,11 +354,13 @@ def load_config_from_yaml(config: str | Path, base_path: Optional[Path] = None) 
     :return: An instance of the ForumConfig dataclass.
     """
     if isinstance(config, Path):
+        logger.info(f"Loading config from file: {config}")
         with open(config) as f:
             config_content = f.read()
         if base_path is None:
             base_path = config.parent.resolve()
     else:
+        logger.info("Loading config from string")
         config_content = config
     yaml_data = yaml.safe_load(config_content)
     yaml_data = resolve_env_vars(yaml_data)

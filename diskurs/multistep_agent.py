@@ -66,12 +66,16 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         return self.topics[0]
 
     def register_tools(self, tools: list[Callable] | Callable) -> None:
+        self.logger.info(f"Registering tools for agent {self.name}: {[tool.name for tool in tools]}")
         if callable(tools):
             tools = [tools]
 
         new_tools = [ToolDescription.from_function(fun) for fun in tools]
 
         if self.tools and set([tool.name for tool in new_tools]) & set(tool.name for tool in self.tools):
+            self.logger.error(
+                f"Tool names must be unique, found: {set([tool.name for tool in new_tools]) & set(tool.name for tool in self.tools)}"
+            )
             raise ValueError("Tool names must be unique")
         else:
             self.tools = self.tools + new_tools
@@ -83,6 +87,8 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         :param response: The conversation object containing the tool calls to execute.
         :return: One or more ChatMessage objects containing the tool responses.
         """
+        self.logger.debug("Computing tool response for response")
+
         tool_responses = []
         for tool in response.last_message.tool_calls:
             tool_call_result = self.tool_executor.execute_tool(tool, response.metadata)
@@ -102,6 +108,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         response = None
 
         for max_trials in range(self.max_trials):
+            self.logger.debug(f"Generating validated response trial {max_trials + 1} for Agent {self.name}")
 
             response = self.llm_client.generate(conversation, getattr(self, "tools", None))
 
@@ -117,13 +124,16 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
                 )
 
                 if isinstance(parsed_response, PromptArgument):
+                    self.logger.debug(f"Valid response found for Agent {self.name}")
                     return response.update(
                         user_prompt_argument=parsed_response,
                         user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=parsed_response),
                     )
                 elif isinstance(parsed_response, ChatMessage):
+                    self.logger.debug(f"Invalid response, created corrective message for Agent {self.name}")
                     conversation = response.update(user_prompt=parsed_response)
                 else:
+                    self.logger.error(f"Failed to parse response from LLM model: {parsed_response}")
                     raise ValueError(f"Failed to parse response from LLM model: {parsed_response}")
 
         return self.return_fail_validation_message(response or conversation)
@@ -140,7 +150,8 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         :return: the updated conversation object after the agent has finished reasoning. Contains
             the chat history, with all the system and user messages, as well as the final answer.
         """
-        # TODO: add system prompt arguments to config.yml
+        self.logger.debug(f"Invoke called on agent {self.name}")
+
         conversation = self.prepare_conversation(
             conversation,
             system_prompt_argument=self.prompt.create_system_prompt_argument(),
@@ -157,12 +168,14 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
             )
 
         for reasoning_step in range(self.max_reasoning_steps):
+            self.logger.debug(f"Reasoning step {reasoning_step + 1} for Agent {self.name}")
             conversation = self.generate_validated_response(conversation)
 
             if (
                 self.prompt.is_final(conversation.user_prompt_argument)
                 and not conversation.has_pending_tool_response()
             ):
+                self.logger.debug(f"Final response found for Agent {self.name}")
                 break
 
         return conversation.update()
@@ -174,6 +187,6 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
 
         :param conversation: The conversation object to process.
         """
-        logger.info(f"Agent: {self.name}")
+        self.logger.info(f"Process conversation on agent: {self.name}")
         conversation = self.invoke(conversation)
         self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)

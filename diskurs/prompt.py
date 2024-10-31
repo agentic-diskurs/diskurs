@@ -13,6 +13,7 @@ from diskurs.entities import (
     GenericConductorLongtermMemory,
     MessageType,
 )
+from diskurs.logger_setup import get_logger
 from diskurs.protocols import MultistepPrompt as MultistepPromptProtocol, ConductorPrompt as ConductorPromptProtocol
 from diskurs.registry import register_prompt
 from diskurs.utils import load_module_from_path, load_template_from_package
@@ -23,7 +24,7 @@ CAN_FINALIZE_DEFAULT_VALUE_NAME = "can_finalize"
 FAIL_DEFAULT_VALUE_NAME = "fail"
 FINALIZE_DEFAULT_VALUE_NAME = "finalize"
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PromptValidationError(Exception):
@@ -64,6 +65,8 @@ class PromptParserMixin:
         :return: An instance of the dataclass if validation succeeds.
         :raises: LLMResponseParseError if validation fails.
         """
+        logger.debug("Validating parsed prompt arguments")
+
         if not is_dataclass(user_prompt_argument):
             raise TypeError(f"{user_prompt_argument} is not a valid dataclass")
 
@@ -86,12 +89,16 @@ class PromptParserMixin:
             if extra_fields:
                 error_message.append(f"Extra fields provided: {', '.join(extra_fields)}. Please remove them.")
             valid_fields = ", ".join(dataclass_fields.keys())
+
             error_message.append(f"Valid fields are: {valid_fields}.")
+            logger.debug("Found errors while validating the parsed prompt arguments")
+
             raise PromptValidationError(" ".join(error_message))
 
         try:
             return user_prompt_argument(**parsed_response)
         except TypeError as e:
+            logger.debug(f"Error constructing {user_prompt_argument.__name__}: {e}")
             raise PromptValidationError(f"Error constructing {user_prompt_argument.__name__}: {e}")
 
     @classmethod
@@ -103,6 +110,7 @@ class PromptParserMixin:
         :return: Parsed dictionary if valid JSON.
         :raises PromptValidationError: If the response is not valid JSON.
         """
+        logger.debug("Validating LLM response is valid JSON")
         try:
             parsed = json.loads(llm_response)
             # Recursively parse if the result is a string
@@ -111,12 +119,14 @@ class PromptParserMixin:
             if isinstance(parsed, dict):
                 return parsed
             else:
+                logger.debug("Parsed response is not a JSON object.")
                 raise PromptValidationError("Parsed response is not a JSON object.")
         except json.JSONDecodeError as e:
             error_message = (
                 f"LLM response is not valid JSON. Error: {e.msg} at line {e.lineno}, column {e.colno}. "
                 "Please ensure the response is valid JSON and follows the correct format."
             )
+            logger.debug(error_message)
             raise PromptValidationError(error_message)
 
     def parse_user_prompt(
@@ -137,6 +147,7 @@ class PromptParserMixin:
         :return: Validated prompt argument or a ChatMessage with an error message.
         :raises PromptValidationError: If the text is not valid.
         """
+        logger.debug("Parsing llm response into user prompt arguments")
         try:
             parsed_response = self.validate_json(llm_response)
             merged_arguments = {**vars(old_user_prompt_argument), **parsed_response}

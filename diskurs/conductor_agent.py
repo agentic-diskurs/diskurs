@@ -88,11 +88,8 @@ class ConductorAgent(BaseAgent[ConductorPrompt]):
 
         return conversation.update_agent_longterm_memory(agent_name=self.name, longterm_memory=longterm_memory)
 
-    @staticmethod
-    def is_conversation_start(conversation: Conversation) -> bool:
-        return (not conversation.user_prompt) and (not conversation.system_prompt) and conversation.is_empty()
-
     def invoke(self, conversation: Conversation) -> Conversation:
+        self.logger.debug(f"Invoke called on conductor agent {self.name}")
 
         conversation = self.prepare_conversation(
             conversation,
@@ -105,13 +102,15 @@ class ConductorAgent(BaseAgent[ConductorPrompt]):
         return self.generate_validated_response(conversation, message_type=MessageType.ROUTING)
 
     def finalize(self, conversation: Conversation) -> dict[str, Any]:
+        self.logger.debug(f"Finalize conversation on conductor agent {self.name}")
         return self.prompt.finalize(conversation.get_agent_longterm_memory(self.name))
 
     def fail(self, conversation: Conversation) -> dict[str, Any]:
+        self.logger.debug(f"End conversation with fail on conductor agent {self.name}")
         return self.prompt.fail(conversation.get_agent_longterm_memory(self.name))
 
     def process_conversation(self, conversation: Conversation) -> None:
-        logger.info(f"Agent: {self.name}")
+        self.logger.info(f"Process conversation on conductor agent: {self.name}")
         self.n_dispatches += 1
         conversation = self.update_longterm_memory(conversation)
 
@@ -133,7 +132,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt]):
             self.dispatcher.publish(topic=next_agent, conversation=conversation)
 
     def start_conversation(self, conversation: Conversation, user_query: str) -> None:
-
+        self.logger.debug(f"Start conversation on conductor agent {self.name}")
         conversation = conversation.update_agent_longterm_memory(
             agent_name=self.name,
             longterm_memory=self.prompt.init_longterm_memory(user_query=user_query),
