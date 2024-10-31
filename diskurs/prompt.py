@@ -24,7 +24,7 @@ CAN_FINALIZE_DEFAULT_VALUE_NAME = "can_finalize"
 FAIL_DEFAULT_VALUE_NAME = "fail"
 FINALIZE_DEFAULT_VALUE_NAME = "finalize"
 
-logger = get_logger(__name__)
+logger = get_logger(f"diskurs.{__name__}")
 
 
 class PromptValidationError(Exception):

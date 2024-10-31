@@ -16,7 +16,7 @@ class SynchronousConversationDispatcher(ConversationDispatcher):
 
     def subscribe(self, topic: str, subscriber: ConversationParticipant) -> None:
         """Subscribe an agent to a specific topic."""
-        self.logger.debug(f"Subscribing {subscriber} to topic {topic}")
+        self.logger.debug(f"Subscribing {subscriber.name} to topic {topic}")
 
         if topic not in self._topics:
             self._topics[topic] = []
@@ -25,7 +25,7 @@ class SynchronousConversationDispatcher(ConversationDispatcher):
 
     def unsubscribe(self, topic: str, subscriber: ConversationParticipant) -> None:
         """Unsubscribe an agent from a specific topic."""
-        self.logger.debug(f"Unsubscribing {subscriber} from topic {topic}")
+        self.logger.debug(f"Unsubscribing {subscriber.name} from topic {topic}")
         if topic in self._topics:
             self._topics[topic].remove(subscriber)
 

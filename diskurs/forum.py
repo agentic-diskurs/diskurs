@@ -21,8 +21,6 @@ from diskurs.utils import load_module_from_path
 
 logging.basicConfig(level=logging.WARNING)
 
-logger = logging.getLogger(__name__)
-
 
 class Forum:
     def __init__(
@@ -40,7 +38,7 @@ class Forum:
         self.conversation_store = conversation_store
         self.conductor = first_contact
         self.conversation_class = conversation_class
-        self.logger = get_logger(f"diskurs.{__name__}")
+        self.logger = get_logger(f"diskurs.{__name__}.forum")
 
         self.logger.info("Initializing forum")
 
@@ -62,7 +60,7 @@ class Forum:
 
     def ama(self, diskurs_input: DiskursInput):
         if not diskurs_input.conversation_id:
-            logger.warning("Conversation ID not provided. Using default value 'default'.")
+            self.logger.warning("Conversation ID not provided. Using default value 'default'.")
             diskurs_input.conversation_id = "default"
 
         conversation = self.fetch_or_create_conversation(diskurs_input)
@@ -98,6 +96,9 @@ class ForumFactory:
         ]
         self.conversation_store = conversation_store
         self.conversation_cls = None
+        self.logger = get_logger(f"diskurs.{__name__}.forum_factory")
+
+        self.logger.info("Initializing forum factory")
 
     # TODO: find a cleaner solution for modules_to_import
 
