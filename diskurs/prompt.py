@@ -1,5 +1,4 @@
 import json
-import logging
 from dataclasses import dataclass, is_dataclass, fields, MISSING, asdict
 from pathlib import Path
 from typing import Optional, Callable, Any, Type, TypeVar, Self
@@ -14,7 +13,13 @@ from diskurs.entities import (
     MessageType,
 )
 from diskurs.logger_setup import get_logger
-from diskurs.protocols import MultistepPrompt as MultistepPromptProtocol, ConductorPrompt as ConductorPromptProtocol
+from diskurs.protocols import (
+    MultistepPrompt as MultistepPromptProtocol,
+    ConductorPrompt as ConductorPromptProtocol,
+    HeuristicPrompt as HeuristicPromptProtocol,
+    HeuristicSequence,
+    CallTool,
+)
 from diskurs.registry import register_prompt
 from diskurs.utils import load_module_from_path, load_template_from_package
 
@@ -40,6 +45,15 @@ class DefaultConductorSystemPromptArgument(PromptArgument):
 @dataclass
 class DefaultConductorUserPromptArgument(PromptArgument):
     next_agent: Optional[str] = None
+
+
+def load_symbol(symbol_name, loaded_module):
+    try:
+        symbol = getattr(loaded_module, symbol_name)
+        return symbol
+    except AttributeError as e:
+        logger.error(f"Missing expected attribute {symbol_name} in {loaded_module.__name__}: {e}")
+        raise AttributeError(f"Required attribute {symbol_name} not found in {loaded_module.__name__}")
 
 
 class PromptParserMixin:
@@ -298,15 +312,6 @@ class PromptLoaderMixin:
         loaded_module = load_module_from_path(module_name=module_path.stem, module_path=module_path)
         return agent_description, loaded_module, system_template, user_template
 
-    @staticmethod
-    def load_symbol(symbol_name, loaded_module):
-        try:
-            symbol = getattr(loaded_module, symbol_name)
-            return symbol
-        except AttributeError as e:
-            logger.error(f"Missing expected attribute {symbol_name} in {loaded_module.__name__}: {e}")
-            raise AttributeError(f"Required attribute {symbol_name} not found in {loaded_module.__name__}")
-
     @classmethod
     def load_template(cls, location: Path) -> Template:
         """
@@ -416,16 +421,16 @@ class MultistepPrompt(
         kwargs,
     ) -> dict[str, Callable]:
         return {
-            "is_valid": cls.load_symbol(
+            "is_valid": load_symbol(
                 kwargs.get("is_valid_name", IS_VALID_DEFAULT_VALUE_NAME),
                 loaded_module,
             ),
-            "is_final": cls.load_symbol(
+            "is_final": load_symbol(
                 kwargs.get("is_final_name", IS_FINAL_DEFAULT_VALUE_NAME),
                 loaded_module,
             ),
-            "system_prompt_argument_class": cls.load_symbol(system_prompt_argument_class, loaded_module),
-            "user_prompt_argument_class": cls.load_symbol(user_prompt_argument_class, loaded_module),
+            "system_prompt_argument_class": load_symbol(system_prompt_argument_class, loaded_module),
+            "user_prompt_argument_class": load_symbol(user_prompt_argument_class, loaded_module),
         }
 
     def render_user_template(
@@ -534,25 +539,25 @@ class ConductorPrompt(
     ) -> dict[str, Callable]:
         return {
             "system_prompt_argument_class": (
-                cls.load_symbol(system_prompt_argument_class, loaded_module)
+                load_symbol(system_prompt_argument_class, loaded_module)
                 if system_prompt_argument_class
                 else DefaultConductorSystemPromptArgument
             ),
             "user_prompt_argument_class": (
-                cls.load_symbol(user_prompt_argument_class, loaded_module)
+                load_symbol(user_prompt_argument_class, loaded_module)
                 if user_prompt_argument_class
                 else DefaultConductorUserPromptArgument
             ),
-            "can_finalize": cls.load_symbol(
+            "can_finalize": load_symbol(
                 kwargs.get("can_finalize_name", CAN_FINALIZE_DEFAULT_VALUE_NAME),
                 loaded_module,
             ),
-            "finalize": cls.load_symbol(
+            "finalize": load_symbol(
                 kwargs.get("finalize_name", FINALIZE_DEFAULT_VALUE_NAME),
                 loaded_module,
             ),
-            "fail": cls.load_symbol(kwargs.get("fail_name", FAIL_DEFAULT_VALUE_NAME), loaded_module),
-            "longterm_memory_class": cls.load_symbol(kwargs.get("longterm_memory_class"), loaded_module),
+            "fail": load_symbol(kwargs.get("fail_name", FAIL_DEFAULT_VALUE_NAME), loaded_module),
+            "longterm_memory_class": load_symbol(kwargs.get("longterm_memory_class"), loaded_module),
         }
 
     def can_finalize(self, longterm_memory: GenericConductorLongtermMemory) -> bool:
@@ -580,3 +585,34 @@ class ConductorPrompt(
             content=content,
             type=message_type,
         )
+
+
+@register_prompt("heuristic_prompt")
+class HeuristicPrompt(HeuristicPromptProtocol):
+    def __init__(self, user_prompt_argument_class: Type[PromptArgument], heuristic_sequence: HeuristicSequence):
+        self.user_prompt_argument = user_prompt_argument_class
+        self._heuristic_sequence = heuristic_sequence
+
+    @classmethod
+    def create(
+        cls,
+        location: Path,
+        user_prompt_argument: str,
+        code_filename: str = "prompt.py",
+        heuristic_sequence_name: str = "heuristic_sequence",
+    ) -> Self:
+        module_path = location / code_filename
+        loaded_module = load_module_from_path(module_name=module_path.stem, module_path=module_path)
+
+        user_prompt_argument = load_symbol(user_prompt_argument, loaded_module)
+        heuristic_sequence = load_symbol(heuristic_sequence_name, loaded_module)
+
+        return cls(user_prompt_argument, heuristic_sequence)
+
+    def heuristic_sequence(
+        self, prompt_argument: PromptArgument, metadata: dict, call_tool: CallTool
+    ) -> PromptArgument:
+        return self._heuristic_sequence(prompt_argument, metadata, call_tool)
+
+    def create_user_prompt_argument(self, **prompt_args) -> PromptArgument:
+        return self.user_prompt_argument(**prompt_args)

@@ -1,5 +1,4 @@
 import inspect
-import inspect
 import logging
 import re
 from collections import defaultdict
@@ -121,6 +120,18 @@ class ToolExecutor:
         else:
             raise ValueError(f"Tool '{tool_call.function_name}' not found.")
 
+    def call_tool(self, function_name: str, arguments: dict[str, Any]) -> Any:
+        """
+        Can be used to call a tool directly by providing the function name and arguments.
+        This can be handy, when one wants to manually call a tool, without calling an LLM.
+        :param function_name: The name of the function to call.
+
+        :param arguments: The arguments to pass to the function.
+        :return: The result of the function call.
+        """
+        tool_call = ToolCall(tool_call_id="0", function_name=function_name, arguments=arguments)
+        return self.execute_tool(tool_call, {}).result
+
 
 def create_func_with_closure(func: Callable, config: ToolConfig, dependency_config: list[ToolDependency]) -> Callable:
     func_args = {}
@@ -170,7 +181,7 @@ def load_tools(tool_configs: list[ToolConfig], tool_dependencies: list[ToolDepen
                         func = getattr(module, "create_" + function_name)
                     except AttributeError as fallback_e:
                         raise ImportError(
-                            f"Could neither load '{function_name}' nor create_+{function_name}"
+                            f"Could neither load '{function_name}' nor create_+{function_name}: {e}"
                             + f"from '{module_path.name}': {fallback_e}"
                         )
 

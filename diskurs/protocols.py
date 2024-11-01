@@ -1,7 +1,16 @@
 from dataclasses import dataclass
-from typing import List, Dict, Self, Protocol, Type, Any
+from typing import List, Dict, Self, Callable
+from typing import Protocol, Any, Type, TypeVar, Optional, Union
 
-from diskurs.entities import ToolDescription, LongtermMemory
+from diskurs.entities import (
+    ToolDescription,
+    LongtermMemory,
+    ToolCallResult,
+    ToolCall,
+    PromptArgument,
+    ChatMessage,
+    MessageType,
+)
 
 
 class LongtermMemoryHandler(Protocol):
@@ -24,9 +33,6 @@ class PromptValidator(Protocol):
     def validate_json(cls, llm_response: str) -> dict:
         pass
 
-
-from typing import Protocol, Any, Type, TypeVar, Optional, Union
-from diskurs.entities import PromptArgument, ChatMessage, MessageType
 
 UserPromptArg = TypeVar("UserPromptArg", bound=PromptArgument)
 SystemPromptArg = TypeVar("SystemPromptArg", bound=PromptArgument)
@@ -99,11 +105,30 @@ class ConductorPrompt(Prompt):
         ...
 
 
-SystemPromptArgT = TypeVar("SystemPromptArgT")
-UserPromptArgT = TypeVar("UserPromptArgT")
+class CallTool(Protocol):
+    def __call__(self, function_name: str, arguments: dict[str, Any]) -> dict[str, Any]: ...
 
 
-class Conversation(Protocol[SystemPromptArgT, UserPromptArgT]):
+class HeuristicSequence(Protocol):
+    def __call__(self, prompt_argument: PromptArgument, metadata: dict, call_tool: CallTool) -> PromptArgument: ...
+
+
+class HeuristicPrompt(Protocol):
+    """Protocol for heuristic prompts."""
+
+    user_prompt_argument: Type[PromptArgument]
+    # heuristic_sequence: HeuristicSequence
+
+    def heuristic_sequence(
+        self, prompt_argument: PromptArgument, metadata: dict, call_tool: CallTool
+    ) -> PromptArgument: ...
+
+    def create_user_prompt_argument(self, **prompt_args) -> PromptArgument:
+        """Creates an instance of the user prompt argument dataclass."""
+        ...
+
+
+class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
 
     @property
     def chat(self) -> List[ChatMessage]:
@@ -133,7 +158,7 @@ class Conversation(Protocol[SystemPromptArgT, UserPromptArgT]):
         ...
 
     @property
-    def system_prompt_argument(self) -> Optional[SystemPromptArgT]:
+    def system_prompt_argument(self) -> Optional[SystemPromptArg]:
         """
         Retrieves the system prompt arguments.
 
@@ -142,7 +167,7 @@ class Conversation(Protocol[SystemPromptArgT, UserPromptArgT]):
         ...
 
     @property
-    def user_prompt_argument(self) -> Optional[UserPromptArgT]:
+    def user_prompt_argument(self) -> Optional[UserPromptArg]:
         """
         Retrieves the user prompt arguments.
 
@@ -217,8 +242,8 @@ class Conversation(Protocol[SystemPromptArgT, UserPromptArgT]):
     def update(
         self,
         chat: Optional[List[ChatMessage]] = None,
-        system_prompt_argument: Optional[SystemPromptArgT] = None,
-        user_prompt_argument: Optional[UserPromptArgT] = None,
+        system_prompt_argument: Optional[SystemPromptArg] = None,
+        user_prompt_argument: Optional[UserPromptArg] = None,
         system_prompt: Optional[ChatMessage] = None,
         user_prompt: Optional[Union[ChatMessage, List[ChatMessage]]] = None,
         longterm_memory: Optional[Dict[str, LongtermMemory]] = None,
@@ -308,8 +333,7 @@ class LLMClient(Protocol):
 
 
 class ConversationParticipant(Protocol):
-    @property
-    def topics(self) -> list[str]: ...
+    topics: list[str]
 
     def process_conversation(self, conversation: Conversation | str) -> None:
         """Actively participate in the conversation by processing and possibly responding."""
@@ -355,10 +379,8 @@ class ConversationStore(Protocol):
     def exists(self, conversation_id: str) -> bool: ...
 
 
-GenericAgent = TypeVar("GenericAgent")
-
-
-class Agent(Protocol[GenericAgent]):
+class Agent(Protocol):
+    name: str
 
     @classmethod
     def create(cls, name: str, prompt: Prompt, llm_client: LLMClient, **kwargs): ...
@@ -373,3 +395,13 @@ class Conductor(Protocol):
     def create(cls, name: str, prompt: MultistepPrompt, llm_client: LLMClient, **kwargs) -> Self: ...
 
     def update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation: ...
+
+
+class ToolExecutor(Protocol):
+    tools: Dict[str, Callable]
+
+    def register_tools(self, tool_list: List[Callable] | Callable) -> None: ...
+
+    def execute_tool(self, tool_call: ToolCall, metadata: Dict[str, Any]) -> ToolCallResult: ...
+
+    def call_tool(self, function_name: str, arguments: Dict[str, Any]) -> Any: ...

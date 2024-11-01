@@ -14,7 +14,9 @@ from .protocols import (
     ConductorPrompt,
     Prompt,
     LLMClient,
-    ConversationDispatcher
+    ConversationDispatcher,
+    CallTool,
+    ToolExecutor,
 )
 from .registry import (
     register_conversation_store,
@@ -56,4 +58,6 @@ __all__ = [
     "Prompt",
     "LLMClient",
     "ConversationDispatcher",
+    "CallTool",
+    "ToolExecutor",
 ]

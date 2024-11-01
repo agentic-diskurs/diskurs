@@ -296,11 +296,9 @@ class ImmutableConversation(Conversation):
         )
         system_prompt = ChatMessage.from_dict(data["system_prompt"]) if data["system_prompt"] else None
 
-        user_prompt_argument_class = active_agent.prompt.user_prompt_argument
+        user_prompt_argument = active_agent.prompt.user_prompt_argument
         user_prompt_argument = (
-            user_prompt_argument_class.from_dict(data["user_prompt_argument"])
-            if data["user_prompt_argument"]
-            else None
+            user_prompt_argument.from_dict(data["user_prompt_argument"]) if data["user_prompt_argument"] else None
         )
         user_prompt = ChatMessage.from_dict(data["user_prompt"]) if data["user_prompt"] else None
 

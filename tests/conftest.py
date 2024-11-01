@@ -1,4 +1,6 @@
+import inspect
 from dataclasses import dataclass
+from typing import Type
 from unittest.mock import Mock
 
 import pytest
@@ -99,3 +101,37 @@ def conversation():
         active_agent="my_conductor",
     )
     return conversation
+
+
+def are_classes_structurally_similar(class_a: Type, class_b: Type) -> bool:
+    """
+    Check if two classes are structurally similar, i.e. they have the same class name, parent classes, and fields.
+    This can be useful, if we want to check if two classes are the same, but one has been dynamically imported
+    :param class_a: The first class to compare
+    :param class_b: The second class to compare
+    :return: True if the classes are structurally similar, False otherwise
+    """
+    # Check class names
+    if class_a.__name__ != class_b.__name__:
+        return False
+
+    # Check parent classes
+    parents_a = set(inspect.getmro(class_a))
+    parents_b = set(inspect.getmro(class_b))
+    if not parents_a.intersection(parents_b):
+        return False
+
+    # Get type hints and attributes of each class
+    type_hints_a = inspect.get_annotations(class_a)
+    type_hints_b = inspect.get_annotations(class_b)
+
+    # Check field names and types
+    if type_hints_a.keys() != type_hints_b.keys():
+        return False
+
+    for field, type_hint_a in type_hints_a.items():
+        type_hint_b = type_hints_b.get(field)
+        if type_hint_a != type_hint_b:
+            return False
+
+    return True

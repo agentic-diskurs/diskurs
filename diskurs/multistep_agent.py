@@ -3,16 +3,15 @@ from typing import Optional, Callable, Self
 
 from diskurs.agent import BaseAgent
 from diskurs.entities import ToolDescription, ChatMessage, Role, MessageType, PromptArgument
-from diskurs.protocols import LLMClient, ConversationDispatcher, MultistepPrompt, Conversation
+from diskurs.protocols import LLMClient, ConversationDispatcher, MultistepPrompt, Conversation, ToolExecutor
 from diskurs.registry import register_agent
-from diskurs.tools import ToolExecutor
+
 
 logger = logging.getLogger(__name__)
 
 
 @register_agent("multistep")
 class MultiStepAgent(BaseAgent[MultistepPrompt]):
-    # TODO: fix mess with TypeVars
     def __init__(
         self,
         name: str,

@@ -3,10 +3,12 @@ from pathlib import Path
 
 import pytest
 
+from conftest import are_classes_structurally_similar
 from diskurs import PromptArgument, ImmutableConversation
 from diskurs.entities import ChatMessage, Role
-from diskurs.prompt import MultistepPrompt, PromptValidationError, ConductorPrompt
+from diskurs.prompt import MultistepPrompt, PromptValidationError, ConductorPrompt, HeuristicPrompt
 from diskurs.prompt import PromptParserMixin
+from test_files.heuristic_agent_test_files.prompt import MyHeuristicPromptArgument
 from tests.test_files.prompt_test_files.prompt import MyUserPromptArgument
 
 
@@ -166,3 +168,17 @@ def test_fail():
     prompt = ConductorPrompt.create(**prompt_config)
     msg = prompt.fail(prompt.longterm_memory())
     assert msg["error"] == "Failed to finalize"
+
+
+heuristic_prompt_config = {
+    "location": Path(__file__).parent / "test_files" / "heuristic_agent_test_files",
+    "user_prompt_argument": "MyHeuristicPromptArgument",
+    "heuristic_sequence_name": "heuristic_sequence",
+}
+
+
+def test_heuristic_prompt_create():
+    prompt = HeuristicPrompt.create(**heuristic_prompt_config)
+
+    assert callable(prompt.heuristic_sequence)
+    assert are_classes_structurally_similar(prompt.user_prompt_argument, MyHeuristicPromptArgument)
