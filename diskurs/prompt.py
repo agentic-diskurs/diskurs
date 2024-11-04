@@ -19,6 +19,7 @@ from diskurs.protocols import (
     HeuristicPrompt as HeuristicPromptProtocol,
     HeuristicSequence,
     CallTool,
+    Conversation,
 )
 from diskurs.registry import register_prompt
 from diskurs.utils import load_module_from_path, load_template_from_package
@@ -597,22 +598,21 @@ class HeuristicPrompt(HeuristicPromptProtocol):
     def create(
         cls,
         location: Path,
-        user_prompt_argument: str,
+        user_prompt_argument_class: str,
         code_filename: str = "prompt.py",
         heuristic_sequence_name: str = "heuristic_sequence",
+        **kwargs,
     ) -> Self:
         module_path = location / code_filename
         loaded_module = load_module_from_path(module_name=module_path.stem, module_path=module_path)
 
-        user_prompt_argument = load_symbol(user_prompt_argument, loaded_module)
+        user_prompt_argument_class = load_symbol(user_prompt_argument_class, loaded_module)
         heuristic_sequence = load_symbol(heuristic_sequence_name, loaded_module)
 
-        return cls(user_prompt_argument, heuristic_sequence)
+        return cls(user_prompt_argument_class, heuristic_sequence)
 
-    def heuristic_sequence(
-        self, prompt_argument: PromptArgument, metadata: dict, call_tool: CallTool
-    ) -> PromptArgument:
-        return self._heuristic_sequence(prompt_argument, metadata, call_tool)
+    def heuristic_sequence(self, conversation: Conversation, call_tool: CallTool) -> PromptArgument:
+        return self._heuristic_sequence(conversation, call_tool)
 
     def create_user_prompt_argument(self, **prompt_args) -> PromptArgument:
         return self.user_prompt_argument(**prompt_args)

@@ -106,11 +106,11 @@ class ConductorPrompt(Prompt):
 
 
 class CallTool(Protocol):
-    def __call__(self, function_name: str, arguments: dict[str, Any]) -> dict[str, Any]: ...
+    def __call__(self, function_name: str, arguments: dict[str, Any]) -> Any: ...
 
 
 class HeuristicSequence(Protocol):
-    def __call__(self, prompt_argument: PromptArgument, metadata: dict, call_tool: CallTool) -> PromptArgument: ...
+    def __call__(self, conversation: "Conversation", call_tool: CallTool) -> "Conversation": ...
 
 
 class HeuristicPrompt(Protocol):
@@ -119,9 +119,7 @@ class HeuristicPrompt(Protocol):
     user_prompt_argument: Type[PromptArgument]
     # heuristic_sequence: HeuristicSequence
 
-    def heuristic_sequence(
-        self, prompt_argument: PromptArgument, metadata: dict, call_tool: CallTool
-    ) -> PromptArgument: ...
+    def heuristic_sequence(self, conversation: "Conversation", call_tool: CallTool) -> "Conversation": ...
 
     def create_user_prompt_argument(self, **prompt_args) -> PromptArgument:
         """Creates an instance of the user prompt argument dataclass."""

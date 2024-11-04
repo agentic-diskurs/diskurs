@@ -149,6 +149,18 @@ class ConductorPromptConfig(PromptConfig):
 
 
 @dataclass(kw_only=True)
+class HeuristicPromptConfig(PromptConfig):
+    """
+    Represents the prompt configuration for an agent.
+    """
+
+    type: str = "heuristic_prompt"
+    heuristic_sequence_name: str
+    user_prompt_argument_class: str
+    system_prompt_argument_class: Optional[str] = None
+
+
+@dataclass(kw_only=True)
 class AgentConfig(YamlSerializable, Registrable):
     """
     Represents an agent configuration.
@@ -184,6 +196,18 @@ class ConductorAgentConfig(AgentConfig):
     llm: str
     prompt: PromptConfig
     max_dispatches: Optional[int] = 50
+
+
+@dataclass(kw_only=True)
+class HeuristicAgentConfig(AgentConfig):
+    """
+    Represents an agent configuration.
+    """
+
+    type: str = "heuristic"
+    prompt: PromptConfig
+    tools: Optional[list[str]] = None
+    init_prompt_arguments_with_longterm_memory: Optional[bool] = True
 
 
 @dataclass(kw_only=True)

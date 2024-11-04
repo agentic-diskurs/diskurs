@@ -2,7 +2,7 @@ from typing import Optional, Self
 
 from diskurs import register_agent, Conversation, ToolExecutor, Agent, PromptArgument
 from diskurs.logger_setup import get_logger
-from diskurs.protocols import HeuristicSequence, ConversationParticipant, HeuristicPrompt, ConversationDispatcher
+from diskurs.protocols import ConversationParticipant, HeuristicPrompt, ConversationDispatcher
 
 
 @register_agent("heuristic")
@@ -27,7 +27,10 @@ class HeuristicAgent(Agent, ConversationParticipant):
     @classmethod
     def create(cls, name: str, prompt: HeuristicPrompt, **kwargs) -> Self:
         tool_executor = kwargs.get("tool_executor", None)
-        return cls(name=name, prompt=prompt, tool_executor=tool_executor)
+        topics = kwargs.get("topics", [])
+        dispatcher = kwargs.get("dispatcher", None)
+
+        return cls(name=name, prompt=prompt, topics=topics, dispatcher=dispatcher, tool_executor=tool_executor)
 
     def get_conductor_name(self) -> str:
         # TODO: somewhat hacky, but should work for now
@@ -53,12 +56,8 @@ class HeuristicAgent(Agent, ConversationParticipant):
             conversation = conversation.update_prompt_argument_with_longterm_memory(
                 conductor_name=self.get_conductor_name()
             )
-        prompt_arguments = self.prompt.heuristic_sequence(
-            prompt_argument=conversation.user_prompt_argument,
-            metadata=conversation.metadata,
-            call_tool=self.tool_executor.call_tool,
-        )
-        return conversation.update(user_prompt_argument=prompt_arguments)
+        new_conversation = self.prompt.heuristic_sequence(conversation, call_tool=self.tool_executor.call_tool)
+        return new_conversation.update()
 
     def process_conversation(self, conversation: Conversation) -> None:
         """
@@ -70,3 +69,9 @@ class HeuristicAgent(Agent, ConversationParticipant):
         self.logger.info(f"Process conversation on agent: {self.name}")
         conversation = self.invoke(conversation)
         self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)
+
+    def start_conversation(self, conversation: Conversation, user_query: str) -> None:
+        # TODO:  currently we expect the next agent to be a conductor, to store the longterm memory,
+        #  if the next agent is not a conductor, we need to update this
+        self.logger.info(f"Start conversation on agent: {self.name}")
+        self.process_conversation(conversation)

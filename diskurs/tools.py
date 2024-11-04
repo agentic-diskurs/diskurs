@@ -6,7 +6,7 @@ from functools import wraps
 from pathlib import Path
 from typing import Callable, Optional, Any
 
-from diskurs import ToolDependency
+from diskurs import ToolDependency, ToolExecutor as ToolExecutorProtocol
 from diskurs.config import ToolConfig
 from diskurs.entities import ToolCallResult, ToolCall
 from diskurs.registry import register_tool_executor
@@ -89,7 +89,7 @@ def tool(func):
 
 
 @register_tool_executor("default")
-class ToolExecutor:
+class ToolExecutor(ToolExecutorProtocol):
 
     def __init__(self, tools: Optional[dict[str, Callable]] = None):
         self.tools = tools or {}

@@ -36,7 +36,7 @@ class Forum:
         self.dispatcher = dispatcher
         self.tool_executor = tool_executor
         self.conversation_store = conversation_store
-        self.conductor = first_contact
+        self.first_contact = first_contact
         self.conversation_class = conversation_class
         self.logger = get_logger(f"diskurs.{__name__}.forum")
 
@@ -66,7 +66,7 @@ class Forum:
         conversation = self.fetch_or_create_conversation(diskurs_input)
 
         answer = self.dispatcher.run(
-            participant=self.conductor, conversation=conversation, user_query=diskurs_input.user_query
+            participant=self.first_contact, conversation=conversation, user_query=diskurs_input.user_query
         )
         return answer
 
@@ -92,6 +92,7 @@ class ForumFactory:
                 "prompt.py",
                 "immutable_conversation.py",
                 "filesystem_conversation_store.py",
+                "heuristic_agent.py",
             ]
         ]
         self.conversation_store = conversation_store
