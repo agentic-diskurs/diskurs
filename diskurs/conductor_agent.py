@@ -7,14 +7,20 @@ from diskurs.agent import BaseAgent
 from diskurs.entities import (
     MessageType,
 )
-from diskurs.protocols import LLMClient, ConversationDispatcher, ConductorPrompt, Conversation
+from diskurs.protocols import (
+    LLMClient,
+    ConversationDispatcher,
+    ConductorPrompt,
+    Conversation,
+    ConductorAgent as ConductorAgentProtocol,
+)
 from diskurs.registry import register_agent
 
 logger = logging.getLogger(__name__)
 
 
 @register_agent("conductor")
-class ConductorAgent(BaseAgent[ConductorPrompt]):
+class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
     def __init__(
         self,
         name: str,
@@ -130,12 +136,3 @@ class ConductorAgent(BaseAgent[ConductorPrompt]):
             conversation = self.invoke(conversation)
             next_agent = json.loads(conversation.last_message.content).get("next_agent")
             self.dispatcher.publish(topic=next_agent, conversation=conversation)
-
-    def start_conversation(self, conversation: Conversation, user_query: str) -> None:
-        self.logger.debug(f"Start conversation on conductor agent {self.name}")
-        conversation = conversation.update_agent_longterm_memory(
-            agent_name=self.name,
-            longterm_memory=self.prompt.init_longterm_memory(user_query=user_query),
-        )
-
-        self.process_conversation(conversation)

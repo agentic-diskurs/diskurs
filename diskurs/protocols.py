@@ -1,6 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Dict, Self, Callable
-from typing import Protocol, Any, Type, TypeVar, Optional, Union
+from typing import List, Dict, Self, Callable, Protocol, Any, Type, TypeVar, Optional, Union, runtime_checkable
 
 from diskurs.entities import (
     ToolDescription,
@@ -339,8 +338,6 @@ class ConversationParticipant(Protocol):
 
     def register_dispatcher(self, dispatcher: "ConversationDispatcher") -> None: ...
 
-    def start_conversation(self, conversation: Conversation, user_query) -> None: ...
-
 
 class ConversationDispatcher(Protocol):
     def subscribe(self, topic: str, participant: ConversationParticipant) -> None:
@@ -388,9 +385,10 @@ class Agent(Protocol):
         ...
 
 
-class Conductor(Protocol):
-    @classmethod
-    def create(cls, name: str, prompt: MultistepPrompt, llm_client: LLMClient, **kwargs) -> Self: ...
+@runtime_checkable
+class ConductorAgent(Protocol):
+    name: str
+    prompt: ConductorPrompt
 
     def update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation: ...
 

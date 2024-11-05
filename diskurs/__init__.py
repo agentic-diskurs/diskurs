@@ -1,4 +1,3 @@
-from .conductor_agent import ConductorAgent
 from .config import ToolDependency, ConversationStoreConfig
 from .dispatcher import SynchronousConversationDispatcher
 from .entities import PromptArgument, LongtermMemory, DiskursInput
@@ -17,6 +16,7 @@ from .protocols import (
     ConversationDispatcher,
     CallTool,
     ToolExecutor,
+    ConductorAgent,
 )
 from .registry import (
     register_conversation_store,

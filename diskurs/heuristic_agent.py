@@ -69,9 +69,3 @@ class HeuristicAgent(Agent, ConversationParticipant):
         self.logger.info(f"Process conversation on agent: {self.name}")
         conversation = self.invoke(conversation)
         self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)
-
-    def start_conversation(self, conversation: Conversation, user_query: str) -> None:
-        # TODO:  currently we expect the next agent to be a conductor, to store the longterm memory,
-        #  if the next agent is not a conductor, we need to update this
-        self.logger.info(f"Start conversation on agent: {self.name}")
-        self.process_conversation(conversation)

@@ -1,12 +1,12 @@
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import List, Callable, Type
+from typing import List, Callable, Type, get_type_hints, Any
 
 from diskurs.config import load_config_from_yaml
 from diskurs.entities import ToolDescription, DiskursInput, ChatMessage, Role, MessageType
 from diskurs.logger_setup import get_logger
-from diskurs.protocols import Agent, ConversationParticipant, ConversationStore, Conversation
+from diskurs.protocols import Agent, ConversationParticipant, ConversationStore, Conversation, ConductorAgent
 from diskurs.registry import (
     AGENT_REGISTRY,
     LLM_REGISTRY,
@@ -20,6 +20,19 @@ from diskurs.tools import load_tools
 from diskurs.utils import load_module_from_path
 
 logging.basicConfig(level=logging.WARNING)
+
+
+def filter_conductor_agents(agents: list[Agent]) -> list[ConductorAgent]:
+    return [agent for agent in agents if isinstance(agent, ConductorAgent)]
+
+
+def init_longterm_memories(agents: list[Agent]) -> dict[str, Any]:
+    longterm_memory = {}
+
+    for conductor in filter_conductor_agents(agents):
+        longterm_memory[conductor.name] = conductor.prompt.init_longterm_memory()
+
+    return longterm_memory
 
 
 class Forum:
@@ -46,8 +59,11 @@ class Forum:
         if self.conversation_store and self.conversation_store.exists(diskurs_input.conversation_id):
             return self.conversation_store.fetch(diskurs_input.conversation_id)
         else:
+            longterm_memory = init_longterm_memories(self.agents)
             conversation = self.conversation_class(
-                metadata=diskurs_input.metadata, conversation_id=diskurs_input.conversation_id
+                metadata=diskurs_input.metadata,
+                conversation_id=diskurs_input.conversation_id,
+                longterm_memory=longterm_memory,
             ).append(
                 ChatMessage(
                     Role.USER,
