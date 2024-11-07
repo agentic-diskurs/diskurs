@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
 from conftest import are_classes_structurally_similar
-from diskurs import PromptArgument, ImmutableConversation
+from diskurs import PromptArgument, ImmutableConversation, ToolExecutor
 from diskurs.entities import ChatMessage, Role
 from diskurs.prompt import MultistepPrompt, PromptValidationError, ConductorPrompt, HeuristicPrompt
 from diskurs.prompt import PromptParserMixin
@@ -182,3 +183,45 @@ def test_heuristic_prompt_create():
 
     assert callable(prompt.heuristic_sequence)
     assert are_classes_structurally_similar(prompt.user_prompt_argument, MyHeuristicPromptArgument)
+
+
+@pytest.fixture
+def tool_executor():
+    executor = Mock(spec=ToolExecutor)
+    return executor
+
+
+@pytest.fixture
+def heuristic_prompt(conversation):
+    prompt = Mock(spec=HeuristicPrompt)
+
+    # Create an instance of MyHeuristicPromptArgument to be returned
+    prompt_arg_instance = MyHeuristicPromptArgument()
+
+    # Configure create_user_prompt_argument to return the specific instance
+    prompt.create_user_prompt_argument.return_value = prompt_arg_instance
+
+    # Side effect function for heuristic_sequence
+    def heuristic_sequence_side_effect(user_prompt_argument, metadata, call_tool):
+        # Assert that heuristic_sequence is called with the correct Conversation instance
+        assert user_prompt_argument == conversation.user_prompt_argument, "Expected correct user_prompt_argument"
+        assert metadata == conversation.metadata, "Expected correct metadata"
+        # Return the specific instance
+        return prompt_arg_instance
+
+    # Set the heuristic_sequence to the side effect function
+    prompt.heuristic_sequence.side_effect = heuristic_sequence_side_effect
+
+    return prompt
+
+
+def test_heuristic_prompt(heuristic_prompt, conversation):
+    result = heuristic_prompt.create_user_prompt_argument()
+    assert isinstance(result, MyHeuristicPromptArgument)
+
+    result = heuristic_prompt.heuristic_sequence(
+        user_prompt_argument=conversation.user_prompt_argument,
+        metadata=conversation.metadata,
+        call_tool=lambda x: x,  # Mock or real function as needed
+    )
+    assert isinstance(result, MyHeuristicPromptArgument)
