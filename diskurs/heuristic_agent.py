@@ -1,6 +1,7 @@
 from typing import Optional, Self
 
 from diskurs import register_agent, Conversation, ToolExecutor, Agent, PromptArgument
+from diskurs.entities import MessageType
 from diskurs.logger_setup import get_logger
 from diskurs.protocols import ConversationParticipant, HeuristicPrompt, ConversationDispatcher
 
@@ -15,6 +16,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
         dispatcher: Optional[ConversationDispatcher] = None,
         tool_executor: Optional[ToolExecutor] = None,
         init_prompt_arguments_with_longterm_memory: bool = True,
+        render_prompt: bool = True,
     ):
         self.name = name
         self.prompt = prompt
@@ -22,6 +24,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
         self.dispatcher = dispatcher
         self.tool_executor = tool_executor
         self.init_prompt_arguments_with_longterm_memory = init_prompt_arguments_with_longterm_memory
+        self.render_prompt = render_prompt
         self.logger = get_logger(f"diskurs.agent.{self.name}")
 
     @classmethod
@@ -29,8 +32,16 @@ class HeuristicAgent(Agent, ConversationParticipant):
         tool_executor = kwargs.get("tool_executor", None)
         topics = kwargs.get("topics", [])
         dispatcher = kwargs.get("dispatcher", None)
+        render_prompt = kwargs.get("render_prompt", False)
 
-        return cls(name=name, prompt=prompt, topics=topics, dispatcher=dispatcher, tool_executor=tool_executor)
+        return cls(
+            name=name,
+            prompt=prompt,
+            topics=topics,
+            dispatcher=dispatcher,
+            tool_executor=tool_executor,
+            render_prompt=render_prompt,
+        )
 
     def get_conductor_name(self) -> str:
         # TODO: somewhat hacky, but should work for now
@@ -56,8 +67,18 @@ class HeuristicAgent(Agent, ConversationParticipant):
             conversation = conversation.update_prompt_argument_with_longterm_memory(
                 conductor_name=self.get_conductor_name()
             )
-        new_conversation = self.prompt.heuristic_sequence(conversation, call_tool=self.tool_executor.call_tool)
-        return new_conversation.update()
+
+        conversation = self.prompt.heuristic_sequence(conversation, call_tool=self.tool_executor.call_tool)
+
+        if self.render_prompt:
+            conversation = conversation.append(
+                name=self.name,
+                message=self.prompt.render_user_template(
+                    self.name, prompt_args=conversation.user_prompt_argument, message_type=MessageType.CONVERSATION
+                ),
+            )
+
+        return conversation
 
     def process_conversation(self, conversation: Conversation) -> None:
         """

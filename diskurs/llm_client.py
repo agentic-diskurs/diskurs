@@ -156,10 +156,13 @@ class BaseOaiApiLLMClient(LLMClient):
         return completion.choices[0].finish_reason == "tool_calls"
 
     @classmethod
-    def llm_response_to_chat_message(cls, completion: ChatCompletion, message_type: MessageType) -> ChatMessage:
+    def llm_response_to_chat_message(
+        cls, completion: ChatCompletion, agent_name: str, message_type: MessageType
+    ) -> ChatMessage:
         """
         Converts the message returned by the LLM to a typed ChatMessage.
         :param completion: The response from the LLM model
+        :param agent_name: The name of the agent whose question the completion is a response to
         :param message_type: The type of message to be created
         :return: A ChatMessage object containing the structured response
         """
@@ -172,12 +175,13 @@ class BaseOaiApiLLMClient(LLMClient):
                 )
                 for tool_call in completion.choices[0].message.tool_calls
             ]
-            return ChatMessage(role=Role.ASSISTANT, tool_calls=tool_calls, type=message_type)
+            return ChatMessage(role=Role.ASSISTANT, tool_calls=tool_calls, type=message_type, name=agent_name)
         else:
             return ChatMessage(
                 role=Role(completion.choices[0].message.role),
                 content=completion.choices[0].message.content,
                 type=message_type,
+                name=agent_name,
             )
 
     @classmethod
@@ -196,8 +200,10 @@ class BaseOaiApiLLMClient(LLMClient):
         user_prompt = (
             conversation.user_prompt if isinstance(conversation.user_prompt, list) else [conversation.user_prompt]
         )
-        message_type = next((m.type for m in user_prompt))
-        return user_prompt + [cls.llm_response_to_chat_message(completion, message_type=message_type)]
+        agent_name, message_type = next(((m.name, m.type) for m in user_prompt))
+        return user_prompt + [
+            cls.llm_response_to_chat_message(completion=completion, agent_name=agent_name, message_type=message_type)
+        ]
 
     def count_tokens_in_conversation(self, messages: list[dict]) -> int:
         """

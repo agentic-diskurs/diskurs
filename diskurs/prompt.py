@@ -3,6 +3,7 @@ from dataclasses import dataclass, is_dataclass, fields, MISSING, asdict
 from pathlib import Path
 from typing import Optional, Callable, Any, Type, TypeVar, Self
 
+from click import prompt
 from jinja2 import Environment, FileSystemLoader, Template
 
 from diskurs.entities import (
@@ -55,6 +56,25 @@ def load_symbol(symbol_name, loaded_module):
     except AttributeError as e:
         logger.error(f"Missing expected attribute {symbol_name} in {loaded_module.__name__}: {e}")
         raise AttributeError(f"Required attribute {symbol_name} not found in {loaded_module.__name__}")
+
+
+def load_template(location: Path) -> Template:
+    """
+    Loads a Jinja2 template from the provided file path.
+
+    :param location: Path to the template file.
+    :return: Jinja2 Template object.
+    :raises FileNotFoundError: If the template file does not exist.
+    """
+    logger.info(f"Loading template: {location}")
+    if not location.exists():
+        raise FileNotFoundError(f"Template not found: {location}")
+
+    file_loader = FileSystemLoader(location.parent)
+    env = Environment(loader=file_loader)
+    template = env.get_template(location.name)
+
+    return template
 
 
 class PromptParserMixin:
@@ -262,7 +282,7 @@ class PromptLoaderMixin:
         )
 
         if json_formatting_filename := kwargs.get("json_formatting_filename", None):
-            json_render_template = cls.load_template(location / json_formatting_filename)
+            json_render_template = load_template(location / json_formatting_filename)
         else:
             json_render_template = load_template_from_package("diskurs.assets", "json_formatting.jinja2")
 
@@ -307,30 +327,11 @@ class PromptLoaderMixin:
             system_template_filename = (
                 "system_template.jinja2" if (location / "system_template.jinja2").exists() else None
             )
-        system_template = cls.load_template(location / system_template_filename) if system_template_filename else None
-        user_template = cls.load_template(location / user_template_filename) if user_template_filename else None
+        system_template = load_template(location / system_template_filename) if system_template_filename else None
+        user_template = load_template(location / user_template_filename) if user_template_filename else None
         module_path = location / code_filename
         loaded_module = load_module_from_path(module_name=module_path.stem, module_path=module_path)
         return agent_description, loaded_module, system_template, user_template
-
-    @classmethod
-    def load_template(cls, location: Path) -> Template:
-        """
-        Loads a Jinja2 template from the provided file path.
-
-        :param location: Path to the template file.
-        :return: Jinja2 Template object.
-        :raises FileNotFoundError: If the template file does not exist.
-        """
-        logger.info(f"Loading template: {location}")
-        if not location.exists():
-            raise FileNotFoundError(f"Template not found: {location}")
-
-        file_loader = FileSystemLoader(location.parent)
-        env = Environment(loader=file_loader)
-        template = env.get_template(location.name)
-
-        return template
 
 
 @register_prompt("multistep_prompt")
@@ -474,6 +475,7 @@ class ConductorPrompt(
         can_finalize: Callable[[GenericConductorLongtermMemory], bool] = None,
         finalize: Callable[[GenericConductorLongtermMemory], dict[str, Any]] = None,
         fail: Callable[[GenericConductorLongtermMemory], dict[str, Any]] = None,
+        topics: list[str] = None,
     ):
         super().__init__(
             system_prompt_argument_class=system_prompt_argument_class,
@@ -481,12 +483,40 @@ class ConductorPrompt(
             system_template=system_template,
             user_template=user_template,
             json_formatting_template=json_formatting_template,  # Pass the JSON template
+            is_valid=self.create_default_is_valid(topics),
+            is_final=self.create_default_is_final(topics),
         )
         self.agent_description = agent_description
         self.longterm_memory = longterm_memory_class
         self._can_finalize = can_finalize
         self._finalize = finalize
         self._fail = fail
+
+    @staticmethod
+    def create_default_is_valid(topics: list[str]) -> Callable[[UserPromptArg], bool]:
+
+        def is_valid(prompt_args: UserPromptArg) -> bool:
+            if not prompt_args.next_agent:
+                return True
+            if prompt_args.next_agent in topics:
+                return True
+            else:
+                raise PromptValidationError(
+                    f"{prompt_args.next_agent} cannot be routed to from this agent. Valid agents are: {topics}"
+                )
+
+        return is_valid
+
+    @staticmethod
+    def create_default_is_final(topics: list[str]) -> Callable[[UserPromptArg], bool]:
+
+        def is_final(prompt_args: UserPromptArg) -> bool:
+            if not prompt_args.next_agent:
+                return False
+            else:
+                return prompt_args.next_agent in topics
+
+        return is_final
 
     @classmethod
     def create(
@@ -527,6 +557,7 @@ class ConductorPrompt(
             system_template=system_template,
             user_template=user_template,
             json_formatting_template=json_formatting_template,  # Pass the JSON template
+            topics=kwargs.get("topics", None),
             **prompt_functions,
         )
 
@@ -577,21 +608,34 @@ class ConductorPrompt(
         self,
         name: str,
         prompt_args: PromptArgument,
-        message_type: MessageType = MessageType.ROUTING,
+        message_type: MessageType = MessageType.CONVERSATION,
     ) -> ChatMessage:
-        content = self.user_template.render(**asdict(prompt_args))
-        return ChatMessage(
-            role=Role.USER,
-            name=name,
-            content=content,
-            type=message_type,
-        )
+        # TODO: try to unify this with the render_user_template in MultistepPrompt
+        try:
+            if self.is_valid(prompt_args):
+                content = self.user_template.render()
+                return ChatMessage(
+                    role=Role.USER,
+                    name=name,
+                    content=content,
+                    type=message_type,
+                )
+        except PromptValidationError as e:
+            return ChatMessage(role=Role.USER, name=name, content=str(e), type=message_type)
+        except Exception as e:
+            return ChatMessage(role=Role.USER, content=f"An error occurred: {str(e)}")
 
 
 @register_prompt("heuristic_prompt")
 class HeuristicPrompt(HeuristicPromptProtocol):
-    def __init__(self, user_prompt_argument_class: Type[PromptArgument], heuristic_sequence: HeuristicSequence):
+    def __init__(
+        self,
+        user_prompt_argument_class: Type[PromptArgument],
+        heuristic_sequence: HeuristicSequence,
+        user_template: Optional[Template] = None,
+    ):
         self.user_prompt_argument = user_prompt_argument_class
+        self.user_template = user_template
         self._heuristic_sequence = heuristic_sequence
 
     @classmethod
@@ -599,6 +643,7 @@ class HeuristicPrompt(HeuristicPromptProtocol):
         cls,
         location: Path,
         user_prompt_argument_class: str,
+        user_template_filename: str = "user_template.jinja2",
         code_filename: str = "prompt.py",
         heuristic_sequence_name: str = "heuristic_sequence",
         **kwargs,
@@ -607,12 +652,30 @@ class HeuristicPrompt(HeuristicPromptProtocol):
         loaded_module = load_module_from_path(module_name=module_path.stem, module_path=module_path)
 
         user_prompt_argument_class = load_symbol(user_prompt_argument_class, loaded_module)
+
+        user_template_path = location / user_template_filename
+        user_template = load_template(user_template_path) if user_template_path.exists() else None
         heuristic_sequence = load_symbol(heuristic_sequence_name, loaded_module)
 
-        return cls(user_prompt_argument_class, heuristic_sequence)
+        return cls(
+            user_prompt_argument_class=user_prompt_argument_class,
+            user_template=user_template,
+            heuristic_sequence=heuristic_sequence,
+        )
 
-    def heuristic_sequence(self, conversation: Conversation, call_tool: CallTool) -> PromptArgument:
+    def heuristic_sequence(self, conversation: Conversation, call_tool: CallTool) -> Conversation:
         return self._heuristic_sequence(conversation, call_tool)
 
     def create_user_prompt_argument(self, **prompt_args) -> PromptArgument:
         return self.user_prompt_argument(**prompt_args)
+
+    def render_user_template(
+        self, name: str, prompt_args: PromptArgument, message_type: MessageType = MessageType.CONVERSATION
+    ) -> ChatMessage:
+        content = self.user_template.render(**asdict(prompt_args))
+        return ChatMessage(
+            role=Role.USER,
+            name=name,
+            content=content,
+            type=message_type,
+        )

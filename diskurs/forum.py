@@ -197,8 +197,13 @@ class ForumFactory:
             if hasattr(agent_conf, "max_reasoning_steps"):
                 additional_args["max_reasoning_steps"] = agent_conf.max_reasoning_steps
             if hasattr(agent_conf, "prompt"):
+                prompt_creation_arguments = asdict(agent_conf.prompt)
+
+                if agent_conf.prompt.type == "conductor_prompt":
+                    prompt_creation_arguments["topics"] = agent_conf.topics
+
                 prompt_cls = PROMPT_REGISTRY.get(agent_conf.prompt.type)
-                prompt = prompt_cls.create(**asdict(agent_conf.prompt))
+                prompt = prompt_cls.create(**prompt_creation_arguments)
                 additional_args["prompt"] = prompt
             if hasattr(agent_conf, "llm"):
                 additional_args["llm_client"] = self.llm_clients[agent_conf.llm]

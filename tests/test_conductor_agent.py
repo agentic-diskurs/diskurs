@@ -80,7 +80,7 @@ def test_update_longterm_memory(conductor_agent):
     conversation.update_agent_longterm_memory = Mock(return_value=conversation)
     conductor_agent.prompt.init_longterm_memory.return_value = longterm_memory
 
-    updated_conversation = conductor_agent.update_longterm_memory(conversation)
+    updated_conversation = conductor_agent.create_or_update_longterm_memory(conversation)
 
     assert longterm_memory.field1 == "value1"
     assert longterm_memory.field2 == "value2"
@@ -100,7 +100,7 @@ def test_update_longterm_memory_existing_fields(conductor_agent):
     conversation.update_agent_longterm_memory = Mock(return_value=conversation)
     conductor_agent.prompt.init_longterm_memory = Mock()
 
-    updated_conversation = conductor_agent.update_longterm_memory(conversation, overwrite=False)
+    updated_conversation = conductor_agent.create_or_update_longterm_memory(conversation, overwrite=False)
 
     assert longterm_memory.field1 == "existing_value1"  # Should not be overwritten
     assert longterm_memory.field2 == "value2"
@@ -117,7 +117,7 @@ def test_update_longterm_memory_with_overwrite(conductor_agent):
     conversation.update_agent_longterm_memory = Mock(return_value=conversation)
     conductor_agent.prompt.init_longterm_memory = Mock()
 
-    updated_conversation = conductor_agent.update_longterm_memory(conversation, overwrite=True)
+    updated_conversation = conductor_agent.create_or_update_longterm_memory(conversation, overwrite=True)
 
     assert longterm_memory.field1 == "new_value1"  # Should be overwritten
     conversation.update_agent_longterm_memory.assert_called_once_with(

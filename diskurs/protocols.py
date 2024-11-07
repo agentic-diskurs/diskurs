@@ -103,6 +103,14 @@ class ConductorPrompt(Prompt):
         """Initializes the long-term memory."""
         ...
 
+    def is_final(self, user_prompt_argument: PromptArgument) -> bool:
+        """Determines if the user prompt argument indicates the final state."""
+        ...
+
+    def is_valid(self, user_prompt_argument: PromptArgument) -> bool:
+        """Validates the user prompt argument."""
+        ...
+
 
 class CallTool(Protocol):
     def __call__(self, function_name: str, arguments: dict[str, Any]) -> Any: ...
@@ -122,6 +130,12 @@ class HeuristicPrompt(Protocol):
 
     def create_user_prompt_argument(self, **prompt_args) -> PromptArgument:
         """Creates an instance of the user prompt argument dataclass."""
+        ...
+
+    def render_user_template(
+        self, name: str, prompt_args: PromptArgument, message_type: MessageType = MessageType.CONVERSATION
+    ) -> ChatMessage:
+        """Renders the user template with the provided prompt arguments."""
         ...
 
 
@@ -390,7 +404,9 @@ class ConductorAgent(Protocol):
     name: str
     prompt: ConductorPrompt
 
-    def update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation: ...
+    def create_or_update_longterm_memory(
+        self, conversation: Conversation, overwrite: bool = False
+    ) -> Conversation: ...
 
 
 class ToolExecutor(Protocol):
