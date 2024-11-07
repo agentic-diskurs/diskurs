@@ -117,8 +117,6 @@ class ForumFactory:
 
         self.logger.info("Initializing forum factory")
 
-    # TODO: find a cleaner solution for modules_to_import
-
     def create_forum(self) -> Forum:
         self.import_modules()
         self.load_custom_modules()

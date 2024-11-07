@@ -63,9 +63,6 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         max_dispatches = kwargs.get("max_dispatches", 50)
         topics = kwargs.get("topics", [])
 
-        # TODO: think if the json description of the agents should be used directly from the prompt, or if we
-        #  want to use the option here too (but we'll always need json output from the conductor anyways)
-
         return cls(
             name=name,
             prompt=prompt,

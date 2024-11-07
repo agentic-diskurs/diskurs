@@ -223,7 +223,6 @@ class PromptRendererMixin:
         self._is_final = is_final or (lambda x: True)
 
     def is_final(self, user_prompt_argument: PromptArgument) -> bool:
-        # TODO: make is_valid and is_final optional (case single step agents)
         return self._is_final(user_prompt_argument)
 
     def is_valid(self, user_prompt_argument: PromptArgument) -> bool:

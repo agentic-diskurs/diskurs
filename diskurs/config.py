@@ -109,7 +109,6 @@ class Registrable:
         return cls.registry.get(key, cls)
 
 
-# TODO: Add default values for can_finalize, finalize, is_valid, is_final, and fail
 @dataclass(kw_only=True)
 class PromptConfig(YamlSerializable, Registrable):
     """

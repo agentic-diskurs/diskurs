@@ -121,7 +121,6 @@ class ChatMessage(JsonSerializable):
             self.tool_calls = [ToolCall.from_dict(tc) for tc in self.tool_calls]
 
 
-# TODO: Automatically add all prompt.py files to the registry
 @dataclass
 class PromptArgument(JsonSerializable):
     pass
