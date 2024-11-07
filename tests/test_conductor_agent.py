@@ -4,9 +4,8 @@ from unittest.mock import Mock, ANY
 
 import pytest
 
-from agents.Conductor_Agent.prompt import ConductorUserPromptArgument
 from diskurs import ImmutableConversation
-from diskurs.prompt import PromptValidationError
+from diskurs.prompt import PromptValidationError, DefaultConductorUserPromptArgument
 from diskurs.conductor_agent import ConductorAgent
 from diskurs.entities import ChatMessage, Role, MessageType, LongtermMemory, PromptArgument
 from diskurs.protocols import (
@@ -199,7 +198,7 @@ def test_conductor_agent_valid_next_agent(conductor_agent, mock_llm_client):
     conversation = conversation.append(assistant_message)
     mock_llm_client.generate.return_value = conversation
 
-    parsed_prompt_argument = ConductorUserPromptArgument(next_agent="valid_agent")
+    parsed_prompt_argument = DefaultConductorUserPromptArgument(next_agent="valid_agent")
     conductor_agent.prompt.parse_user_prompt.return_value = parsed_prompt_argument
 
     conductor_agent.process_conversation(conversation)
