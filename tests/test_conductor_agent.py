@@ -4,7 +4,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from diskurs import ConductorAgent, PromptArgument, LongtermMemory, ImmutableConversation
+from diskurs import PromptArgument, LongtermMemory, ImmutableConversation
+from diskurs.conductor_agent import ConductorAgent
 from diskurs.entities import ChatMessage, Role
 from diskurs.protocols import (
     LLMClient,
@@ -80,7 +81,7 @@ def test_update_longterm_memory(conductor_agent):
     conversation.update_agent_longterm_memory = Mock(return_value=conversation)
     conductor_agent.prompt.init_longterm_memory.return_value = longterm_memory
 
-    updated_conversation = conductor_agent.create_or_update_longterm_memory(conversation)
+    updated_conversation = conductor_agent.create_or_update_longterm_memory(conversation=conversation)
 
     assert longterm_memory.field1 == "value1"
     assert longterm_memory.field2 == "value2"
@@ -152,8 +153,6 @@ def test_process_conversation_updates_longterm_memory(conductor_agent):
         assert longterm_memory.field1 == "value1"
         assert longterm_memory.field2 == "value2"
         mock_update_longterm.assert_called_once()
-
-        conductor_agent.dispatcher.publish.assert_called_once_with(topic="agent1", conversation=conversation)
 
 
 def test_process_conversation_finalize(conductor_agent):

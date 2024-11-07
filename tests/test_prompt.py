@@ -172,7 +172,7 @@ def test_fail():
 
 heuristic_prompt_config = {
     "location": Path(__file__).parent / "test_files" / "heuristic_agent_test_files",
-    "user_prompt_argument": "MyHeuristicPromptArgument",
+    "user_prompt_argument_class": "MyHeuristicPromptArgument",
     "heuristic_sequence_name": "heuristic_sequence",
 }
 

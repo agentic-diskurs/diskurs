@@ -94,7 +94,10 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
     @staticmethod
     def is_previous_agent_conductor(conversation):
-        return conversation.last_message.type == MessageType.ROUTING
+        if conversation.is_empty():
+            return False
+        else:
+            return conversation.last_message.type == MessageType.ROUTING
 
     def create_or_update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation:
         longterm_memory = conversation.get_agent_longterm_memory(self.name) or self.prompt.init_longterm_memory()
@@ -112,7 +115,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
                 f"No suitable user prompt argument nor long-term memory found in conversation {conversation}"
             )
 
-        return conversation.update_agent_longterm_memory(self.name, longterm_memory)
+        return conversation.update_agent_longterm_memory(agent_name=self.name, longterm_memory=longterm_memory)
 
     def invoke(self, conversation: Conversation) -> Conversation:
         self.logger.debug(f"Invoke called on conductor agent {self.name}")
