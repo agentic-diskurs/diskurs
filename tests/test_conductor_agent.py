@@ -1,12 +1,14 @@
 from dataclasses import dataclass
 from typing import Optional
-from unittest.mock import Mock
+from unittest.mock import Mock, ANY
 
 import pytest
 
-from diskurs import PromptArgument, LongtermMemory, ImmutableConversation
+from agents.Conductor_Agent.prompt import ConductorUserPromptArgument
+from diskurs import ImmutableConversation
+from diskurs.prompt import PromptValidationError
 from diskurs.conductor_agent import ConductorAgent
-from diskurs.entities import ChatMessage, Role
+from diskurs.entities import ChatMessage, Role, MessageType, LongtermMemory, PromptArgument
 from diskurs.protocols import (
     LLMClient,
     ConversationDispatcher,
@@ -209,3 +211,74 @@ def test_max_dispatches(conductor_agent):
     conductor_agent.process_conversation(conversation)
 
     conductor_agent.prompt.fail.assert_called_once_with(longterm_memory)
+
+
+def test_conductor_agent_valid_next_agent(conductor_agent, mock_llm_client):
+    conversation = ImmutableConversation()
+    llm_response = '{"next_agent": "valid_agent"}'
+    assistant_message = ChatMessage(role=Role.ASSISTANT, content=llm_response, type=MessageType.ROUTING)
+    conversation = conversation.append(assistant_message)
+    mock_llm_client.generate.return_value = conversation
+
+    parsed_prompt_argument = ConductorUserPromptArgument(next_agent="valid_agent")
+    conductor_agent.prompt.parse_user_prompt.return_value = parsed_prompt_argument
+
+    conductor_agent.process_conversation(conversation)
+
+    conductor_agent.dispatcher.publish.assert_called_once_with(topic="valid_agent", conversation=ANY)
+
+
+def test_conductor_agent_finalize(conductor_agent, mock_prompt):
+    conversation = ImmutableConversation()
+
+    conductor_agent.prompt.can_finalize.return_value = True
+
+    conductor_agent.prompt.finalize.return_value = {"result": "final result"}
+    conductor_agent.process_conversation(conversation)
+
+    conductor_agent.prompt.finalize.assert_called_once()
+    conductor_agent.dispatcher.finalize.assert_called_once_with(response={"result": "final result"})
+
+
+def test_conductor_agent_fail_on_max_dispatches(conductor_agent):
+    conductor_agent.n_dispatches = conductor_agent.max_dispatches - 1
+
+    conversation = ImmutableConversation()
+    conversation = conversation.append(
+        ChatMessage(role=Role.ASSISTANT, content='{"next_agent": "invalid_agent"}', type=MessageType.ROUTING)
+    )
+
+    def is_valid(prompt_args):
+        raise PromptValidationError(
+            f"{prompt_args.next_agent} cannot be routed to from this agent. Valid agents are: {conductor_agent.topics}"
+        )
+
+    conductor_agent.prompt.is_valid = is_valid
+
+    conductor_agent.process_conversation(conversation)
+
+    conductor_agent.dispatcher.finalize.assert_called_once()
+    conductor_agent.prompt.fail.assert_called_once()
+
+
+def test_conductor_agent_updates_longterm_memory(conductor_agent, mock_llm_client):
+    conversation = ImmutableConversation(user_prompt_argument=MyUserPromptArgument(field1="value1", field2="value2"))
+
+    longterm_memory = MyLongTermMemory()
+
+    parsed_prompt_argument = ConductorUserPromptArgument(next_agent="valid_agent")
+    conductor_agent.prompt.parse_user_prompt.return_value = parsed_prompt_argument
+
+    conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
+    conversation.update_agent_longterm_memory = Mock(return_value=conversation)
+
+    response_conversation = conversation.append(
+        ChatMessage(role=Role.ASSISTANT, content='{"next_agent": "valid_agent"}', type=MessageType.ROUTING)
+    )
+    conductor_agent.llm_client.generate.return_value = response_conversation
+
+    conductor_agent.process_conversation(conversation)
+
+    conversation.update_agent_longterm_memory.assert_called_once_with(
+        agent_name=conductor_agent.name, longterm_memory=longterm_memory
+    )
