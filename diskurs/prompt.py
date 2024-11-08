@@ -632,9 +632,11 @@ class HeuristicPrompt(HeuristicPromptProtocol):
         user_prompt_argument_class: Type[PromptArgument],
         heuristic_sequence: HeuristicSequence,
         user_template: Optional[Template] = None,
+        agent_description: Optional[str] = "",
     ):
         self.user_prompt_argument = user_prompt_argument_class
         self.user_template = user_template
+        self.agent_description = agent_description
         self._heuristic_sequence = heuristic_sequence
 
     @classmethod
@@ -642,6 +644,7 @@ class HeuristicPrompt(HeuristicPromptProtocol):
         cls,
         location: Path,
         user_prompt_argument_class: str,
+        agent_description_filename: str = "agent_description.txt",
         user_template_filename: str = "user_template.jinja2",
         code_filename: str = "prompt.py",
         heuristic_sequence_name: str = "heuristic_sequence",
@@ -652,6 +655,14 @@ class HeuristicPrompt(HeuristicPromptProtocol):
 
         user_prompt_argument_class = load_symbol(user_prompt_argument_class, loaded_module)
 
+        agent_description_path = location / agent_description_filename
+
+        if agent_description_path.exists():
+            with open(location / agent_description_filename, "r") as f:
+                agent_description = f.read()
+        else:
+            agent_description = ""
+
         user_template_path = location / user_template_filename
         user_template = load_template(user_template_path) if user_template_path.exists() else None
         heuristic_sequence = load_symbol(heuristic_sequence_name, loaded_module)
@@ -660,6 +671,7 @@ class HeuristicPrompt(HeuristicPromptProtocol):
             user_prompt_argument_class=user_prompt_argument_class,
             user_template=user_template,
             heuristic_sequence=heuristic_sequence,
+            agent_description=agent_description,
         )
 
     def heuristic_sequence(self, conversation: Conversation, call_tool: CallTool) -> Conversation:
