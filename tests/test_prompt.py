@@ -225,3 +225,17 @@ def test_heuristic_prompt(heuristic_prompt, conversation):
         call_tool=lambda x: x,  # Mock or real function as needed
     )
     assert isinstance(result, MyHeuristicPromptArgument)
+
+
+def test_create_loads_agent_description():
+    location = Path(__file__).parent / "test_files" / "heuristic_agent_test_files"
+
+    with open(location / "agent_description.txt") as f:
+        agent_description = f.read()
+
+    prompt = HeuristicPrompt.create(
+        location=location,
+        user_prompt_argument_class="MyHeuristicPromptArgument",
+    )
+
+    assert prompt.agent_description == agent_description
