@@ -207,6 +207,7 @@ class HeuristicAgentConfig(AgentConfig):
     prompt: PromptConfig
     tools: Optional[list[str]] = None
     init_prompt_arguments_with_longterm_memory: Optional[bool] = True
+    render_prompt: Optional[bool] = True
 
 
 @dataclass(kw_only=True)

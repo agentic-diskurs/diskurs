@@ -32,7 +32,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
         tool_executor = kwargs.get("tool_executor", None)
         topics = kwargs.get("topics", [])
         dispatcher = kwargs.get("dispatcher", None)
-        render_prompt = kwargs.get("render_prompt", False)
+        render_prompt = kwargs.get("render_prompt", True)
 
         return cls(
             name=name,
