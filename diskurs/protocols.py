@@ -117,7 +117,7 @@ class CallTool(Protocol):
 
 
 class HeuristicSequence(Protocol):
-    def __call__(self, conversation: "Conversation", call_tool: CallTool) -> "Conversation": ...
+    def __call__(self, conversation: "Conversation", call_tool: Optional[CallTool]) -> "Conversation": ...
 
 
 class HeuristicPrompt(Protocol):

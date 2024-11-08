@@ -67,8 +67,12 @@ class HeuristicAgent(Agent, ConversationParticipant):
             conversation = conversation.update_prompt_argument_with_longterm_memory(
                 conductor_name=self.get_conductor_name()
             )
+        if self.tool_executor:
+            call_tool = self.tool_executor.call_tool
+        else:
+            call_tool = None
 
-        conversation = self.prompt.heuristic_sequence(conversation, call_tool=self.tool_executor.call_tool)
+        conversation = self.prompt.heuristic_sequence(conversation, call_tool=call_tool)
 
         if self.render_prompt:
             conversation = conversation.append(

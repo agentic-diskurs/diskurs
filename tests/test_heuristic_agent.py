@@ -114,6 +114,36 @@ def test_invoke():
     assert result == final_conversation
 
 
+def test_invoke_no_executor():
+    name = "test_agent"
+    prompt = MagicMock()
+    conversation = MagicMock(spec=Conversation)
+    updated_conversation = MagicMock(spec=Conversation)
+    updated_conversation_with_memory = MagicMock(spec=Conversation)
+    heuristic_sequence_conversation = MagicMock(spec=Conversation)
+    final_conversation = MagicMock(spec=Conversation)
+    tool_executor = MagicMock()
+    prompt.create_user_prompt_argument.return_value = MagicMock()
+
+    agent = HeuristicAgent(
+        name=name,
+        prompt=prompt,
+        topics=["conductor_name"],  # Provide a non-empty topics list
+        init_prompt_arguments_with_longterm_memory=True,
+        render_prompt=True,
+    )
+
+    agent.prepare_conversation = MagicMock(return_value=updated_conversation)
+    updated_conversation.update_prompt_argument_with_longterm_memory.return_value = updated_conversation_with_memory
+    prompt.heuristic_sequence.return_value = heuristic_sequence_conversation
+    prompt.render_user_template.return_value = "rendered_template"
+    heuristic_sequence_conversation.append.return_value = final_conversation
+
+    result = agent.invoke(conversation)
+
+    prompt.heuristic_sequence.assert_called_once_with(updated_conversation_with_memory, call_tool=None)
+
+
 def test_process_conversation():
     name = "test_agent"
     prompt = MagicMock()
