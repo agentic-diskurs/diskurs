@@ -366,7 +366,7 @@ class ConversationDispatcher(Protocol):
         """Dispatch a conversation to all participants subscribed to the topic."""
         pass
 
-    def run(self, participant: ConversationParticipant, conversation: dict, user_query: str) -> dict:
+    def run(self, participant: ConversationParticipant, conversation: Conversation) -> dict:
         """Finish the conversation."""
         pass
 

@@ -1,7 +1,7 @@
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import List, Callable, Type, get_type_hints, Any
+from typing import List, Callable, Type, Any
 
 from diskurs.config import load_config_from_yaml
 from diskurs.entities import ToolDescription, DiskursInput, ChatMessage, Role, MessageType
@@ -56,6 +56,10 @@ class Forum:
         self.logger.info("Initializing forum")
 
     def fetch_or_create_conversation(self, diskurs_input: DiskursInput) -> Conversation:
+        """
+        If a conversation store is present, we try to getch an existing conversation from the conversation store
+        or creates a new one if it doesn't exist.
+        """
         if self.conversation_store and self.conversation_store.exists(diskurs_input.conversation_id):
             return self.conversation_store.fetch(diskurs_input.conversation_id)
         else:
@@ -64,7 +68,9 @@ class Forum:
                 metadata=diskurs_input.metadata,
                 conversation_id=diskurs_input.conversation_id,
                 longterm_memory=longterm_memory,
-            ).append(
+            )
+        if diskurs_input.user_query:
+            conversation = conversation.append(
                 ChatMessage(
                     Role.USER,
                     content=diskurs_input.user_query,
@@ -72,7 +78,7 @@ class Forum:
                     type=MessageType.CONVERSATION,
                 )
             )
-            return conversation
+        return conversation
 
     def ama(self, diskurs_input: DiskursInput):
         if not diskurs_input.conversation_id:
@@ -81,9 +87,7 @@ class Forum:
 
         conversation = self.fetch_or_create_conversation(diskurs_input)
 
-        answer = self.dispatcher.run(
-            participant=self.first_contact, conversation=conversation, user_query=diskurs_input.user_query
-        )
+        answer = self.dispatcher.run(participant=self.first_contact, conversation=conversation)
         return answer
 
 
@@ -129,6 +133,8 @@ class ForumFactory:
         self.identify_first_contact_agent()
         self.load_conversation()
         self.load_conversation_store()
+
+        self.logger.info("*** Forum created successfully ***")
 
         return Forum(
             agents=self.agents,

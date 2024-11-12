@@ -46,7 +46,7 @@ class SynchronousConversationDispatcher(ConversationDispatcher):
         if not self.future.done():
             self.future.set_result(response)
 
-    def run(self, participant: ConversationParticipant, conversation: Conversation, user_query: str) -> dict:
+    def run(self, participant: ConversationParticipant, conversation: Conversation) -> dict:
         """Finish the conversation."""
         participant.process_conversation(conversation=conversation)
 

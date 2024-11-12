@@ -1,4 +1,4 @@
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, field
 from enum import Enum
 from typing import Any, get_args, get_origin
 from typing import Optional, TypeVar, Callable
@@ -133,8 +133,8 @@ class LongtermMemory(JsonSerializable):
 
 @dataclass
 class DiskursInput(JsonSerializable):
-    user_query: str
-    metadata: Optional[dict[str, Any]]
+    metadata: Optional[dict[str, Any]] = field(default_factory=dict)
+    user_query: Optional[str] = ""
     conversation_id: Optional[str] = ""
 
 
