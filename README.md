@@ -38,6 +38,12 @@ This project uses [Poetry](https://python-poetry.org/) for dependency management
    ```bash
    poetry install
    ```
+   
+4. **Build the documentation**:
+
+   ```bash
+   poetry run sphinx-build docs/source docs/build
+   ```
 
 ## Usage
 
