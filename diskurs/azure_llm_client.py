@@ -42,4 +42,10 @@ class AzureOpenAIClient(BaseOaiApiLLMClient):
 
         client = AzureOpenAI(**client_params)
 
-        return cls(client=client, model=model, tokenizer=tokenizer, max_tokens=max_tokens, max_repeat=3)
+        return cls(
+            client=client,
+            model=model,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens,
+            max_repeat=3,
+        )

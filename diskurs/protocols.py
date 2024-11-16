@@ -838,6 +838,7 @@ class Agent(Protocol):
     This protocol ensures that any implementing class can seamlessly integrate into the
     Diskurs framework, enabling flexible and extensible conversation management.
     """
+
     name: str
 
     @classmethod
@@ -870,9 +871,7 @@ class ConductorAgent(Protocol):
     name: str
     prompt: ConductorPrompt
 
-    def create_or_update_longterm_memory(
-        self, conversation: Conversation, overwrite: bool = False
-    ) -> Conversation:
+    def create_or_update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation:
         """
         Creates or updates the long-term memory for the conductor agent.
 

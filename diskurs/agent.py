@@ -6,7 +6,14 @@ from typing_extensions import TypeVar
 
 from diskurs.entities import ChatMessage, PromptArgument, MessageType, Role
 from diskurs.logger_setup import get_logger
-from diskurs.protocols import ConversationDispatcher, LLMClient, Agent, ConversationParticipant, Conversation, Prompt
+from diskurs.protocols import (
+    ConversationDispatcher,
+    LLMClient,
+    Agent,
+    ConversationParticipant,
+    Conversation,
+    Prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -108,12 +115,16 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[Prompt]):
     def return_fail_validation_message(self, response):
         return response.append(
             ChatMessage(
-                role=Role.USER, content=f"No valid answer found after {self.max_trials} trials.", name=self.name
+                role=Role.USER,
+                content=f"No valid answer found after {self.max_trials} trials.",
+                name=self.name,
             )
         )
 
     def generate_validated_response(
-        self, conversation: Conversation, message_type: MessageType = MessageType.CONVERSATION
+        self,
+        conversation: Conversation,
+        message_type: MessageType = MessageType.CONVERSATION,
     ) -> Conversation:
         response = None
 

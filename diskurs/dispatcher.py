@@ -1,7 +1,11 @@
 from concurrent.futures import Future
 
 from diskurs.logger_setup import get_logger
-from diskurs.protocols import ConversationParticipant, ConversationDispatcher, Conversation
+from diskurs.protocols import (
+    ConversationParticipant,
+    ConversationDispatcher,
+    Conversation,
+)
 from diskurs.registry import register_dispatcher
 
 

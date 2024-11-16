@@ -681,7 +681,10 @@ class HeuristicPrompt(HeuristicPromptProtocol):
         return self.user_prompt_argument(**prompt_args)
 
     def render_user_template(
-        self, name: str, prompt_args: PromptArgument, message_type: MessageType = MessageType.CONVERSATION
+        self,
+        name: str,
+        prompt_args: PromptArgument,
+        message_type: MessageType = MessageType.CONVERSATION,
     ) -> ChatMessage:
         content = self.user_template.render(**asdict(prompt_args))
         return ChatMessage(

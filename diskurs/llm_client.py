@@ -6,7 +6,13 @@ from typing import Any, Optional, Callable
 import tiktoken
 from typing_extensions import Self
 
-from openai import APIError, APITimeoutError, RateLimitError, UnprocessableEntityError, AuthenticationError
+from openai import (
+    APIError,
+    APITimeoutError,
+    RateLimitError,
+    UnprocessableEntityError,
+    AuthenticationError,
+)
 from openai import OpenAI, BadRequestError
 from openai.types.chat import ChatCompletion
 
@@ -20,7 +26,12 @@ from diskurs.tools import map_python_type_to_json
 
 class BaseOaiApiLLMClient(LLMClient):
     def __init__(
-        self, client: OpenAI, model: str, tokenizer: Callable[[str], int], max_tokens: int, max_repeat: int = 3
+        self,
+        client: OpenAI,
+        model: str,
+        tokenizer: Callable[[str], int],
+        max_tokens: int,
+        max_repeat: int = 3,
     ):
         """
         :param client: The OpenAI client instance used to interact
@@ -115,7 +126,9 @@ class BaseOaiApiLLMClient(LLMClient):
         }
 
     def format_conversation_for_llm(
-        self, conversation: ImmutableConversation, tools: Optional[list[ToolDescription]] = None
+        self,
+        conversation: ImmutableConversation,
+        tools: Optional[list[ToolDescription]] = None,
     ) -> dict[str, Any]:
         """
         Formats the conversation object into a dictionary that can be sent to the LLM model.
@@ -175,7 +188,12 @@ class BaseOaiApiLLMClient(LLMClient):
                 )
                 for tool_call in completion.choices[0].message.tool_calls
             ]
-            return ChatMessage(role=Role.ASSISTANT, tool_calls=tool_calls, type=message_type, name=agent_name)
+            return ChatMessage(
+                role=Role.ASSISTANT,
+                tool_calls=tool_calls,
+                type=message_type,
+                name=agent_name,
+            )
         else:
             return ChatMessage(
                 role=Role(completion.choices[0].message.role),
@@ -355,7 +373,9 @@ class BaseOaiApiLLMClient(LLMClient):
         return chat_start + truncated_chat + [user_prompt]
 
     def generate(
-        self, conversation: ImmutableConversation, tools: Optional[ToolDescription] = None
+        self,
+        conversation: ImmutableConversation,
+        tools: Optional[ToolDescription] = None,
     ) -> ImmutableConversation:
         """
         Generates a response from the LLM model for the given conversation.

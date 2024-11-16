@@ -29,7 +29,13 @@ def tool(func):
     docstring = inspect.getdoc(func) or ""
 
     # Initialize metadata
-    metadata = {"name": func.__name__, "description": "", "args": {}, "metadata": {}, "invisible_args": {}}
+    metadata = {
+        "name": func.__name__,
+        "description": "",
+        "args": {},
+        "metadata": {},
+        "invisible_args": {},
+    }
 
     param_descriptions = {}
     current_param = None
@@ -170,7 +176,9 @@ def load_tools(tool_configs: list[ToolConfig], tool_dependencies: list[ToolDepen
             if tool_idx[function_name].dependencies or tool_idx[function_name].configs:
                 func = getattr(module, "create_" + function_name)
                 func = create_func_with_closure(
-                    func=func, config=tool_idx[function_name], dependency_config=tool_dependencies
+                    func=func,
+                    config=tool_idx[function_name],
+                    dependency_config=tool_dependencies,
                 )
             else:
                 try:

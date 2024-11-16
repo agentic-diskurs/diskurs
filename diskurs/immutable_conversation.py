@@ -324,10 +324,10 @@ class ImmutableConversation(Conversation):
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "system_prompt": self.system_prompt.to_dict() if self.system_prompt else None,
+            "system_prompt": (self.system_prompt.to_dict() if self.system_prompt else None),
             "user_prompt": self.user_prompt.to_dict() if self.user_prompt else None,
-            "system_prompt_argument": self.system_prompt_argument.to_dict() if self.system_prompt_argument else None,
-            "user_prompt_argument": self.user_prompt_argument.to_dict() if self.user_prompt_argument else None,
+            "system_prompt_argument": (self.system_prompt_argument.to_dict() if self.system_prompt_argument else None),
+            "user_prompt_argument": (self.user_prompt_argument.to_dict() if self.user_prompt_argument else None),
             "chat": [msg.to_dict() for msg in self.chat],
             "longterm_memory": {k: v.to_dict() for k, v in self._longterm_memory.items()},
             "metadata": self.metadata,

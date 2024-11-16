@@ -3,7 +3,11 @@ from typing import Optional, Self
 from diskurs import register_agent, Conversation, ToolExecutor, Agent, PromptArgument
 from diskurs.entities import MessageType
 from diskurs.logger_setup import get_logger
-from diskurs.protocols import ConversationParticipant, HeuristicPrompt, ConversationDispatcher
+from diskurs.protocols import (
+    ConversationParticipant,
+    HeuristicPrompt,
+    ConversationDispatcher,
+)
 
 
 @register_agent("heuristic")
@@ -60,7 +64,8 @@ class HeuristicAgent(Agent, ConversationParticipant):
         self.logger.debug(f"Invoke called on agent {self.name}")
 
         conversation = self.prepare_conversation(
-            conversation=conversation, user_prompt_argument=self.prompt.create_user_prompt_argument()
+            conversation=conversation,
+            user_prompt_argument=self.prompt.create_user_prompt_argument(),
         )
 
         if self.init_prompt_arguments_with_longterm_memory:
@@ -78,7 +83,9 @@ class HeuristicAgent(Agent, ConversationParticipant):
             conversation = conversation.append(
                 name=self.name,
                 message=self.prompt.render_user_template(
-                    self.name, prompt_args=conversation.user_prompt_argument, message_type=MessageType.CONVERSATION
+                    self.name,
+                    prompt_args=conversation.user_prompt_argument,
+                    message_type=MessageType.CONVERSATION,
                 ),
             )
 

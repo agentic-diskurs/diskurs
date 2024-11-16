@@ -1,8 +1,20 @@
 from typing import Optional, Callable, Self
 
 from diskurs.agent import BaseAgent
-from diskurs.entities import ToolDescription, ChatMessage, Role, MessageType, PromptArgument
-from diskurs.protocols import LLMClient, ConversationDispatcher, MultistepPrompt, Conversation, ToolExecutor
+from diskurs.entities import (
+    ToolDescription,
+    ChatMessage,
+    Role,
+    MessageType,
+    PromptArgument,
+)
+from diskurs.protocols import (
+    LLMClient,
+    ConversationDispatcher,
+    MultistepPrompt,
+    Conversation,
+    ToolExecutor,
+)
 from diskurs.registry import register_agent
 
 
@@ -98,7 +110,9 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         return tool_responses
 
     def generate_validated_response(
-        self, conversation: Conversation, message_type: MessageType = MessageType.CONVERSATION
+        self,
+        conversation: Conversation,
+        message_type: MessageType = MessageType.CONVERSATION,
     ) -> Conversation:
         response = None
 
