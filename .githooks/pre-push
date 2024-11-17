@@ -1,0 +1,14 @@
+#!/bin/bash
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+echo "Building documentation before push..."
+
+# Build your documentation
+./build_docs.sh
+
+# Add the generated documentation to the commit
+git add docs-site/build
+
+# Optionally, you can commit the updated docs
+git commit -m "Update generated documentation" || true
