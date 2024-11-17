@@ -19,6 +19,7 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
+          cache-dependency-path: 'docs-site/package-lock.json'  # Specify the correct path
 
       - name: Set up Python
         uses: actions/setup-python@v4
