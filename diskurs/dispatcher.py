@@ -31,7 +31,9 @@ class SynchronousConversationDispatcher(ConversationDispatcher):
         if topic in self._topics:
             self._topics[topic].remove(subscriber)
 
-    def publish(self, topic: str, conversation: Conversation, finish_diskurs: bool = False) -> None:
+    def publish(
+        self, topic: str, conversation: Conversation, finish_diskurs: bool = False
+    ) -> None:
         self.logger.debug(f"Publishing conversation to topic {topic}")
 
         if finish_diskurs:
@@ -46,7 +48,9 @@ class SynchronousConversationDispatcher(ConversationDispatcher):
         if not self.future.done():
             self.future.set_result(response)
 
-    def run(self, participant: ConversationParticipant, conversation: Conversation) -> dict:
+    def run(
+        self, participant: ConversationParticipant, conversation: Conversation
+    ) -> dict:
         participant.process_conversation(conversation=conversation)
 
         final_result = self.future.result()

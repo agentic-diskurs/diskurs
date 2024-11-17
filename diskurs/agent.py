@@ -88,7 +88,9 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[Prompt]):
         :return: A deep copy of the conversation, in a valid state for this agent
         """
         self.logger.debug(f"Preparing conversation for agent {self.name}")
-        system_prompt = self.prompt.render_system_template(self.name, prompt_args=system_prompt_argument)
+        system_prompt = self.prompt.render_system_template(
+            self.name, prompt_args=system_prompt_argument
+        )
         user_prompt = self.prompt.render_user_template(
             name=self.name, prompt_args=user_prompt_argument, message_type=message_type
         )
@@ -129,9 +131,13 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[Prompt]):
         response = None
 
         for max_trials in range(self.max_trials):
-            self.logger.debug(f"Generating validated response trial {max_trials + 1} for Agent {self.name}")
+            self.logger.debug(
+                f"Generating validated response trial {max_trials + 1} for Agent {self.name}"
+            )
 
-            response = self.llm_client.generate(conversation, getattr(self, "tools", None))
+            response = self.llm_client.generate(
+                conversation, getattr(self, "tools", None)
+            )
 
             parsed_response = self.prompt.parse_user_prompt(
                 llm_response=response.last_message.content,
@@ -143,14 +149,22 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[Prompt]):
                 self.logger.debug(f"Valid response found for Agent {self.name}")
                 return response.update(
                     user_prompt_argument=parsed_response,
-                    user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=parsed_response),
+                    user_prompt=self.prompt.render_user_template(
+                        name=self.name, prompt_args=parsed_response
+                    ),
                 )
             elif isinstance(parsed_response, ChatMessage):
-                self.logger.debug(f"Invalid response, created corrective message for Agent {self.name}")
+                self.logger.debug(
+                    f"Invalid response, created corrective message for Agent {self.name}"
+                )
 
                 conversation = response.update(user_prompt=parsed_response)
             else:
-                self.logger.error(f"Failed to parse response from LLM model: {parsed_response}")
-                raise ValueError(f"Failed to parse response from LLM model: {parsed_response}")
+                self.logger.error(
+                    f"Failed to parse response from LLM model: {parsed_response}"
+                )
+                raise ValueError(
+                    f"Failed to parse response from LLM model: {parsed_response}"
+                )
 
         return self.return_fail_validation_message(response or conversation)

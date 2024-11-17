@@ -111,7 +111,9 @@ class Prompt(Protocol):
         """
         ...
 
-    def render_system_template(self, name: str, prompt_args: PromptArgument, return_json: bool = True) -> ChatMessage:
+    def render_system_template(
+        self, name: str, prompt_args: PromptArgument, return_json: bool = True
+    ) -> ChatMessage:
         """
         Renders the system template with the provided prompt arguments.
 
@@ -290,7 +292,9 @@ class CallTool(Protocol):
 
 
 class HeuristicSequence(Protocol):
-    def __call__(self, conversation: "Conversation", call_tool: Optional[CallTool]) -> "Conversation": ...
+    def __call__(
+        self, conversation: "Conversation", call_tool: Optional[CallTool]
+    ) -> "Conversation": ...
 
 
 class HeuristicPrompt(Protocol):
@@ -304,7 +308,9 @@ class HeuristicPrompt(Protocol):
 
     user_prompt_argument: Type[PromptArgument]
 
-    def heuristic_sequence(self, conversation: "Conversation", call_tool: CallTool) -> "Conversation":
+    def heuristic_sequence(
+        self, conversation: "Conversation", call_tool: CallTool
+    ) -> "Conversation":
         """
         Executes a heuristic sequence on the given conversation.
 
@@ -491,7 +497,9 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
         """
         ...
 
-    def update_agent_longterm_memory(self, agent_name: str, longterm_memory: LongtermMemory) -> "Conversation":
+    def update_agent_longterm_memory(
+        self, agent_name: str, longterm_memory: LongtermMemory
+    ) -> "Conversation":
         """
         Updates the long-term memory for a specific agent.
 
@@ -505,7 +513,9 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
         """
         ...
 
-    def update_prompt_argument_with_longterm_memory(self, conductor_name: str) -> "Conversation":
+    def update_prompt_argument_with_longterm_memory(
+        self, conductor_name: str
+    ) -> "Conversation":
         """
         Updates the prompt arguments with the long-term memory of the conductor agent.
 
@@ -561,7 +571,9 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
         """
         ...
 
-    def render_chat(self, message_type: MessageType = MessageType.CONVERSATION) -> List[ChatMessage]:
+    def render_chat(
+        self, message_type: MessageType = MessageType.CONVERSATION
+    ) -> List[ChatMessage]:
         """
         Returns the complete chat with the system prompt prepended and the user prompt appended.
 
@@ -631,7 +643,9 @@ class LLMClient(Protocol):
     @classmethod
     def create(cls, **kwargs) -> Self: ...
 
-    def generate(self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None) -> Conversation:
+    def generate(
+        self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None
+    ) -> Conversation:
         """
         Generates a response from the language model (LLM) based on the current state of the conversation.
 
@@ -731,7 +745,9 @@ class ConversationDispatcher(Protocol):
         """
         pass
 
-    def run(self, participant: ConversationParticipant, conversation: Conversation) -> dict:
+    def run(
+        self, participant: ConversationParticipant, conversation: Conversation
+    ) -> dict:
         """
         Entry point for starting a conversation with a participant.
 
@@ -871,7 +887,9 @@ class ConductorAgent(Protocol):
     name: str
     prompt: ConductorPrompt
 
-    def create_or_update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation:
+    def create_or_update_longterm_memory(
+        self, conversation: Conversation, overwrite: bool = False
+    ) -> Conversation:
         """
         Creates or updates the long-term memory for the conductor agent.
 
@@ -909,7 +927,9 @@ class ToolExecutor(Protocol):
         """
         ...
 
-    def execute_tool(self, tool_call: ToolCall, metadata: Dict[str, Any]) -> ToolCallResult:
+    def execute_tool(
+        self, tool_call: ToolCall, metadata: Dict[str, Any]
+    ) -> ToolCallResult:
         """
         Executes a registered tool based on the provided tool call and metadata.
 

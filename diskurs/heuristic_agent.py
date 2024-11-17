@@ -27,7 +27,9 @@ class HeuristicAgent(Agent, ConversationParticipant):
         self.topics = topics or []
         self.dispatcher = dispatcher
         self.tool_executor = tool_executor
-        self.init_prompt_arguments_with_longterm_memory = init_prompt_arguments_with_longterm_memory
+        self.init_prompt_arguments_with_longterm_memory = (
+            init_prompt_arguments_with_longterm_memory
+        )
         self.render_prompt = render_prompt
         self.logger = get_logger(f"diskurs.agent.{self.name}")
 
@@ -56,9 +58,13 @@ class HeuristicAgent(Agent, ConversationParticipant):
 
         self.logger.debug(f"Registered dispatcher {dispatcher} for agent {self.name}")
 
-    def prepare_conversation(self, conversation: Conversation, user_prompt_argument: PromptArgument) -> Conversation:
+    def prepare_conversation(
+        self, conversation: Conversation, user_prompt_argument: PromptArgument
+    ) -> Conversation:
         self.logger.debug(f"Preparing conversation for agent {self.name}")
-        return conversation.update(user_prompt_argument=user_prompt_argument, active_agent=self.name)
+        return conversation.update(
+            user_prompt_argument=user_prompt_argument, active_agent=self.name
+        )
 
     def invoke(self, conversation: Conversation | str) -> Conversation:
         self.logger.debug(f"Invoke called on agent {self.name}")
@@ -94,4 +100,6 @@ class HeuristicAgent(Agent, ConversationParticipant):
     def process_conversation(self, conversation: Conversation) -> None:
         self.logger.info(f"Process conversation on agent: {self.name}")
         conversation = self.invoke(conversation)
-        self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)
+        self.dispatcher.publish(
+            topic=self.get_conductor_name(), conversation=conversation
+        )

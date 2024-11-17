@@ -29,7 +29,9 @@ class FilesystemConversationStore(ConversationStore):
         return cls(**kwargs)
 
     def persist(self, conversation: Conversation) -> None:
-        assert conversation.conversation_id, "Conversation ID must be set before persisting"
+        assert (
+            conversation.conversation_id
+        ), "Conversation ID must be set before persisting"
 
         self.logger.info(f"Persisting conversation {conversation.conversation_id}")
 

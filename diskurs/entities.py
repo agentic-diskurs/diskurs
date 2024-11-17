@@ -47,7 +47,10 @@ class JsonSerializable:
                 return [deserialize_field(item_type, item) for item in value]
             elif origin is dict:
                 key_type, val_type = args
-                return {deserialize_field(key_type, k): deserialize_field(val_type, v) for k, v in value.items()}
+                return {
+                    deserialize_field(key_type, k): deserialize_field(val_type, v)
+                    for k, v in value.items()
+                }
             elif is_dataclass(field_type):
                 return deserialize(field_type, value)
             elif isinstance(field_type, type) and issubclass(field_type, Enum):
@@ -82,7 +85,9 @@ class MessageType(Enum):
         return self.value
 
 
-GenericConductorLongtermMemory = TypeVar("GenericConductorLongtermMemory", bound="ConductorLongtermMemory")
+GenericConductorLongtermMemory = TypeVar(
+    "GenericConductorLongtermMemory", bound="ConductorLongtermMemory"
+)
 
 # TODO: Implement to string method for entities i.e. __format__
 
@@ -117,7 +122,11 @@ class ChatMessage(JsonSerializable):
         if isinstance(self.type, str):
             self.type = MessageType(self.type)
 
-        if self.tool_calls and len(self.tool_calls) > 0 and isinstance(self.tool_calls[0], dict):
+        if (
+            self.tool_calls
+            and len(self.tool_calls) > 0
+            and isinstance(self.tool_calls[0], dict)
+        ):
             self.tool_calls = [ToolCall.from_dict(tc) for tc in self.tool_calls]
 
 

@@ -37,7 +37,9 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         self.tool_executor = tool_executor
         self.tools = tools or []
         self.max_reasoning_steps = max_reasoning_steps
-        self.init_prompt_arguments_with_longterm_memory = init_prompt_arguments_with_longterm_memory
+        self.init_prompt_arguments_with_longterm_memory = (
+            init_prompt_arguments_with_longterm_memory
+        )
 
     @classmethod
     def create(
@@ -53,7 +55,9 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         max_reasoning_steps = kwargs.get("max_reasoning_steps", 5)
         max_trials = kwargs.get("max_trials", 5)
         topics = kwargs.get("topics", [])
-        init_prompt_arguments_with_longterm_memory = kwargs.get("init_prompt_arguments_with_longterm_memory", True)
+        init_prompt_arguments_with_longterm_memory = kwargs.get(
+            "init_prompt_arguments_with_longterm_memory", True
+        )
 
         return cls(
             name=name,
@@ -82,13 +86,17 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
 
         :param tools: A single callable or a list of callables representing the tools to be registered.
         """
-        self.logger.info(f"Registering tools for agent {self.name}: {[tool.name for tool in tools]}")
+        self.logger.info(
+            f"Registering tools for agent {self.name}: {[tool.name for tool in tools]}"
+        )
         if callable(tools):
             tools = [tools]
 
         new_tools = [ToolDescription.from_function(fun) for fun in tools]
 
-        if self.tools and set([tool.name for tool in new_tools]) & set(tool.name for tool in self.tools):
+        if self.tools and set([tool.name for tool in new_tools]) & set(
+            tool.name for tool in self.tools
+        ):
             self.logger.error(
                 f"Tool names must be unique, found: {set([tool.name for tool in new_tools]) & set(tool.name for tool in self.tools)}"
             )
@@ -126,9 +134,13 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         response = None
 
         for max_trials in range(self.max_trials):
-            self.logger.debug(f"Generating validated response trial {max_trials + 1} for Agent {self.name}")
+            self.logger.debug(
+                f"Generating validated response trial {max_trials + 1} for Agent {self.name}"
+            )
 
-            response = self.llm_client.generate(conversation, getattr(self, "tools", None))
+            response = self.llm_client.generate(
+                conversation, getattr(self, "tools", None)
+            )
 
             if response.has_pending_tool_call():
                 tool_responses = self.compute_tool_response(response)
@@ -145,14 +157,22 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
                     self.logger.debug(f"Valid response found for Agent {self.name}")
                     return response.update(
                         user_prompt_argument=parsed_response,
-                        user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=parsed_response),
+                        user_prompt=self.prompt.render_user_template(
+                            name=self.name, prompt_args=parsed_response
+                        ),
                     )
                 elif isinstance(parsed_response, ChatMessage):
-                    self.logger.debug(f"Invalid response, created corrective message for Agent {self.name}")
+                    self.logger.debug(
+                        f"Invalid response, created corrective message for Agent {self.name}"
+                    )
                     conversation = response.update(user_prompt=parsed_response)
                 else:
-                    self.logger.error(f"Failed to parse response from LLM model: {parsed_response}")
-                    raise ValueError(f"Failed to parse response from LLM model: {parsed_response}")
+                    self.logger.error(
+                        f"Failed to parse response from LLM model: {parsed_response}"
+                    )
+                    raise ValueError(
+                        f"Failed to parse response from LLM model: {parsed_response}"
+                    )
 
         return self.return_fail_validation_message(response or conversation)
 
@@ -176,7 +196,9 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
             )
 
         for reasoning_step in range(self.max_reasoning_steps):
-            self.logger.debug(f"Reasoning step {reasoning_step + 1} for Agent {self.name}")
+            self.logger.debug(
+                f"Reasoning step {reasoning_step + 1} for Agent {self.name}"
+            )
             conversation = self.generate_validated_response(conversation)
 
             if (
@@ -191,4 +213,6 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
     def process_conversation(self, conversation: Conversation) -> None:
         self.logger.info(f"Process conversation on agent: {self.name}")
         conversation = self.invoke(conversation)
-        self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)
+        self.dispatcher.publish(
+            topic=self.get_conductor_name(), conversation=conversation
+        )

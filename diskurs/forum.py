@@ -72,7 +72,9 @@ class Forum:
         If a conversation store is present, we try to getch an existing conversation from the conversation store
         or creates a new one if it doesn't exist.
         """
-        if self.conversation_store and self.conversation_store.exists(diskurs_input.conversation_id):
+        if self.conversation_store and self.conversation_store.exists(
+            diskurs_input.conversation_id
+        ):
             return self.conversation_store.fetch(diskurs_input.conversation_id)
         else:
             longterm_memory = init_longterm_memories(self.agents)
@@ -94,12 +96,16 @@ class Forum:
 
     def ama(self, diskurs_input: DiskursInput):
         if not diskurs_input.conversation_id:
-            self.logger.warning("Conversation ID not provided. Using default value 'default'.")
+            self.logger.warning(
+                "Conversation ID not provided. Using default value 'default'."
+            )
             diskurs_input.conversation_id = "default"
 
         conversation = self.fetch_or_create_conversation(diskurs_input)
 
-        answer = self.dispatcher.run(participant=self.first_contact, conversation=conversation)
+        answer = self.dispatcher.run(
+            participant=self.first_contact, conversation=conversation
+        )
         return answer
 
 
@@ -170,21 +176,27 @@ class ForumFactory:
     def load_custom_modules(self):
         """Load custom modules specified in the configuration."""
         for custom_module in self.config.custom_modules:
-            module_path = (self.base_path / f"{custom_module.replace('.', '/')}.py").resolve()
+            module_path = (
+                self.base_path / f"{custom_module.replace('.', '/')}.py"
+            ).resolve()
             load_module_from_path(module_path.stem, module_path)
 
     def create_tool_executor(self):
         """Create a tool executor instance based on the configuration."""
         tool_executor_cls = TOOL_EXECUTOR_REGISTRY.get(self.config.tool_executor_type)
         if tool_executor_cls is None:
-            raise ValueError(f"ToolExecutor type '{self.config.tool_executor_type}' is not registered.")
+            raise ValueError(
+                f"ToolExecutor type '{self.config.tool_executor_type}' is not registered."
+            )
         self.tool_executor = tool_executor_cls()
 
     def load_conversation(self):
         """Load conversation class from the configuration."""
         self.conversation_cls = CONVERSATION_REGISTRY.get(self.config.conversation_type)
         if self.conversation_cls is None:
-            raise ValueError(f"Conversation class '{self.config.conversation_type}' is not registered.")
+            raise ValueError(
+                f"Conversation class '{self.config.conversation_type}' is not registered."
+            )
 
     def load_and_register_tools(self):
         """Load and register tools with the tool executor."""
@@ -196,7 +208,9 @@ class ForumFactory:
         """Create a dispatcher instance based on the configuration."""
         dispatcher_cls = DISPATCHER_REGISTRY.get(self.config.dispatcher_type)
         if dispatcher_cls is None:
-            raise ValueError(f"Dispatcher type '{self.config.dispatcher_type}' is not registered.")
+            raise ValueError(
+                f"Dispatcher type '{self.config.dispatcher_type}' is not registered."
+            )
         self.dispatcher = dispatcher_cls()
 
     def create_llm_clients(self):
@@ -230,7 +244,9 @@ class ForumFactory:
                 additional_args["llm_client"] = self.llm_clients[agent_conf.llm]
             if hasattr(agent_conf, "tools") and agent_conf.tools:
                 additional_args["tools"] = [
-                    ToolDescription.from_function(tool) for tool in self.tools if tool.__name__ in agent_conf.tools
+                    ToolDescription.from_function(tool)
+                    for tool in self.tools
+                    if tool.__name__ in agent_conf.tools
                 ]
                 additional_args["tool_executor"] = self.tool_executor
             if hasattr(agent_conf, "topics") and self.dispatcher:
@@ -253,13 +269,19 @@ class ForumFactory:
 
     def prepare_conductors(self):
         # get the configs from each conductor agent
-        conductor_configs = [agent for agent in self.config.agents if agent.type == "conductor"]
+        conductor_configs = [
+            agent for agent in self.config.agents if agent.type == "conductor"
+        ]
 
         # for each conductor agent, get the agent descriptions for the agents that are in the topics
         for conf in conductor_configs:
-            conductor = next((agent for agent in self.agents if agent.name == conf.name))
+            conductor = next(
+                (agent for agent in self.agents if agent.name == conf.name)
+            )
             conductor.agent_descriptions = {
-                agent.name: agent.prompt.agent_description for agent in self.agents if agent.name in conf.topics
+                agent.name: agent.prompt.agent_description
+                for agent in self.agents
+                if agent.name in conf.topics
             }
 
     def identify_first_contact_agent(self):
@@ -268,13 +290,19 @@ class ForumFactory:
 
         self.logger.info(f"Identifying first contact agent {first_contact_name}")
 
-        self.first_contact = next((agent for agent in self.agents if agent.name == first_contact_name), None)
+        self.first_contact = next(
+            (agent for agent in self.agents if agent.name == first_contact_name), None
+        )
         if self.first_contact is None:
-            raise ValueError(f"First contact agent '{first_contact_name}' not found among agents.")
+            raise ValueError(
+                f"First contact agent '{first_contact_name}' not found among agents."
+            )
 
     def load_conversation_store(self):
         """Load conversation store class from the configuration."""
-        conversation_store_cls = CONVERSATION_STORE_REGISTRY.get(self.config.conversation_store.type)
+        conversation_store_cls = CONVERSATION_STORE_REGISTRY.get(
+            self.config.conversation_store.type
+        )
         conversation_store_config = asdict(self.config.conversation_store)
         conversation_store_config.pop("type")
 
@@ -283,7 +311,9 @@ class ForumFactory:
             **conversation_store_config,
         )
         if self.conversation_store is None:
-            raise ValueError(f"Conversation store '{self.config.conversation_store}' is not registered.")
+            raise ValueError(
+                f"Conversation store '{self.config.conversation_store}' is not registered."
+            )
 
 
 def create_forum_from_config(config_path: Path, base_path: Path) -> Forum:

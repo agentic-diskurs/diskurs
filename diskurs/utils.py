@@ -42,7 +42,9 @@ def load_template_from_package(package_name: str, template_name: str) -> Templat
         with resources.open_text(package_name, template_name) as f:
             template_content = f.read()
     except FileNotFoundError:
-        raise FileNotFoundError(f"Template '{template_name}' not found in package '{package_name}'")
+        raise FileNotFoundError(
+            f"Template '{template_name}' not found in package '{package_name}'"
+        )
 
     template = jinja2.Template(template_content)
     return template
