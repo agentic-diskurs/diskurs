@@ -1,5 +1,5 @@
-Welcome to Diskurs's documentation!
-===================================
+Diskurs API
+===========
 
 .. toctree::
    :maxdepth: 2

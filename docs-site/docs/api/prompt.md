@@ -105,17 +105,14 @@ for the LLM to correct its output.
 
 * **Parameters:**
   * **llm_response** (`str`) – Response from the LLM.
-  * **old_user_prompt_argument** (*PromptArgument*)
-  * **message_type** (*MessageType*)
+  * **old_user_prompt_argument** (`PromptArgument`) – The previous user prompt argument.
+  * **message_type** (`MessageType`) – Type of message to be created.
 * **Return type:**
-  *PromptArgument* | *ChatMessage*
-
-:param old_user_prompt_argument
-:type message_type: `MessageType`
-:param message_type: Type of message to be created.
-:rtype: `PromptArgument` | `ChatMessage`
-:return: Validated prompt argument or a ChatMessage with an error message.
-:raises PromptValidationError: If the text is not valid.
+  `PromptArgument` | `ChatMessage`
+* **Returns:**
+  Validated prompt argument or a ChatMessage with an error message.
+* **Raises:**
+  [**PromptValidationError**](#diskurs.prompt.PromptValidationError) – If the text is not valid.
 
 ### *class* diskurs.prompt.PromptRendererMixin(system_prompt_argument_class, user_prompt_argument_class, system_template, user_template, json_formatting_template=None, is_valid=None, is_final=None)
 
@@ -323,17 +320,14 @@ for the LLM to correct its output.
 
 * **Parameters:**
   * **llm_response** (`str`) – Response from the LLM.
-  * **old_user_prompt_argument** (*PromptArgument*)
-  * **message_type** (*MessageType*)
+  * **old_user_prompt_argument** (`PromptArgument`) – The previous user prompt argument.
+  * **message_type** (`MessageType`) – Type of message to be created.
 * **Return type:**
-  *PromptArgument* | *ChatMessage*
-
-:param old_user_prompt_argument
-:type message_type: `MessageType`
-:param message_type: Type of message to be created.
-:rtype: `PromptArgument` | `ChatMessage`
-:return: Validated prompt argument or a ChatMessage with an error message.
-:raises PromptValidationError: If the text is not valid.
+  `PromptArgument` | `ChatMessage`
+* **Returns:**
+  Validated prompt argument or a ChatMessage with an error message.
+* **Raises:**
+  [**PromptValidationError**](#diskurs.prompt.PromptValidationError) – If the text is not valid.
 
 #### *classmethod* prepare_create(agent_description_filename, code_filename, kwargs, location, system_prompt_argument_class, system_template_filename, user_prompt_argument_class, user_template_filename)
 
@@ -593,17 +587,14 @@ for the LLM to correct its output.
 
 * **Parameters:**
   * **llm_response** (`str`) – Response from the LLM.
-  * **old_user_prompt_argument** (*PromptArgument*)
-  * **message_type** (*MessageType*)
+  * **old_user_prompt_argument** (`PromptArgument`) – The previous user prompt argument.
+  * **message_type** (`MessageType`) – Type of message to be created.
 * **Return type:**
-  *PromptArgument* | *ChatMessage*
-
-:param old_user_prompt_argument
-:type message_type: `MessageType`
-:param message_type: Type of message to be created.
-:rtype: `PromptArgument` | `ChatMessage`
-:return: Validated prompt argument or a ChatMessage with an error message.
-:raises PromptValidationError: If the text is not valid.
+  `PromptArgument` | `ChatMessage`
+* **Returns:**
+  Validated prompt argument or a ChatMessage with an error message.
+* **Raises:**
+  [**PromptValidationError**](#diskurs.prompt.PromptValidationError) – If the text is not valid.
 
 #### *classmethod* prepare_create(agent_description_filename, code_filename, kwargs, location, system_prompt_argument_class, system_template_filename, user_prompt_argument_class, user_template_filename)
 

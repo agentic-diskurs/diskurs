@@ -1,4 +1,4 @@
-# Welcome to Diskurs’s documentation!
+# Diskurs API
 
 # Contents:
 

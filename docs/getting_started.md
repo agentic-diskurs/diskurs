@@ -1,14 +1,4 @@
-# Diskurs
-*Please note: diskurs is currently under development (meaning early alpha state) and not yet ready for production use.*
-
-Diskurs is a hackable and extendable Python framework for developing LLM-based multi-agentic systems to tackle complex workflow automation tasks. It allows developers to set up agent interactions using customizable configurations.
-
-## Features
-
-- **Multi-Agent System**: Define and configure multiple agents with specific roles and interactions.
-- **Configurable Architecture**: Use YAML configuration files to customize agents, tools, and dependencies.
-- **Extensible Tools**: Integrate custom tools and modules to extend functionality.
-- **OpenAI and Azure OpenAI Integration**: Supports integration with Azure OpenAI services for language models. (to be extended)
+# Getting Started
 
 ## Installation
 

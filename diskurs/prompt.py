@@ -189,7 +189,7 @@ class PromptParserMixin:
         for the LLM to correct its output.
 
         :param llm_response: Response from the LLM.
-        :param old_user_prompt_argument
+        :param old_user_prompt_argument: The previous user prompt argument.
         :param message_type: Type of message to be created.
         :return: Validated prompt argument or a ChatMessage with an error message.
         :raises PromptValidationError: If the text is not valid.
