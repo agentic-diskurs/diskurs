@@ -1,0 +1,1021 @@
+<!doctype html>
+<html lang="en" dir="ltr" class="docs-wrapper plugin-docs plugin-id-default docs-version-current docs-doc-page docs-doc-id-protocols" data-has-hydrated="false">
+<head>
+<meta charset="UTF-8">
+<meta name="generator" content="Docusaurus v3.6.1">
+<title data-rh="true">Protocols | Diskurs</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://agentic-diskurs.github.io/diskurs/img/diskurs-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://agentic-diskurs.github.io/diskurs/img/diskurs-social-card.jpg"><meta data-rh="true" property="og:url" content="https://agentic-diskurs.github.io/diskurs/docs/protocols"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Protocols | Diskurs"><meta data-rh="true" name="description" content="class diskurs.protocols.LongtermMemoryHandler(\args, \\*kwargs)"><meta data-rh="true" property="og:description" content="class diskurs.protocols.LongtermMemoryHandler(\args, \\*kwargs)"><link data-rh="true" rel="icon" href="/diskurs/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://agentic-diskurs.github.io/diskurs/docs/protocols"><link data-rh="true" rel="alternate" href="https://agentic-diskurs.github.io/diskurs/docs/protocols" hreflang="en"><link data-rh="true" rel="alternate" href="https://agentic-diskurs.github.io/diskurs/docs/protocols" hreflang="x-default"><link rel="alternate" type="application/rss+xml" href="/diskurs/blog/rss.xml" title="Diskurs RSS Feed">
+<link rel="alternate" type="application/atom+xml" href="/diskurs/blog/atom.xml" title="Diskurs Atom Feed"><link rel="stylesheet" href="/diskurs/assets/css/styles.7a6aa77d.css">
+<script src="/diskurs/assets/js/runtime~main.d886a170.js" defer="defer"></script>
+<script src="/diskurs/assets/js/main.edf29e07.js" defer="defer"></script>
+</head>
+<body class="navigation-with-keyboard">
+<script>!function(){function t(t){document.documentElement.setAttribute("data-theme",t)}var e=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();t(null!==e?e:"light")}(),function(){try{const n=new URLSearchParams(window.location.search).entries();for(var[t,e]of n)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="navbar navbar--fixed-top"><div class="navbar__inner"><div class="navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/diskurs/"><div class="navbar__logo"><img src="/diskurs/img/logo.svg" alt="Diskurs Logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="/diskurs/img/logo.svg" alt="Diskurs Logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">Diskurs</b></a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/diskurs/docs/intro">Documentation</a><a class="navbar__item navbar__link" href="/diskurs/blog">Blog</a></div><div class="navbar__items navbar__items--right"><a href="https://github.com/agentic-diskurs/diskurs" target="_blank" rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width="13.5" height="13.5" aria-hidden="true" viewBox="0 0 24 24" class="iconExternalLink_nPIU"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"></path></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="Switch between dark and light mode (currently light mode)" aria-label="Switch between dark and light mode (currently light mode)" aria-live="polite" aria-pressed="false"><svg viewBox="0 0 24 24" width="24" height="24" class="lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" class="darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="main-wrapper mainWrapper_z2l0"><div class="docsWrapper_hBAB"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type="button"></button><div class="docRoot_UBD9"><aside class="theme-doc-sidebar-container docSidebarContainer_YfHR"><div class="sidebarViewport_aRkj"><div class="sidebar_njMd"><nav aria-label="Docs sidebar" class="menu thin-scrollbar menu_SIkG"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/diskurs/docs/intro">Tutorial Intro</a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="menu__link menu__link--sublist" href="/diskurs/docs/category/tutorial---basics">Tutorial - Basics</a><button aria-label="Expand sidebar category &#x27;Tutorial - Basics&#x27;" aria-expanded="false" type="button" class="clean-btn menu__caret"></button></div></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="menu__link menu__link--sublist" href="/diskurs/docs/category/tutorial---extras">Tutorial - Extras</a><button aria-label="Expand sidebar category &#x27;Tutorial - Extras&#x27;" aria-expanded="false" type="button" class="clean-btn menu__caret"></button></div></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/diskurs/docs/conductor_agent">Module: Conductor Agent</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/diskurs/docs/dispatcher">Module: Dispatcher</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/diskurs/docs/filesystem_conversation_store">Module: Filesystem Conversation Store</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/diskurs/docs/heuristic_agent">Module: Heuristic Agent</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/diskurs/docs/immutable_conversation">Module: Immutable Conversation</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/diskurs/docs">Welcome to Diskurs’s documentation!</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/diskurs/docs/llm_client">Module: LLM Client</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/diskurs/docs/multistep_agent">Module: Multistep Agent</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/diskurs/docs/prompt">Module: Prompt</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link menu__link--active" aria-current="page" href="/diskurs/docs/protocols">Protocols</a></li></ul></nav></div></div></aside><main class="docMainContainer_TBSr"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col docItemCol_VOVn"><div class="docItemContainer_Djhp"><article><nav class="theme-doc-breadcrumbs breadcrumbsContainer_Z_bl" aria-label="Breadcrumbs"><ul class="breadcrumbs" itemscope="" itemtype="https://schema.org/BreadcrumbList"><li class="breadcrumbs__item"><a aria-label="Home page" class="breadcrumbs__link" href="/diskurs/"><svg viewBox="0 0 24 24" class="breadcrumbHomeIcon_YNFT"><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill="currentColor"></path></svg></a></li><li itemscope="" itemprop="itemListElement" itemtype="https://schema.org/ListItem" class="breadcrumbs__item breadcrumbs__item--active"><span class="breadcrumbs__link" itemprop="name">Protocols</span><meta itemprop="position" content="1"></li></ul></nav><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type="button" class="clean-btn tocCollapsibleButton_TO0P">On this page</button></div><div class="theme-doc-markdown markdown"><header><h1>Protocols</h1></header>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolslongtermmemoryhandlerargs-kwargs"><em>class</em> diskurs.protocols.LongtermMemoryHandler(*args, **kwargs)<a href="#class-diskursprotocolslongtermmemoryhandlerargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolslongtermmemoryhandlerargs-kwargs" title="Direct link to class-diskursprotocolslongtermmemoryhandlerargs-kwargs">​</a></h3>
+<p>Bases: <code>Protocol</code></p>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="can_finalizelongterm_memory">can_finalize(longterm_memory)<a href="#can_finalizelongterm_memory" class="hash-link" aria-label="Direct link to can_finalize(longterm_memory)" title="Direct link to can_finalize(longterm_memory)">​</a></h4>
+<ul>
+<li><strong>Return type:</strong>
+<code>bool</code></li>
+<li><strong>Parameters:</strong>
+<strong>longterm_memory</strong> (<em>Any</em>)</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolspromptvalidatorargs-kwargs"><em>class</em> diskurs.protocols.PromptValidator(*args, **kwargs)<a href="#class-diskursprotocolspromptvalidatorargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolspromptvalidatorargs-kwargs" title="Direct link to class-diskursprotocolspromptvalidatorargs-kwargs">​</a></h3>
+<p>Bases: <code>Protocol</code></p>
+<p>Protocol for validating prompt responses.</p>
+<p>This protocol defines methods for validating responses from a language model (LLM).
+It includes methods for validating responses as dataclasses and JSON objects.</p>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="classmethod-validate_dataclassparsed_response-user_prompt_argument-strictfalse"><em>classmethod</em> validate_dataclass(parsed_response, user_prompt_argument, strict=False)<a href="#classmethod-validate_dataclassparsed_response-user_prompt_argument-strictfalse" class="hash-link" aria-label="Direct link to classmethod-validate_dataclassparsed_response-user_prompt_argument-strictfalse" title="Direct link to classmethod-validate_dataclassparsed_response-user_prompt_argument-strictfalse">​</a></h4>
+<p>Validates a parsed response dictionary against a dataclass type.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>parsed_response</strong> (<code>dict</code>[<code>str</code>, <code>Any</code>]) – The dictionary containing the parsed response from the LLM.</li>
+<li><strong>user_prompt_argument</strong> (<code>Type</code>[<code>dataclass</code>]) – The dataclass type to validate against.</li>
+<li><strong>strict</strong> (<code>bool</code>) – If True, enforce strict validation rules.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>dataclass</code></li>
+<li><strong>Returns:</strong>
+An instance of the dataclass populated with the validated data.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="classmethod-validate_jsonllm_response"><em>classmethod</em> validate_json(llm_response)<a href="#classmethod-validate_jsonllm_response" class="hash-link" aria-label="Direct link to classmethod-validate_jsonllm_response" title="Direct link to classmethod-validate_jsonllm_response">​</a></h4>
+<p>Validates a JSON response from a language model (LLM).</p>
+<p>This method takes a JSON string response from an LLM and validates it,
+ensuring it conforms to the expected structure and content.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>llm_response</strong> (<code>str</code>) – The JSON string response from the LLM.</li>
+<li><strong>Return type:</strong>
+<code>dict</code></li>
+<li><strong>Returns:</strong>
+A dictionary representation of the validated JSON response.</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolspromptargs-kwargs"><em>class</em> diskurs.protocols.Prompt(*args, **kwargs)<a href="#class-diskursprotocolspromptargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolspromptargs-kwargs" title="Direct link to class-diskursprotocolspromptargs-kwargs">​</a></h3>
+<p>Bases: <code>Protocol</code></p>
+<p>Protocol for prompt implementations.</p>
+<p>This protocol defines the structure and methods required for creating and handling prompts
+in a conversation. Implementations of this protocol are responsible for generating prompt
+arguments, rendering templates, and parsing responses from a language model (LLM).</p>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="system_prompt_argument--typetypevarsystempromptarg-bound-promptargument">system_prompt_argument <em>: <code>Type</code>[<code>TypeVar</code>(<code>SystemPromptArg</code>, bound= <code>PromptArgument</code>)]</em><a href="#system_prompt_argument--typetypevarsystempromptarg-bound-promptargument" class="hash-link" aria-label="Direct link to system_prompt_argument--typetypevarsystempromptarg-bound-promptargument" title="Direct link to system_prompt_argument--typetypevarsystempromptarg-bound-promptargument">​</a></h4>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="user_prompt_argument--typetypevaruserpromptarg-bound-promptargument">user_prompt_argument <em>: <code>Type</code>[<code>TypeVar</code>(<code>UserPromptArg</code>, bound= <code>PromptArgument</code>)]</em><a href="#user_prompt_argument--typetypevaruserpromptarg-bound-promptargument" class="hash-link" aria-label="Direct link to user_prompt_argument--typetypevaruserpromptarg-bound-promptargument" title="Direct link to user_prompt_argument--typetypevaruserpromptarg-bound-promptargument">​</a></h4>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="create_system_prompt_argumentprompt_args">create_system_prompt_argument(**prompt_args)<a href="#create_system_prompt_argumentprompt_args" class="hash-link" aria-label="Direct link to create_system_prompt_argument(**prompt_args)" title="Direct link to create_system_prompt_argument(**prompt_args)">​</a></h4>
+<p>Creates an instance of the system prompt argument dataclass.</p>
+<p>This method is responsible for generating the system prompt argument
+based on the provided keyword arguments. The system prompt argument
+is used to configure the initial state and context for the conversation.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>prompt_args</strong> (<code>Any</code>) – Keyword arguments used to initialize the system prompt argument.</li>
+<li><strong>Return type:</strong>
+<code>TypeVar</code>(<code>SystemPromptArg</code>, bound= <code>PromptArgument</code>)</li>
+<li><strong>Returns:</strong>
+An instance of the system prompt argument dataclass.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="create_user_prompt_argumentprompt_args">create_user_prompt_argument(**prompt_args)<a href="#create_user_prompt_argumentprompt_args" class="hash-link" aria-label="Direct link to create_user_prompt_argument(**prompt_args)" title="Direct link to create_user_prompt_argument(**prompt_args)">​</a></h4>
+<p>Creates an instance of the user prompt argument dataclass.</p>
+<p>This method is responsible for generating the user prompt argument
+based on the provided keyword arguments. The user prompt argument
+is used to configure the user’s input and context for the conversation.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>prompt_args</strong> (<code>Any</code>) – Keyword arguments used to initialize the user prompt argument.</li>
+<li><strong>Return type:</strong>
+<code>TypeVar</code>(<code>UserPromptArg</code>, bound= <code>PromptArgument</code>)</li>
+<li><strong>Returns:</strong>
+An instance of the user prompt argument dataclass.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="render_system_templatename-prompt_args-return_jsontrue">render_system_template(name, prompt_args, return_json=True)<a href="#render_system_templatename-prompt_args-return_jsontrue" class="hash-link" aria-label="Direct link to render_system_template(name, prompt_args, return_json=True)" title="Direct link to render_system_template(name, prompt_args, return_json=True)">​</a></h4>
+<p>Renders the system template with the provided prompt arguments.</p>
+<p>This method is responsible for rendering the system template using the given prompt arguments.
+It can optionally return the rendered template as a JSON object.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>name</strong> (<code>str</code>) – The name of the template to be rendered.</li>
+<li><strong>prompt_args</strong> (<code>PromptArgument</code>) – The prompt arguments to be used for rendering the template.</li>
+<li><strong>return_json</strong> (<code>bool</code>) – If True, the rendered template will be returned as a JSON object. Defaults to True.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>ChatMessage</code></li>
+<li><strong>Returns:</strong>
+A ChatMessage object containing the rendered template.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="render_user_templatename-prompt_args-message_typemessagetypeconversation">render_user_template(name, prompt_args, message_type=MessageType.CONVERSATION)<a href="#render_user_templatename-prompt_args-message_typemessagetypeconversation" class="hash-link" aria-label="Direct link to render_user_template(name, prompt_args, message_type=MessageType.CONVERSATION)" title="Direct link to render_user_template(name, prompt_args, message_type=MessageType.CONVERSATION)">​</a></h4>
+<p>Renders the user template with the provided prompt arguments.</p>
+<p>This method is responsible for rendering the user template using the given prompt arguments.
+It generates a ChatMessage object that represents the rendered template.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>name</strong> (<code>str</code>) – The name of the template to be rendered.</li>
+<li><strong>prompt_args</strong> (<code>PromptArgument</code>) – The prompt arguments to be used for rendering the template.</li>
+<li><strong>message_type</strong> (<code>MessageType</code>) – The type of the message to be rendered. Defaults to MessageType.CONVERSATION.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>ChatMessage</code></li>
+<li><strong>Returns:</strong>
+A ChatMessage object containing the rendered template.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="parse_user_promptllm_response-old_user_prompt_argument-message_typemessagetyperouting">parse_user_prompt(llm_response, old_user_prompt_argument, message_type=MessageType.ROUTING)<a href="#parse_user_promptllm_response-old_user_prompt_argument-message_typemessagetyperouting" class="hash-link" aria-label="Direct link to parse_user_prompt(llm_response, old_user_prompt_argument, message_type=MessageType.ROUTING)" title="Direct link to parse_user_prompt(llm_response, old_user_prompt_argument, message_type=MessageType.ROUTING)">​</a></h4>
+<p>Parses the LLM response into a prompt argument or ChatMessage.</p>
+<p>This method takes the response from a language model (LLM) and parses it into either a
+PromptArgument or a ChatMessage object. It uses the old user prompt argument and
+the message type to guide the parsing process.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>llm_response</strong> (<code>str</code>) – The response string from the language model.</li>
+<li><strong>old_user_prompt_argument</strong> (<code>PromptArgument</code>) – The previous user prompt argument to be used as a reference.</li>
+<li><strong>message_type</strong> (<code>MessageType</code>) – The type of message to be parsed. Defaults to MessageType.ROUTING.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>Union</code>[<code>PromptArgument</code>, <code>ChatMessage</code>]</li>
+<li><strong>Returns:</strong>
+A PromptArgument or ChatMessage object based on the parsed response.</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolsmultisteppromptargs-kwargs"><em>class</em> diskurs.protocols.MultistepPrompt(*args, **kwargs)<a href="#class-diskursprotocolsmultisteppromptargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolsmultisteppromptargs-kwargs" title="Direct link to class-diskursprotocolsmultisteppromptargs-kwargs">​</a></h3>
+<p>Bases: <a href="#diskurs.protocols.Prompt"><code>Prompt</code></a></p>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="is_finaluser_prompt_argument">is_final(user_prompt_argument)<a href="#is_finaluser_prompt_argument" class="hash-link" aria-label="Direct link to is_final(user_prompt_argument)" title="Direct link to is_final(user_prompt_argument)">​</a></h4>
+<p>Determines if the user prompt argument indicates the final state.</p>
+<p>This method checks the provided user prompt argument to determine if it represents
+the final state in the conversation. It is used to decide whether the conversation
+can be concluded based on the user’s input.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>user_prompt_argument</strong> (<code>PromptArgument</code>) – The user prompt argument to be evaluated.</li>
+<li><strong>Return type:</strong>
+<code>bool</code></li>
+<li><strong>Returns:</strong>
+True if the user prompt argument indicates the final state, False otherwise.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="is_validuser_prompt_argument">is_valid(user_prompt_argument)<a href="#is_validuser_prompt_argument" class="hash-link" aria-label="Direct link to is_valid(user_prompt_argument)" title="Direct link to is_valid(user_prompt_argument)">​</a></h4>
+<p>Validates the user prompt argument.</p>
+<p>This method checks if the provided user prompt argument meets the required
+criteria for validity. It ensures that the user prompt argument is correctly
+structured and contains the necessary information for further processing.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>user_prompt_argument</strong> (<code>PromptArgument</code>) – The user prompt argument to be validated.</li>
+<li><strong>Return type:</strong>
+<code>bool</code></li>
+<li><strong>Returns:</strong>
+True if the user prompt argument is valid, False otherwise.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="create_system_prompt_argumentprompt_args-1">create_system_prompt_argument(**prompt_args)<a href="#create_system_prompt_argumentprompt_args-1" class="hash-link" aria-label="Direct link to create_system_prompt_argument(**prompt_args)" title="Direct link to create_system_prompt_argument(**prompt_args)">​</a></h4>
+<p>Creates an instance of the system prompt argument dataclass.</p>
+<p>This method is responsible for generating the system prompt argument
+based on the provided keyword arguments. The system prompt argument
+is used to configure the initial state and context for the conversation.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>prompt_args</strong> (<code>Any</code>) – Keyword arguments used to initialize the system prompt argument.</li>
+<li><strong>Return type:</strong>
+<code>TypeVar</code>(<code>SystemPromptArg</code>, bound= <code>PromptArgument</code>)</li>
+<li><strong>Returns:</strong>
+An instance of the system prompt argument dataclass.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="create_user_prompt_argumentprompt_args-1">create_user_prompt_argument(**prompt_args)<a href="#create_user_prompt_argumentprompt_args-1" class="hash-link" aria-label="Direct link to create_user_prompt_argument(**prompt_args)" title="Direct link to create_user_prompt_argument(**prompt_args)">​</a></h4>
+<p>Creates an instance of the user prompt argument dataclass.</p>
+<p>This method is responsible for generating the user prompt argument
+based on the provided keyword arguments. The user prompt argument
+is used to configure the user’s input and context for the conversation.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>prompt_args</strong> (<code>Any</code>) – Keyword arguments used to initialize the user prompt argument.</li>
+<li><strong>Return type:</strong>
+<code>TypeVar</code>(<code>UserPromptArg</code>, bound= <code>PromptArgument</code>)</li>
+<li><strong>Returns:</strong>
+An instance of the user prompt argument dataclass.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="parse_user_promptllm_response-old_user_prompt_argument-message_typemessagetyperouting-1">parse_user_prompt(llm_response, old_user_prompt_argument, message_type=MessageType.ROUTING)<a href="#parse_user_promptllm_response-old_user_prompt_argument-message_typemessagetyperouting-1" class="hash-link" aria-label="Direct link to parse_user_prompt(llm_response, old_user_prompt_argument, message_type=MessageType.ROUTING)" title="Direct link to parse_user_prompt(llm_response, old_user_prompt_argument, message_type=MessageType.ROUTING)">​</a></h4>
+<p>Parses the LLM response into a prompt argument or ChatMessage.</p>
+<p>This method takes the response from a language model (LLM) and parses it into either a
+PromptArgument or a ChatMessage object. It uses the old user prompt argument and
+the message type to guide the parsing process.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>llm_response</strong> (<code>str</code>) – The response string from the language model.</li>
+<li><strong>old_user_prompt_argument</strong> (<code>PromptArgument</code>) – The previous user prompt argument to be used as a reference.</li>
+<li><strong>message_type</strong> (<code>MessageType</code>) – The type of message to be parsed. Defaults to MessageType.ROUTING.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>Union</code>[<code>PromptArgument</code>, <code>ChatMessage</code>]</li>
+<li><strong>Returns:</strong>
+A PromptArgument or ChatMessage object based on the parsed response.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="render_system_templatename-prompt_args-return_jsontrue-1">render_system_template(name, prompt_args, return_json=True)<a href="#render_system_templatename-prompt_args-return_jsontrue-1" class="hash-link" aria-label="Direct link to render_system_template(name, prompt_args, return_json=True)" title="Direct link to render_system_template(name, prompt_args, return_json=True)">​</a></h4>
+<p>Renders the system template with the provided prompt arguments.</p>
+<p>This method is responsible for rendering the system template using the given prompt arguments.
+It can optionally return the rendered template as a JSON object.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>name</strong> (<code>str</code>) – The name of the template to be rendered.</li>
+<li><strong>prompt_args</strong> (<code>PromptArgument</code>) – The prompt arguments to be used for rendering the template.</li>
+<li><strong>return_json</strong> (<code>bool</code>) – If True, the rendered template will be returned as a JSON object. Defaults to True.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>ChatMessage</code></li>
+<li><strong>Returns:</strong>
+A ChatMessage object containing the rendered template.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="render_user_templatename-prompt_args-message_typemessagetypeconversation-1">render_user_template(name, prompt_args, message_type=MessageType.CONVERSATION)<a href="#render_user_templatename-prompt_args-message_typemessagetypeconversation-1" class="hash-link" aria-label="Direct link to render_user_template(name, prompt_args, message_type=MessageType.CONVERSATION)" title="Direct link to render_user_template(name, prompt_args, message_type=MessageType.CONVERSATION)">​</a></h4>
+<p>Renders the user template with the provided prompt arguments.</p>
+<p>This method is responsible for rendering the user template using the given prompt arguments.
+It generates a ChatMessage object that represents the rendered template.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>name</strong> (<code>str</code>) – The name of the template to be rendered.</li>
+<li><strong>prompt_args</strong> (<code>PromptArgument</code>) – The prompt arguments to be used for rendering the template.</li>
+<li><strong>message_type</strong> (<code>MessageType</code>) – The type of the message to be rendered. Defaults to MessageType.CONVERSATION.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>ChatMessage</code></li>
+<li><strong>Returns:</strong>
+A ChatMessage object containing the rendered template.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="system_prompt_argument--typetypevarsystempromptarg-bound-promptargument-1">system_prompt_argument <em>: <code>Type</code>[<code>TypeVar</code>(<code>SystemPromptArg</code>, bound= <code>PromptArgument</code>)]</em><a href="#system_prompt_argument--typetypevarsystempromptarg-bound-promptargument-1" class="hash-link" aria-label="Direct link to system_prompt_argument--typetypevarsystempromptarg-bound-promptargument-1" title="Direct link to system_prompt_argument--typetypevarsystempromptarg-bound-promptargument-1">​</a></h4>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="user_prompt_argument--typetypevaruserpromptarg-bound-promptargument-1">user_prompt_argument <em>: <code>Type</code>[<code>TypeVar</code>(<code>UserPromptArg</code>, bound= <code>PromptArgument</code>)]</em><a href="#user_prompt_argument--typetypevaruserpromptarg-bound-promptargument-1" class="hash-link" aria-label="Direct link to user_prompt_argument--typetypevaruserpromptarg-bound-promptargument-1" title="Direct link to user_prompt_argument--typetypevaruserpromptarg-bound-promptargument-1">​</a></h4>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolsconductorpromptargs-kwargs"><em>class</em> diskurs.protocols.ConductorPrompt(*args, **kwargs)<a href="#class-diskursprotocolsconductorpromptargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolsconductorpromptargs-kwargs" title="Direct link to class-diskursprotocolsconductorpromptargs-kwargs">​</a></h3>
+<p>Bases: <a href="#diskurs.protocols.Prompt"><code>Prompt</code></a></p>
+<p>Protocol for conductor prompts.</p>
+<p>This protocol defines the methods required for handling conductor prompts in a conversation.
+It includes methods for initializing, finalizing, and validating long-term memory, as well as
+determining the final state of the conversation.</p>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="longterm_memory--typelongtermmemory">longterm_memory <em>: <code>Type</code>[<code>LongtermMemory</code>]</em><a href="#longterm_memory--typelongtermmemory" class="hash-link" aria-label="Direct link to longterm_memory--typelongtermmemory" title="Direct link to longterm_memory--typelongtermmemory">​</a></h4>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="can_finalizelongterm_memory-1">can_finalize(longterm_memory)<a href="#can_finalizelongterm_memory-1" class="hash-link" aria-label="Direct link to can_finalize(longterm_memory)" title="Direct link to can_finalize(longterm_memory)">​</a></h4>
+<p>Determines if the conductor can finalize based on the long-term memory.</p>
+<p>This method evaluates the provided long-term memory to decide whether the
+conversation can be concluded. It checks if the necessary conditions are met
+for finalizing the conversation.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>longterm_memory</strong> (<code>LongtermMemory</code>) – The long-term memory to be evaluated.</li>
+<li><strong>Return type:</strong>
+<code>bool</code></li>
+<li><strong>Returns:</strong>
+True if the conversation can be finalized, False otherwise.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="finalizelongterm_memory">finalize(longterm_memory)<a href="#finalizelongterm_memory" class="hash-link" aria-label="Direct link to finalize(longterm_memory)" title="Direct link to finalize(longterm_memory)">​</a></h4>
+<p>Finalizes the conversation based on the long-term memory.</p>
+<p>This method processes the provided long-term memory to generate a final response
+for the conversation. It is responsible for concluding the conversation by
+utilizing the accumulated long-term memory data.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>longterm_memory</strong> (<code>LongtermMemory</code>) – The long-term memory to be used for finalizing the conversation.</li>
+<li><strong>Return type:</strong>
+<code>dict</code>[<code>str</code>, <code>Any</code>]</li>
+<li><strong>Returns:</strong>
+A dictionary containing the final response data.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="faillongterm_memory">fail(longterm_memory)<a href="#faillongterm_memory" class="hash-link" aria-label="Direct link to fail(longterm_memory)" title="Direct link to fail(longterm_memory)">​</a></h4>
+<p>Handles the case failure i.e. when the long-term memory does not meet the criteria defined
+for finalization.</p>
+<p>This method processes the provided long-term memory to generate a failure response
+for the conversation. It is responsible for concluding the conversation in a failure
+state by utilizing the accumulated long-term memory data.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>longterm_memory</strong> (<code>LongtermMemory</code>) – The long-term memory to be used for generating the failure response.</li>
+<li><strong>Return type:</strong>
+<code>dict</code>[<code>str</code>, <code>Any</code>]</li>
+<li><strong>Returns:</strong>
+A dictionary containing the failure response data.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="init_longterm_memorykwargs">init_longterm_memory(**kwargs)<a href="#init_longterm_memorykwargs" class="hash-link" aria-label="Direct link to init_longterm_memory(**kwargs)" title="Direct link to init_longterm_memory(**kwargs)">​</a></h4>
+<p>Initializes the long-term memory.</p>
+<p>This method is responsible for creating and initializing the long-term memory
+for the conductor agent. It uses the provided keyword arguments to set up the
+initial state of the long-term memory.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>kwargs</strong> (<code>Any</code>) – Keyword arguments used to initialize the long-term memory.</li>
+<li><strong>Return type:</strong>
+<code>LongtermMemory</code></li>
+<li><strong>Returns:</strong>
+An instance of the LongtermMemory class.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="is_finaluser_prompt_argument-1">is_final(user_prompt_argument)<a href="#is_finaluser_prompt_argument-1" class="hash-link" aria-label="Direct link to is_final(user_prompt_argument)" title="Direct link to is_final(user_prompt_argument)">​</a></h4>
+<p>Determines if the user prompt argument indicates the final state.</p>
+<p>This method checks the provided user prompt argument to determine if it represents
+the final state in the conversation. It is used to decide whether the conversation
+can be concluded based on the user’s input.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>user_prompt_argument</strong> (<code>PromptArgument</code>) – The user prompt argument to be evaluated.</li>
+<li><strong>Return type:</strong>
+<code>bool</code></li>
+<li><strong>Returns:</strong>
+True if the user prompt argument indicates the final state, False otherwise.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="is_validuser_prompt_argument-1">is_valid(user_prompt_argument)<a href="#is_validuser_prompt_argument-1" class="hash-link" aria-label="Direct link to is_valid(user_prompt_argument)" title="Direct link to is_valid(user_prompt_argument)">​</a></h4>
+<p>Validates the user prompt argument.</p>
+<p>This method checks if the provided user prompt argument meets the required
+criteria for validity. It ensures that the user prompt argument is correctly
+structured and contains the necessary information for further processing.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>user_prompt_argument</strong> (<code>PromptArgument</code>) – The user prompt argument to be validated.</li>
+<li><strong>Return type:</strong>
+<code>bool</code></li>
+<li><strong>Returns:</strong>
+True if the user prompt argument is valid, False otherwise.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="create_system_prompt_argumentprompt_args-2">create_system_prompt_argument(**prompt_args)<a href="#create_system_prompt_argumentprompt_args-2" class="hash-link" aria-label="Direct link to create_system_prompt_argument(**prompt_args)" title="Direct link to create_system_prompt_argument(**prompt_args)">​</a></h4>
+<p>Creates an instance of the system prompt argument dataclass.</p>
+<p>This method is responsible for generating the system prompt argument
+based on the provided keyword arguments. The system prompt argument
+is used to configure the initial state and context for the conversation.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>prompt_args</strong> (<code>Any</code>) – Keyword arguments used to initialize the system prompt argument.</li>
+<li><strong>Return type:</strong>
+<code>TypeVar</code>(<code>SystemPromptArg</code>, bound= <code>PromptArgument</code>)</li>
+<li><strong>Returns:</strong>
+An instance of the system prompt argument dataclass.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="create_user_prompt_argumentprompt_args-2">create_user_prompt_argument(**prompt_args)<a href="#create_user_prompt_argumentprompt_args-2" class="hash-link" aria-label="Direct link to create_user_prompt_argument(**prompt_args)" title="Direct link to create_user_prompt_argument(**prompt_args)">​</a></h4>
+<p>Creates an instance of the user prompt argument dataclass.</p>
+<p>This method is responsible for generating the user prompt argument
+based on the provided keyword arguments. The user prompt argument
+is used to configure the user’s input and context for the conversation.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>prompt_args</strong> (<code>Any</code>) – Keyword arguments used to initialize the user prompt argument.</li>
+<li><strong>Return type:</strong>
+<code>TypeVar</code>(<code>UserPromptArg</code>, bound= <code>PromptArgument</code>)</li>
+<li><strong>Returns:</strong>
+An instance of the user prompt argument dataclass.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="parse_user_promptllm_response-old_user_prompt_argument-message_typemessagetyperouting-2">parse_user_prompt(llm_response, old_user_prompt_argument, message_type=MessageType.ROUTING)<a href="#parse_user_promptllm_response-old_user_prompt_argument-message_typemessagetyperouting-2" class="hash-link" aria-label="Direct link to parse_user_prompt(llm_response, old_user_prompt_argument, message_type=MessageType.ROUTING)" title="Direct link to parse_user_prompt(llm_response, old_user_prompt_argument, message_type=MessageType.ROUTING)">​</a></h4>
+<p>Parses the LLM response into a prompt argument or ChatMessage.</p>
+<p>This method takes the response from a language model (LLM) and parses it into either a
+PromptArgument or a ChatMessage object. It uses the old user prompt argument and
+the message type to guide the parsing process.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>llm_response</strong> (<code>str</code>) – The response string from the language model.</li>
+<li><strong>old_user_prompt_argument</strong> (<code>PromptArgument</code>) – The previous user prompt argument to be used as a reference.</li>
+<li><strong>message_type</strong> (<code>MessageType</code>) – The type of message to be parsed. Defaults to MessageType.ROUTING.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>Union</code>[<code>PromptArgument</code>, <code>ChatMessage</code>]</li>
+<li><strong>Returns:</strong>
+A PromptArgument or ChatMessage object based on the parsed response.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="render_system_templatename-prompt_args-return_jsontrue-2">render_system_template(name, prompt_args, return_json=True)<a href="#render_system_templatename-prompt_args-return_jsontrue-2" class="hash-link" aria-label="Direct link to render_system_template(name, prompt_args, return_json=True)" title="Direct link to render_system_template(name, prompt_args, return_json=True)">​</a></h4>
+<p>Renders the system template with the provided prompt arguments.</p>
+<p>This method is responsible for rendering the system template using the given prompt arguments.
+It can optionally return the rendered template as a JSON object.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>name</strong> (<code>str</code>) – The name of the template to be rendered.</li>
+<li><strong>prompt_args</strong> (<code>PromptArgument</code>) – The prompt arguments to be used for rendering the template.</li>
+<li><strong>return_json</strong> (<code>bool</code>) – If True, the rendered template will be returned as a JSON object. Defaults to True.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>ChatMessage</code></li>
+<li><strong>Returns:</strong>
+A ChatMessage object containing the rendered template.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="render_user_templatename-prompt_args-message_typemessagetypeconversation-2">render_user_template(name, prompt_args, message_type=MessageType.CONVERSATION)<a href="#render_user_templatename-prompt_args-message_typemessagetypeconversation-2" class="hash-link" aria-label="Direct link to render_user_template(name, prompt_args, message_type=MessageType.CONVERSATION)" title="Direct link to render_user_template(name, prompt_args, message_type=MessageType.CONVERSATION)">​</a></h4>
+<p>Renders the user template with the provided prompt arguments.</p>
+<p>This method is responsible for rendering the user template using the given prompt arguments.
+It generates a ChatMessage object that represents the rendered template.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>name</strong> (<code>str</code>) – The name of the template to be rendered.</li>
+<li><strong>prompt_args</strong> (<code>PromptArgument</code>) – The prompt arguments to be used for rendering the template.</li>
+<li><strong>message_type</strong> (<code>MessageType</code>) – The type of the message to be rendered. Defaults to MessageType.CONVERSATION.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>ChatMessage</code></li>
+<li><strong>Returns:</strong>
+A ChatMessage object containing the rendered template.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="system_prompt_argument--typetypevarsystempromptarg-bound-promptargument-2">system_prompt_argument <em>: <code>Type</code>[<code>TypeVar</code>(<code>SystemPromptArg</code>, bound= <code>PromptArgument</code>)]</em><a href="#system_prompt_argument--typetypevarsystempromptarg-bound-promptargument-2" class="hash-link" aria-label="Direct link to system_prompt_argument--typetypevarsystempromptarg-bound-promptargument-2" title="Direct link to system_prompt_argument--typetypevarsystempromptarg-bound-promptargument-2">​</a></h4>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="user_prompt_argument--typetypevaruserpromptarg-bound-promptargument-2">user_prompt_argument <em>: <code>Type</code>[<code>TypeVar</code>(<code>UserPromptArg</code>, bound= <code>PromptArgument</code>)]</em><a href="#user_prompt_argument--typetypevaruserpromptarg-bound-promptargument-2" class="hash-link" aria-label="Direct link to user_prompt_argument--typetypevaruserpromptarg-bound-promptargument-2" title="Direct link to user_prompt_argument--typetypevaruserpromptarg-bound-promptargument-2">​</a></h4>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolscalltoolargs-kwargs"><em>class</em> diskurs.protocols.CallTool(*args, **kwargs)<a href="#class-diskursprotocolscalltoolargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolscalltoolargs-kwargs" title="Direct link to class-diskursprotocolscalltoolargs-kwargs">​</a></h3>
+<p>Bases: <code>Protocol</code></p>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolsheuristicsequenceargs-kwargs"><em>class</em> diskurs.protocols.HeuristicSequence(*args, **kwargs)<a href="#class-diskursprotocolsheuristicsequenceargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolsheuristicsequenceargs-kwargs" title="Direct link to class-diskursprotocolsheuristicsequenceargs-kwargs">​</a></h3>
+<p>Bases: <code>Protocol</code></p>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolsheuristicpromptargs-kwargs"><em>class</em> diskurs.protocols.HeuristicPrompt(*args, **kwargs)<a href="#class-diskursprotocolsheuristicpromptargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolsheuristicpromptargs-kwargs" title="Direct link to class-diskursprotocolsheuristicpromptargs-kwargs">​</a></h3>
+<p>Bases: <code>Protocol</code></p>
+<p>Protocol for heuristic prompts.</p>
+<p>This protocol defines the structure and methods required for creating and handling heuristic prompts
+in a conversation. Implementations of this protocol are responsible for generating user prompt arguments,
+rendering user templates, and executing heuristic sequences to process conversations.</p>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="user_prompt_argument--typepromptargument">user_prompt_argument <em>: <code>Type</code>[<code>PromptArgument</code>]</em><a href="#user_prompt_argument--typepromptargument" class="hash-link" aria-label="Direct link to user_prompt_argument--typepromptargument" title="Direct link to user_prompt_argument--typepromptargument">​</a></h4>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="heuristic_sequenceconversation-call_tool">heuristic_sequence(conversation, call_tool)<a href="#heuristic_sequenceconversation-call_tool" class="hash-link" aria-label="Direct link to heuristic_sequence(conversation, call_tool)" title="Direct link to heuristic_sequence(conversation, call_tool)">​</a></h4>
+<p>Executes a heuristic sequence on the given conversation.</p>
+<p>This method processes the conversation using a series of heuristic steps,
+optionally utilizing a tool for specific operations. The heuristic sequence
+is designed to guide the conversation towards a desired outcome based on
+predefined rules and logic.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>conversation</strong> (<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a>) – The conversation object to be processed.</li>
+<li><strong>call_tool</strong> (<a href="#diskurs.protocols.CallTool"><code>CallTool</code></a>) – An optional callable tool that can be used during the heuristic sequence.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a></li>
+<li><strong>Returns:</strong>
+The updated conversation object after processing the heuristic sequence.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="create_user_prompt_argumentprompt_args-3">create_user_prompt_argument(**prompt_args)<a href="#create_user_prompt_argumentprompt_args-3" class="hash-link" aria-label="Direct link to create_user_prompt_argument(**prompt_args)" title="Direct link to create_user_prompt_argument(**prompt_args)">​</a></h4>
+<p>Creates an instance of the user prompt argument dataclass.</p>
+<p>This method is responsible for generating the user prompt argument
+based on the provided keyword arguments. The user prompt argument
+is used to configure the user’s input and context for the conversation.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>prompt_args</strong> – Keyword arguments used to initialize the user prompt argument.</li>
+<li><strong>Return type:</strong>
+<code>PromptArgument</code></li>
+<li><strong>Returns:</strong>
+An instance of the user prompt argument dataclass.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="render_user_templatename-prompt_args-message_typemessagetypeconversation-3">render_user_template(name, prompt_args, message_type=MessageType.CONVERSATION)<a href="#render_user_templatename-prompt_args-message_typemessagetypeconversation-3" class="hash-link" aria-label="Direct link to render_user_template(name, prompt_args, message_type=MessageType.CONVERSATION)" title="Direct link to render_user_template(name, prompt_args, message_type=MessageType.CONVERSATION)">​</a></h4>
+<p>Renders the user template with the provided prompt arguments.</p>
+<p>This method is responsible for rendering the user template using the given prompt arguments.
+It generates a ChatMessage object that represents the rendered template.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>name</strong> (<code>str</code>) – The name of the template to be rendered.</li>
+<li><strong>prompt_args</strong> (<code>PromptArgument</code>) – The prompt arguments to be used for rendering the template.</li>
+<li><strong>message_type</strong> (<code>MessageType</code>) – The type of the message to be rendered. Defaults to MessageType.CONVERSATION.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>ChatMessage</code></li>
+<li><strong>Returns:</strong>
+A ChatMessage object containing the rendered template.</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolsconversationargs-kwargs"><em>class</em> diskurs.protocols.Conversation(*args, **kwargs)<a href="#class-diskursprotocolsconversationargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolsconversationargs-kwargs" title="Direct link to class-diskursprotocolsconversationargs-kwargs">​</a></h3>
+<p>Bases: <code>Protocol</code>[<code>SystemPromptArg</code>, <code>UserPromptArg</code>]</p>
+<p>Protocol for conversation management.</p>
+<p>This protocol defines the structure and methods required for handling conversations
+between agents and users. It includes properties and methods for accessing and updating
+chat messages, prompt arguments, long-term memory, and metadata. Implementations of this
+protocol are responsible for managing the state and flow of conversations, ensuring
+immutability, and providing mechanisms for rendering and parsing prompts.</p>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="property-chat--listchatmessage"><em>property</em> chat <em>: List[ChatMessage]</em><a href="#property-chat--listchatmessage" class="hash-link" aria-label="Direct link to property-chat--listchatmessage" title="Direct link to property-chat--listchatmessage">​</a></h4>
+<p>Provides a deep copy of the chat messages to ensure immutability.</p>
+<p>This method returns a list of ChatMessage objects representing the conversation’s chat history.
+The returned list is a deep copy, ensuring that the original chat messages remain unchanged.</p>
+<ul>
+<li><strong>Returns:</strong>
+A deep copy of the list of chat messages.</li>
+<li><strong>Return type:</strong>
+List[ChatMessage]</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="property-system_prompt--chatmessage--none"><em>property</em> system_prompt <em>: ChatMessage | None</em><a href="#property-system_prompt--chatmessage--none" class="hash-link" aria-label="Direct link to property-system_prompt--chatmessage--none" title="Direct link to property-system_prompt--chatmessage--none">​</a></h4>
+<p>Retrieves the system prompt of the conversation.</p>
+<p>The system prompt is a message that sets the initial context or instructions for the conversation.
+It is typically used to guide the conversation’s flow and provide necessary background information.
+Each time an agent takes a turn in the conversation, it updates the system prompt accordingly.</p>
+<ul>
+<li><strong>Returns:</strong>
+The system prompt message if available, otherwise None.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="property-user_prompt--chatmessage--none"><em>property</em> user_prompt <em>: ChatMessage | None</em><a href="#property-user_prompt--chatmessage--none" class="hash-link" aria-label="Direct link to property-user_prompt--chatmessage--none" title="Direct link to property-user_prompt--chatmessage--none">​</a></h4>
+<p>Retrieves the user prompt of the conversation.</p>
+<p>The user prompt is a message that represents the user’s input or query in the conversation.
+It is typically used to direct the agent’s next response.
+Each time an agent takes a turn in the conversation, it updates the user prompt accordingly.</p>
+<ul>
+<li><strong>Returns:</strong>
+The user prompt message if available, otherwise None.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="property-system_prompt_argument--systempromptarg--none"><em>property</em> system_prompt_argument <em>: SystemPromptArg | None</em><a href="#property-system_prompt_argument--systempromptarg--none" class="hash-link" aria-label="Direct link to property-system_prompt_argument--systempromptarg--none" title="Direct link to property-system_prompt_argument--systempromptarg--none">​</a></h4>
+<p>Retrieves the system prompt arguments.</p>
+<p>The system prompt argument is used to render the system prompt message.
+Each time an agent takes a turn in the conversation, it updates the system prompt argument.</p>
+<ul>
+<li><strong>Returns:</strong>
+The system prompt arguments if available, otherwise None.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="property-user_prompt_argument--userpromptarg--none"><em>property</em> user_prompt_argument <em>: UserPromptArg | None</em><a href="#property-user_prompt_argument--userpromptarg--none" class="hash-link" aria-label="Direct link to property-user_prompt_argument--userpromptarg--none" title="Direct link to property-user_prompt_argument--userpromptarg--none">​</a></h4>
+<p>Retrieves the user prompt arguments.</p>
+<p>The user prompt argument is used to render the user prompt message.
+Each time an agent takes a turn in the conversation, it updates the user prompt argument.</p>
+<ul>
+<li><strong>Returns:</strong>
+The user prompt arguments if available, otherwise None.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="property-metadata--dictstr-str"><em>property</em> metadata <em>: Dict[str, str]</em><a href="#property-metadata--dictstr-str" class="hash-link" aria-label="Direct link to property-metadata--dictstr-str" title="Direct link to property-metadata--dictstr-str">​</a></h4>
+<p>Provides a deep copy of the metadata dictionary to ensure immutability.</p>
+<p>The metadata dictionary contains additional information about the conversation,
+and can be freely defined and updated by the implementing system.</p>
+<ul>
+<li><strong>Returns:</strong>
+A deep copy of the metadata dictionary.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="property-last_message--chatmessage"><em>property</em> last_message <em>: ChatMessage</em><a href="#property-last_message--chatmessage" class="hash-link" aria-label="Direct link to property-last_message--chatmessage" title="Direct link to property-last_message--chatmessage">​</a></h4>
+<p>Retrieves the last message in the conversation.</p>
+<p>This property returns the most recent ChatMessage object from the conversation’s chat history.
+It is used to access the latest message exchanged in the conversation, which can be useful for
+determining the current state or context of the conversation.</p>
+<ul>
+<li><strong>Returns:</strong>
+The last message in the chat.</li>
+<li><strong>Return type:</strong>
+ChatMessage</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="property-active_agent--str"><em>property</em> active_agent <em>: str</em><a href="#property-active_agent--str" class="hash-link" aria-label="Direct link to property-active_agent--str" title="Direct link to property-active_agent--str">​</a></h4>
+<p>Retrieves the name of the active agent.</p>
+<p>The active agent is the agent currently responsible for processing the conversation.
+This method returns the name of the active agent as a string.</p>
+<ul>
+<li><strong>Returns:</strong>
+The name of the active agent.</li>
+<li><strong>Return type:</strong>
+str</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="property-conversation_id--str"><em>property</em> conversation_id <em>: str</em><a href="#property-conversation_id--str" class="hash-link" aria-label="Direct link to property-conversation_id--str" title="Direct link to property-conversation_id--str">​</a></h4>
+<p>Retrieves the unique identifier for the conversation.</p>
+<p>This method returns the conversation ID, which is a unique string
+used to identify the conversation instance. The conversation ID
+is typically used for tracking and managing conversations within
+the system.</p>
+<ul>
+<li><strong>Returns:</strong>
+The unique identifier for the conversation.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="get_agent_longterm_memoryagent_name">get_agent_longterm_memory(agent_name)<a href="#get_agent_longterm_memoryagent_name" class="hash-link" aria-label="Direct link to get_agent_longterm_memory(agent_name)" title="Direct link to get_agent_longterm_memory(agent_name)">​</a></h4>
+<p>Provides a deep copy of the long-term memory for the specified agent.</p>
+<p>This method retrieves the long-term memory associated with a given agent name.
+Allowing the caller to safely modify the returned memory without affecting the original.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>agent_name</strong> (<code>str</code>) – The name of the agent whose long-term memory is to be retrieved.</li>
+<li><strong>Return type:</strong>
+<code>Optional</code>[<code>LongtermMemory</code>]</li>
+<li><strong>Returns:</strong>
+A deep copy of the agent’s long-term memory, or None if no memory is found.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="update_agent_longterm_memoryagent_name-longterm_memory">update_agent_longterm_memory(agent_name, longterm_memory)<a href="#update_agent_longterm_memoryagent_name-longterm_memory" class="hash-link" aria-label="Direct link to update_agent_longterm_memory(agent_name, longterm_memory)" title="Direct link to update_agent_longterm_memory(agent_name, longterm_memory)">​</a></h4>
+<p>Updates the long-term memory for a specific agent.</p>
+<p>This method updates the long-term memory associated with the given agent name.
+It returns a new instance of the Conversation with the updated long-term memory,
+ensuring immutability of the conversation state.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>agent_name</strong> (<code>str</code>) – The name of the agent whose long-term memory is to be updated.</li>
+<li><strong>longterm_memory</strong> (<code>LongtermMemory</code>) – The new long-term memory for the agent.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a></li>
+<li><strong>Returns:</strong>
+A new instance of the Conversation with updated long-term memory.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="update_prompt_argument_with_longterm_memoryconductor_name">update_prompt_argument_with_longterm_memory(conductor_name)<a href="#update_prompt_argument_with_longterm_memoryconductor_name" class="hash-link" aria-label="Direct link to update_prompt_argument_with_longterm_memory(conductor_name)" title="Direct link to update_prompt_argument_with_longterm_memory(conductor_name)">​</a></h4>
+<p>Updates the prompt arguments with the long-term memory of the conductor agent.</p>
+<p>This method retrieves the long-term memory associated with the specified conductor agent
+and updates the prompt arguments of the conversation accordingly. It ensures that the
+conversation’s state is updated with the relevant long-term memory data, preserving
+immutability by returning a new instance of the Conversation.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>conductor_name</strong> (<code>str</code>) – The name of the conductor agent whose long-term memory is to be used.</li>
+<li><strong>Return type:</strong>
+<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a></li>
+<li><strong>Returns:</strong>
+A new instance of the Conversation with updated prompt arguments.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="updatechatnone-system_prompt_argumentnone-user_prompt_argumentnone-system_promptnone-user_promptnone-longterm_memorynone-metadatanone-active_agentnone">update(chat=None, system_prompt_argument=None, user_prompt_argument=None, system_prompt=None, user_prompt=None, longterm_memory=None, metadata=None, active_agent=None)<a href="#updatechatnone-system_prompt_argumentnone-user_prompt_argumentnone-system_promptnone-user_promptnone-longterm_memorynone-metadatanone-active_agentnone" class="hash-link" aria-label="Direct link to update(chat=None, system_prompt_argument=None, user_prompt_argument=None, system_prompt=None, user_prompt=None, longterm_memory=None, metadata=None, active_agent=None)" title="Direct link to update(chat=None, system_prompt_argument=None, user_prompt_argument=None, system_prompt=None, user_prompt=None, longterm_memory=None, metadata=None, active_agent=None)">​</a></h4>
+<p>Returns a new instance of Conversation with updated fields, preserving immutability.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>chat</strong> (<code>Optional</code>[<code>List</code>[<code>ChatMessage</code>]]) – Optional list of ChatMessage objects representing the conversation’s chat history.</li>
+<li><strong>system_prompt_argument</strong> (<code>Optional</code>[<code>TypeVar</code>(<code>SystemPromptArg</code>, bound= <code>PromptArgument</code>)]) – Optional system prompt argument to update.</li>
+<li><strong>user_prompt_argument</strong> (<code>Optional</code>[<code>TypeVar</code>(<code>UserPromptArg</code>, bound= <code>PromptArgument</code>)]) – Optional user prompt argument to update.</li>
+<li><strong>system_prompt</strong> (<code>Optional</code>[<code>ChatMessage</code>]) – Optional system prompt message to update.</li>
+<li><strong>user_prompt</strong> (<code>Union</code>[<code>ChatMessage</code>, <code>List</code>[<code>ChatMessage</code>], <code>None</code>]) – Optional user prompt message(s) to update.</li>
+<li><strong>longterm_memory</strong> (<code>Optional</code>[<code>Dict</code>[<code>str</code>, <code>LongtermMemory</code>]]) – Optional dictionary of long-term memory to update.</li>
+<li><strong>metadata</strong> (<code>Optional</code>[<code>Dict</code>[<code>str</code>, <code>str</code>]]) – Optional dictionary of metadata to update.</li>
+<li><strong>active_agent</strong> (<code>Optional</code>[<code>str</code>]) – Optional name of the active agent to update.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a></li>
+<li><strong>Returns:</strong>
+A new instance of the Conversation class with updated fields.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="appendmessage-role-name">append(message, role=&#x27;&#x27;, name=&#x27;&#x27;)<a href="#appendmessage-role-name" class="hash-link" aria-label="Direct link to append(message, role=&#x27;&#x27;, name=&#x27;&#x27;)" title="Direct link to append(message, role=&#x27;&#x27;, name=&#x27;&#x27;)">​</a></h4>
+<p>Appends a new chat message and returns a new instance of Conversation.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>message</strong> (<code>Union</code>[<code>ChatMessage</code>, <code>List</code>[<code>ChatMessage</code>], <code>str</code>]) – The message to be added.</li>
+<li><strong>role</strong> (<code>Optional</code>[<code>str</code>]) – The role of the message sender.</li>
+<li><strong>name</strong> (<code>Optional</code>[<code>str</code>]) – The name of the message sender.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a></li>
+<li><strong>Returns:</strong>
+A new instance of Conversation with the appended message.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="render_chatmessage_typemessagetypeconversation">render_chat(message_type=MessageType.CONVERSATION)<a href="#render_chatmessage_typemessagetypeconversation" class="hash-link" aria-label="Direct link to render_chat(message_type=MessageType.CONVERSATION)" title="Direct link to render_chat(message_type=MessageType.CONVERSATION)">​</a></h4>
+<p>Returns the complete chat with the system prompt prepended and the user prompt appended.</p>
+<p>This method generates a list of ChatMessage objects representing the full chat history.
+It includes the system prompt at the beginning and the user prompt at the end of the chat.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>message_type</strong> (<code>MessageType</code>) – The type of message to be rendered. Defaults to MessageType.CONVERSATION.</li>
+<li><strong>Return type:</strong>
+<code>List</code>[<code>ChatMessage</code>]</li>
+<li><strong>Returns:</strong>
+A list representing the full chat.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="is_empty">is_empty()<a href="#is_empty" class="hash-link" aria-label="Direct link to is_empty()" title="Direct link to is_empty()">​</a></h4>
+<p>Checks if the chat is empty.</p>
+<ul>
+<li><strong>Return type:</strong>
+<code>bool</code></li>
+<li><strong>Returns:</strong>
+True if the chat is empty, False otherwise.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="has_pending_tool_call">has_pending_tool_call()<a href="#has_pending_tool_call" class="hash-link" aria-label="Direct link to has_pending_tool_call()" title="Direct link to has_pending_tool_call()">​</a></h4>
+<p>Checks if there is a pending tool call in the conversation.</p>
+<ul>
+<li><strong>Return type:</strong>
+<code>bool</code></li>
+<li><strong>Returns:</strong>
+True if there is a pending tool call, False otherwise.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="has_pending_tool_response">has_pending_tool_response()<a href="#has_pending_tool_response" class="hash-link" aria-label="Direct link to has_pending_tool_response()" title="Direct link to has_pending_tool_response()">​</a></h4>
+<p>Checks if there is a pending tool response in the conversation,
+this would be the case if the last message was a tool call from
+the LLM.</p>
+<ul>
+<li><strong>Return type:</strong>
+<code>bool</code></li>
+<li><strong>Returns:</strong>
+True if there is a pending tool response, False otherwise.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="classmethod-from_dictdata-agents"><em>classmethod</em> from_dict(data, agents)<a href="#classmethod-from_dictdata-agents" class="hash-link" aria-label="Direct link to classmethod-from_dictdata-agents" title="Direct link to classmethod-from_dictdata-agents">​</a></h4>
+<p>Creates a Conversation instance from a dictionary.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>data</strong> (<code>dict</code>[<code>str</code>, <code>Any</code>]) – The data dictionary.</li>
+<li><strong>agents</strong> (<code>list</code>[<code>Any</code>]) – A list of agent instances.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a></li>
+<li><strong>Returns:</strong>
+A new instance of Conversation.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="to_dict">to_dict()<a href="#to_dict" class="hash-link" aria-label="Direct link to to_dict()" title="Direct link to to_dict()">​</a></h4>
+<p>Converts the Conversation instance to a dictionary.</p>
+<ul>
+<li><strong>Return type:</strong>
+<code>Dict</code>[<code>str</code>, <code>Any</code>]</li>
+<li><strong>Returns:</strong>
+A dictionary representation of the Conversation.</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolsllmclientargs-kwargs"><em>class</em> diskurs.protocols.LLMClient(*args, **kwargs)<a href="#class-diskursprotocolsllmclientargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolsllmclientargs-kwargs" title="Direct link to class-diskursprotocolsllmclientargs-kwargs">​</a></h3>
+<p>Bases: <code>Protocol</code></p>
+<p>Protocol for interacting with a Language Model (LLM) client.
+This protocol defines the methods required for creating and generating responses
+from a language model within a conversation. Implementations of this protocol
+are responsible for initializing the LLM client and generating responses based
+on the current state of the conversation and optional tools.</p>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="classmethod-createkwargs"><em>classmethod</em> create(**kwargs)<a href="#classmethod-createkwargs" class="hash-link" aria-label="Direct link to classmethod-createkwargs" title="Direct link to classmethod-createkwargs">​</a></h4>
+<ul>
+<li><strong>Return type:</strong>
+<code>Self</code></li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="generateconversation-toolsnone">generate(conversation, tools=None)<a href="#generateconversation-toolsnone" class="hash-link" aria-label="Direct link to generate(conversation, tools=None)" title="Direct link to generate(conversation, tools=None)">​</a></h4>
+<p>Generates a response from the language model (LLM) based on the current state of the conversation.</p>
+<p>This method takes the current conversation and optionally a list of tools, and generates a response
+from the language model. The response is integrated into the conversation, updating its state.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>conversation</strong> (<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a>) – The current state of the conversation, represented as a Conversation object.</li>
+<li><strong>tools</strong> (<code>Optional</code>[<code>list</code>[<code>ToolDescription</code>]]) – An optional list of ToolDescription objects that can be used by the LLM to generate the response.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a></li>
+<li><strong>Returns:</strong>
+An updated Conversation object with the generated response.</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolsconversationparticipantargs-kwargs"><em>class</em> diskurs.protocols.ConversationParticipant(*args, **kwargs)<a href="#class-diskursprotocolsconversationparticipantargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolsconversationparticipantargs-kwargs" title="Direct link to class-diskursprotocolsconversationparticipantargs-kwargs">​</a></h3>
+<p>Bases: <code>Protocol</code></p>
+<p>Protocol for conversation participants.</p>
+<p>This protocol defines the methods and properties required for an entity to participate in a conversation.
+Implementations of this protocol are responsible for processing conversations, registering dispatchers,
+and handling topics of interest. It ensures that any participant can actively engage in and manage
+conversations within the system.</p>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="topics--liststr">topics <em>: <code>list</code>[<code>str</code>]</em><a href="#topics--liststr" class="hash-link" aria-label="Direct link to topics--liststr" title="Direct link to topics--liststr">​</a></h4>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="process_conversationconversation">process_conversation(conversation)<a href="#process_conversationconversation" class="hash-link" aria-label="Direct link to process_conversation(conversation)" title="Direct link to process_conversation(conversation)">​</a></h4>
+<p>Actively participate in a conversation.</p>
+<p>This method is responsible for processing the given conversation. The implementation should  handle
+the conversation appropriately, updating its state and generating responses as needed.
+This method is called by the conversation dispatcher.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>conversation</strong> (<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a>) – The conversation to be processed.</li>
+<li><strong>Return type:</strong>
+<code>None</code></li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="register_dispatcherdispatcher">register_dispatcher(dispatcher)<a href="#register_dispatcherdispatcher" class="hash-link" aria-label="Direct link to register_dispatcher(dispatcher)" title="Direct link to register_dispatcher(dispatcher)">​</a></h4>
+<p>Registers a dispatcher with the conversation participant.</p>
+<p>This method is responsible for associating a ConversationDispatcher with the
+conversation participant. The dispatcher will handle the distribution and management
+of conversations involving this participant.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>dispatcher</strong> (<a href="#diskurs.protocols.ConversationDispatcher"><code>ConversationDispatcher</code></a>) – The ConversationDispatcher instance to be registered.</li>
+<li><strong>Return type:</strong>
+<code>None</code></li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolsconversationdispatcherargs-kwargs"><em>class</em> diskurs.protocols.ConversationDispatcher(*args, **kwargs)<a href="#class-diskursprotocolsconversationdispatcherargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolsconversationdispatcherargs-kwargs" title="Direct link to class-diskursprotocolsconversationdispatcherargs-kwargs">​</a></h3>
+<p>Bases: <code>Protocol</code></p>
+<p>Protocol for  dispatching conversations.</p>
+<p>This protocol defines the methods required for subscribing participants to topics,
+publishing conversations to subscribed participants, and finalizing conversations.
+Implementations of this protocol are responsible for coordinating the flow of conversations
+between agents and participants, ensuring that conversations are properly managed and
+dispatched to the appropriate entities based on their topics of interest.</p>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="subscribetopic-participant">subscribe(topic, participant)<a href="#subscribetopic-participant" class="hash-link" aria-label="Direct link to subscribe(topic, participant)" title="Direct link to subscribe(topic, participant)">​</a></h4>
+<p>Subscribe a participant to a specific topic.</p>
+<p>This method registers a ConversationParticipant to receive conversations
+related to the specified topic. When a conversation is published to the topic,
+all subscribed participants will be notified and can process the conversation.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>topic</strong> (<code>str</code>) – The topic to which the participant will be subscribed.</li>
+<li><strong>participant</strong> (<a href="#diskurs.protocols.ConversationParticipant"><code>ConversationParticipant</code></a>) – The participant to be subscribed to the topic.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>None</code></li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="unsubscribetopic-participant">unsubscribe(topic, participant)<a href="#unsubscribetopic-participant" class="hash-link" aria-label="Direct link to unsubscribe(topic, participant)" title="Direct link to unsubscribe(topic, participant)">​</a></h4>
+<p>Unsubscribe a participant from a specific topic.</p>
+<p>This method removes a ConversationParticipant from the list of subscribers for the given topic.
+Once unsubscribed, the participant will no longer receive conversations related to that topic.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>topic</strong> (<code>str</code>) – The topic from which the participant will be unsubscribed.</li>
+<li><strong>participant</strong> (<a href="#diskurs.protocols.ConversationParticipant"><code>ConversationParticipant</code></a>) – The participant to be unsubscribed from the topic.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>None</code></li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="publishtopic-conversation">publish(topic, conversation)<a href="#publishtopic-conversation" class="hash-link" aria-label="Direct link to publish(topic, conversation)" title="Direct link to publish(topic, conversation)">​</a></h4>
+<p>Dispatch a conversation to all participants subscribed to the topic.</p>
+<p>This method sends the given conversation to all participants who are subscribed
+to the specified topic. Each participant will receive the conversation and can
+process it accordingly.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>topic</strong> (<code>str</code>) – The topic to which the conversation will be published.</li>
+<li><strong>conversation</strong> (<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a>) – The conversation to be dispatched.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>None</code></li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="runparticipant-conversation">run(participant, conversation)<a href="#runparticipant-conversation" class="hash-link" aria-label="Direct link to run(participant, conversation)" title="Direct link to run(participant, conversation)">​</a></h4>
+<p>Entry point for starting a conversation with a participant.</p>
+<p>This method starts a conversation by dispatching it to the participant, passed into it.
+It also handles the finalization of the conversation, as soon as the future object is set.
+returns a dictionary containing the final response data.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>participant</strong> (<a href="#diskurs.protocols.ConversationParticipant"><code>ConversationParticipant</code></a>) – The ConversationParticipant that is involved in the conversation.</li>
+<li><strong>conversation</strong> (<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a>) – The Conversation object representing the current state of the conversation.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>dict</code></li>
+<li><strong>Returns:</strong>
+A dictionary containing the final response data.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="finalizeresponse">finalize(response)<a href="#finalizeresponse" class="hash-link" aria-label="Direct link to finalize(response)" title="Direct link to finalize(response)">​</a></h4>
+<p>This method is responsible for ending the conversation by setting the future object.</p>
+<p>It is called when the conversation is finalized, and sets the dictionary response as the result
+which is eventually returned by the future object.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>response</strong> (<code>dict</code>) – A dictionary containing the final response data for the conversation.</li>
+<li><strong>Return type:</strong>
+<code>None</code></li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolsconversationstoreargs-kwargs"><em>class</em> diskurs.protocols.ConversationStore(*args, **kwargs)<a href="#class-diskursprotocolsconversationstoreargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolsconversationstoreargs-kwargs" title="Direct link to class-diskursprotocolsconversationstoreargs-kwargs">​</a></h3>
+<p>Bases: <code>Protocol</code></p>
+<p>Protocol for managing the persistence of conversations.</p>
+<p>This protocol defines the methods required for creating, persisting, fetching, deleting, and checking
+the existence of conversations.
+Implementations of this protocol are responsible for handling the storage and retrieval of conversation data,
+ensuring that conversations can be reliably saved and accessed as needed.</p>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="classmethod-createkwargs-1"><em>classmethod</em> create(**kwargs)<a href="#classmethod-createkwargs-1" class="hash-link" aria-label="Direct link to classmethod-createkwargs-1" title="Direct link to classmethod-createkwargs-1">​</a></h4>
+<ul>
+<li><strong>Return type:</strong>
+<code>Self</code></li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="persistconversation">persist(conversation)<a href="#persistconversation" class="hash-link" aria-label="Direct link to persist(conversation)" title="Direct link to persist(conversation)">​</a></h4>
+<p>Persists the given conversation.</p>
+<p>This method is responsible for saving the state of the provided conversation
+to a persistent storage. Implementations of this method should ensure that
+the conversation data is reliably stored and can be retrieved later.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>conversation</strong> (<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a>) – The Conversation object representing the current state of the conversation.</li>
+<li><strong>Return type:</strong>
+<code>None</code></li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="fetchconversation_id">fetch(conversation_id)<a href="#fetchconversation_id" class="hash-link" aria-label="Direct link to fetch(conversation_id)" title="Direct link to fetch(conversation_id)">​</a></h4>
+<p>Fetches a conversation by its unique identifier.</p>
+<p>This method retrieves the conversation associated with the given conversation ID from the persistent storage.
+It ensures that the conversation data is accurately fetched and returned as a Conversation object.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>conversation_id</strong> (<code>str</code>) – The unique identifier of the conversation to be fetched.</li>
+<li><strong>Return type:</strong>
+<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a></li>
+<li><strong>Returns:</strong>
+The Conversation object representing the fetched conversation.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="deleteconversation_id">delete(conversation_id)<a href="#deleteconversation_id" class="hash-link" aria-label="Direct link to delete(conversation_id)" title="Direct link to delete(conversation_id)">​</a></h4>
+<p>Deletes a conversation by its unique identifier.</p>
+<p>This method removes the conversation associated with the given conversation ID from the persistent storage.
+It ensures that the conversation data is permanently deleted and can no longer be retrieved.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>conversation_id</strong> (<code>str</code>) – The unique identifier of the conversation to be deleted.</li>
+<li><strong>Return type:</strong>
+<code>None</code></li>
+<li><strong>Returns:</strong>
+None</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="existsconversation_id">exists(conversation_id)<a href="#existsconversation_id" class="hash-link" aria-label="Direct link to exists(conversation_id)" title="Direct link to exists(conversation_id)">​</a></h4>
+<p>Checks if a conversation with the given unique identifier exists in the persistent storage.</p>
+<p>This method is responsible for verifying the existence of a conversation by its unique ID.
+It returns a boolean value indicating whether the conversation is present in the storage.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>conversation_id</strong> (<code>str</code>) – The unique identifier of the conversation to check.</li>
+<li><strong>Return type:</strong>
+<code>bool</code></li>
+<li><strong>Returns:</strong>
+True if the conversation exists, False otherwise.</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolsagentargs-kwargs"><em>class</em> diskurs.protocols.Agent(*args, **kwargs)<a href="#class-diskursprotocolsagentargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolsagentargs-kwargs" title="Direct link to class-diskursprotocolsagentargs-kwargs">​</a></h3>
+<p>Bases: <code>Protocol</code></p>
+<p>The Agent protocol defines the core interface for agents within the Diskurs framework.</p>
+<p>Agents are central to the Diskurs system, responsible for processing conversations and
+generating responses based on the current state of the conversation. Implementations of
+this protocol must provide methods for creating agents and invoking their logic on
+conversations. Agents interact with various components such as prompts, long-term memory,
+and language model clients to facilitate meaningful and context-aware dialogues.</p>
+<p>Key Responsibilities:</p>
+<ul>
+<li>Creating and initializing agents with specific configurations.</li>
+<li>Processing conversations by invoking the agent’s logic.</li>
+<li>Interacting with prompts and long-term memory to maintain conversation context.</li>
+<li>Generating responses using language model clients.</li>
+</ul>
+<p>This protocol ensures that any implementing class can seamlessly integrate into the
+Diskurs framework, enabling flexible and extensible conversation management.</p>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="name--str">name <em>: <code>str</code></em><a href="#name--str" class="hash-link" aria-label="Direct link to name--str" title="Direct link to name--str">​</a></h4>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="classmethod-createname-prompt-llm_client-kwargs"><em>classmethod</em> create(name, prompt, llm_client, **kwargs)<a href="#classmethod-createname-prompt-llm_client-kwargs" class="hash-link" aria-label="Direct link to classmethod-createname-prompt-llm_client-kwargs" title="Direct link to classmethod-createname-prompt-llm_client-kwargs">​</a></h4>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>name</strong> (<em>str</em>)</li>
+<li><strong>prompt</strong> (<a href="#diskurs.protocols.Prompt"><em>Prompt</em></a>)</li>
+<li><strong>llm_client</strong> (<a href="#diskurs.protocols.LLMClient"><em>LLMClient</em></a>)</li>
+</ul>
+</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="invokeconversation">invoke(conversation)<a href="#invokeconversation" class="hash-link" aria-label="Direct link to invoke(conversation)" title="Direct link to invoke(conversation)">​</a></h4>
+<p>Run the agent on a conversation.</p>
+<p>This method processes the given conversation by invoking the agent’s logic.
+It takes a Conversation object representing the conversation
+and returns an updated Conversation object after processing.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>conversation</strong> (<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a>) – The current state of the conversation, represented as a Conversation object</li>
+<li><strong>Return type:</strong>
+<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a></li>
+<li><strong>Returns:</strong>
+An updated Conversation object with the processed state.</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolsconductoragentargs-kwargs"><em>class</em> diskurs.protocols.ConductorAgent(*args, **kwargs)<a href="#class-diskursprotocolsconductoragentargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolsconductoragentargs-kwargs" title="Direct link to class-diskursprotocolsconductoragentargs-kwargs">​</a></h3>
+<p>Bases: <code>Protocol</code></p>
+<p>The ConductorAgent protocol defines the interface for agents that manage and coordinate conversations.
+Conductor agents are responsible for creating or updating long-term memory, invoking conversation logic,
+and ensuring the conversation progresses smoothly. They are responsible for dispatching conversation to the
+most appropriate agents to maintain context and generate responses. This protocol ensures that any
+implementing class can effectively manage and direct conversations.</p>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="name--str-1">name <em>: <code>str</code></em><a href="#name--str-1" class="hash-link" aria-label="Direct link to name--str-1" title="Direct link to name--str-1">​</a></h4>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="prompt--conductorprompt">prompt <em>: <a href="#diskurs.protocols.ConductorPrompt"><code>ConductorPrompt</code></a></em><a href="#prompt--conductorprompt" class="hash-link" aria-label="Direct link to prompt--conductorprompt" title="Direct link to prompt--conductorprompt">​</a></h4>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="create_or_update_longterm_memoryconversation-overwritefalse">create_or_update_longterm_memory(conversation, overwrite=False)<a href="#create_or_update_longterm_memoryconversation-overwritefalse" class="hash-link" aria-label="Direct link to create_or_update_longterm_memory(conversation, overwrite=False)" title="Direct link to create_or_update_longterm_memory(conversation, overwrite=False)">​</a></h4>
+<p>Creates or updates the long-term memory for the conductor agent.</p>
+<p>This method is responsible for either creating a new long-term memory instance
+or updating an existing one based on the provided conversation. It ensures that
+the long-term memory is synchronized with the current state of the conversation.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>conversation</strong> (<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a>) – The current state of the conversation, represented as a Conversation object.</li>
+<li><strong>overwrite</strong> (<code>bool</code>) – A boolean flag indicating whether to overwrite existing memory fields. Defaults to False.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<a href="#diskurs.protocols.Conversation"><code>Conversation</code></a></li>
+<li><strong>Returns:</strong>
+An updated Conversation object with the new or updated long-term memory.</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="class-diskursprotocolstoolexecutorargs-kwargs"><em>class</em> diskurs.protocols.ToolExecutor(*args, **kwargs)<a href="#class-diskursprotocolstoolexecutorargs-kwargs" class="hash-link" aria-label="Direct link to class-diskursprotocolstoolexecutorargs-kwargs" title="Direct link to class-diskursprotocolstoolexecutorargs-kwargs">​</a></h3>
+<p>Bases: <code>Protocol</code></p>
+<p>The ToolExecutor protocol defines the interface for executing tools within the Diskurs framework.
+Implementations of this protocol are responsible for registering tools, executing them based on tool calls,
+and providing a mechanism to directly call specific tool functions. This protocol ensures that any implementing
+class can manage and execute tools effectively, facilitating the integration of various tools into the conversation
+processing workflow.</p>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="tools--dictstr-callable">tools <em>: <code>Dict</code>[<code>str</code>, <code>Callable</code>]</em><a href="#tools--dictstr-callable" class="hash-link" aria-label="Direct link to tools--dictstr-callable" title="Direct link to tools--dictstr-callable">​</a></h4>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="register_toolstool_list">register_tools(tool_list)<a href="#register_toolstool_list" class="hash-link" aria-label="Direct link to register_tools(tool_list)" title="Direct link to register_tools(tool_list)">​</a></h4>
+<p>Registers one or more tools with the executor.</p>
+<p>This method allows the registration of a single tool or a list of tools
+that can be executed by the executor. Each tool is a callable that can
+be invoked with specific arguments.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<strong>tool_list</strong> (<code>Union</code>[<code>List</code>[<code>Callable</code>], <code>Callable</code>]) – A single callable or a list of callables representing the tools to be registered.</li>
+<li><strong>Return type:</strong>
+<code>None</code></li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="execute_tooltool_call-metadata">execute_tool(tool_call, metadata)<a href="#execute_tooltool_call-metadata" class="hash-link" aria-label="Direct link to execute_tool(tool_call, metadata)" title="Direct link to execute_tool(tool_call, metadata)">​</a></h4>
+<p>Executes a registered tool based on the provided tool call and metadata.</p>
+<p>This method is responsible for invoking a specific tool using the details
+provided in the tool_call object. It utilizes the metadata to provide
+additional context or parameters required for the tool execution. The result
+of the tool execution is returned as a ToolCallResult object.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>tool_call</strong> (<code>ToolCall</code>) – The ToolCall object containing the details of the tool to be executed.</li>
+<li><strong>metadata</strong> (<code>Dict</code>[<code>str</code>, <code>Any</code>]) – A dictionary containing additional context or parameters for the tool execution.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>ToolCallResult</code></li>
+<li><strong>Returns:</strong>
+A ToolCallResult object containing the result of the tool execution.</li>
+</ul>
+<h4 class="anchor anchorWithStickyNavbar_LWe7" id="call_toolfunction_name-arguments">call_tool(function_name, arguments)<a href="#call_toolfunction_name-arguments" class="hash-link" aria-label="Direct link to call_tool(function_name, arguments)" title="Direct link to call_tool(function_name, arguments)">​</a></h4>
+<p>Calls a registered tool with the specified function name and arguments.</p>
+<p>This method is responsible for invoking a tool that has been registered with the executor.
+It uses the provided function name and arguments to execute the tool and returns the result.
+It is meant to be used by a developer to directly call a specific tool function withing a
+heuristic sequence.</p>
+<ul>
+<li><strong>Parameters:</strong>
+<ul>
+<li><strong>function_name</strong> (<code>str</code>) – The name of the tool function to be called.</li>
+<li><strong>arguments</strong> (<code>Dict</code>[<code>str</code>, <code>Any</code>]) – A dictionary containing the arguments to be passed to the tool function.</li>
+</ul>
+</li>
+<li><strong>Return type:</strong>
+<code>Any</code></li>
+<li><strong>Returns:</strong>
+The result of the tool function execution.</li>
+</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col"><a href="https://github.com/agentic-diskurs/diskurs/edit/main/docs-site/docs/protocols.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="pagination-nav docusaurus-mt-lg" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/diskurs/docs/prompt"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Module: Prompt</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#class-diskursprotocolslongtermmemoryhandlerargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.LongtermMemoryHandler(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolspromptvalidatorargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.PromptValidator(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolspromptargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.Prompt(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolsmultisteppromptargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.MultistepPrompt(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolsconductorpromptargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.ConductorPrompt(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolscalltoolargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.CallTool(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolsheuristicsequenceargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.HeuristicSequence(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolsheuristicpromptargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.HeuristicPrompt(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolsconversationargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.Conversation(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolsllmclientargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.LLMClient(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolsconversationparticipantargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.ConversationParticipant(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolsconversationdispatcherargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.ConversationDispatcher(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolsconversationstoreargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.ConversationStore(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolsagentargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.Agent(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolsconductoragentargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.ConductorAgent(*args, **kwargs)</a></li><li><a href="#class-diskursprotocolstoolexecutorargs-kwargs" class="table-of-contents__link toc-highlight"><em>class</em> diskurs.protocols.ToolExecutor(*args, **kwargs)</a></li></ul></div></div></div></div></main></div></div></div><footer class="footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/diskurs/docs">Documentation</a></li></ul></div><div class="col footer__col"><div class="footer__title">Community</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/agentic-diskurs/diskurs/issues" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub Issues<svg width="13.5" height="13.5" aria-hidden="true" viewBox="0 0 24 24" class="iconExternalLink_nPIU"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"></path></svg></a></li></ul></div><div class="col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/diskurs/blog">Blog</a></li><li class="footer__item"><a href="https://github.com/agentic-diskurs/diskurs" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-hidden="true" viewBox="0 0 24 24" class="iconExternalLink_nPIU"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"></path></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2024 Agentic Diskurs.</div></div></div></footer></div>
+</body>
+</html>
