@@ -92,12 +92,6 @@ class HeuristicAgent(Agent, ConversationParticipant):
         return conversation
 
     def process_conversation(self, conversation: Conversation) -> None:
-        """
-        Receives a conversation from the dispatcher, i.e. message bus, processes it and finally publishes
-        a deep copy of the resulting conversation back to the dispatcher.
-
-        :param conversation: The conversation object to process.
-        """
         self.logger.info(f"Process conversation on agent: {self.name}")
         conversation = self.invoke(conversation)
         self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)

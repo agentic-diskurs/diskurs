@@ -52,17 +52,6 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[Prompt]):
 
     @abstractmethod
     def invoke(self, conversation: Conversation | str) -> Conversation:
-        """
-        Runs the agent on a conversation, performing reasoning steps until the user prompt is final,
-        meaning all the conditions, as specified in the prompt's is_final function, are met.
-        If the conversation is a string i.e. starting a new conversation, the agent will prepare
-        the conversation by setting the user prompt argument's content to this string.
-
-        :param conversation: The conversation object to run the agent on. If a string is provided, the agent will
-            start a new conversation with the string as the user query's content.
-        :return: the updated conversation object after the agent has finished reasoning. Contains
-            the chat history, with all the system and user messages, as well as the final answer.
-        """
         pass
 
     def register_dispatcher(self, dispatcher: ConversationDispatcher) -> None:
@@ -126,6 +115,17 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[Prompt]):
         conversation: Conversation,
         message_type: MessageType = MessageType.CONVERSATION,
     ) -> Conversation:
+        """
+        Generates a validated response for the given conversation.
+
+        This method attempts to generate a valid response for the conversation by
+        interacting with the LLM client and validating the response. It performs
+        multiple trials if necessary, and handles tool calls and corrective messages.
+
+        :param conversation: The conversation object to generate a response for.
+        :param message_type: The type of message to render the user prompt as, defaults to MessageType.CONVERSATION.
+        :return: The updated conversation object with the validated response.
+        """
         response = None
 
         for max_trials in range(self.max_trials):

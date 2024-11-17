@@ -73,6 +73,15 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         return self.topics[0]
 
     def register_tools(self, tools: list[Callable] | Callable) -> None:
+        """
+        Registers one or more tools with the executor.
+
+        This method allows the registration of a single tool or a list of tools
+        that can be executed by the executor. Each tool is a callable that can
+        be invoked with specific arguments.
+
+        :param tools: A single callable or a list of callables representing the tools to be registered.
+        """
         self.logger.info(f"Registering tools for agent {self.name}: {[tool.name for tool in tools]}")
         if callable(tools):
             tools = [tools]
@@ -148,17 +157,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         return self.return_fail_validation_message(response or conversation)
 
     def invoke(self, conversation: Conversation) -> Conversation:
-        """
-        Runs the agent on a conversation, performing reasoning steps until the user prompt is final,
-        meaning all the conditions, as specified in the prompt's is_final function, are met.
-        If the conversation is a string i.e. starting a new conversation, the agent will prepare
-        the conversation by setting the user prompt argument's content to this string.
 
-        :param conversation: The conversation object to run the agent on. If a string is provided, the agent will
-            start a new conversation with the string as the user query's content.
-        :return: the updated conversation object after the agent has finished reasoning. Contains
-            the chat history, with all the system and user messages, as well as the final answer.
-        """
         self.logger.debug(f"Invoke called on agent {self.name}")
 
         conversation = self.prepare_conversation(
@@ -190,12 +189,6 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         return conversation.update()
 
     def process_conversation(self, conversation: Conversation) -> None:
-        """
-        Receives a conversation from the dispatcher, i.e. message bus, processes it and finally publishes
-        a deep copy of the resulting conversation back to the dispatcher.
-
-        :param conversation: The conversation object to process.
-        """
         self.logger.info(f"Process conversation on agent: {self.name}")
         conversation = self.invoke(conversation)
         self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)

@@ -1,7 +1,7 @@
-Protocols
-=========
+Module: Prompt
+==============
 
-.. automodule:: diskurs.protocols
+.. automodule:: diskurs.prompt
     :members:
     :undoc-members:
     :show-inheritance:
