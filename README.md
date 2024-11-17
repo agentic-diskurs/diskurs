@@ -45,6 +45,12 @@ This project uses [Poetry](https://python-poetry.org/) for dependency management
    poetry run sphinx-build docs/source docs/build
    ```
 
+5. **Initialize the hook folder**:
+To setup the hook folder to the custom hook folder run `setup_hooks.sh`:
+```bash
+./setup_hooks.sh
+```
+
 ## Usage
 
 Below is an example of how to launch Diskurs in your project:
