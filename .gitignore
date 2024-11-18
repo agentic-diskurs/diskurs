@@ -5,4 +5,4 @@ __pycache__
 /dist
 /**/build
 .DS_Store
-# /docs-site/docs/api/
+/docs-site/docs/api/
