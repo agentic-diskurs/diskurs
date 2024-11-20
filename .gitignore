@@ -4,5 +4,6 @@ __pycache__
 *.pyc
 /dist
 /**/build
+/**/_build
 .DS_Store
-/docs-site/docs/api/
+/website/docs/api/
