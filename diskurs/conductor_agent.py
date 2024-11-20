@@ -79,9 +79,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
     def update_longterm_memory(
         source: LongtermMemory | PromptArgument, target: LongtermMemory, overwrite: bool
     ) -> LongtermMemory:
-        common_fields = {field.name for field in fields(target)}.intersection(
-            {field.name for field in fields(source)}
-        )
+        common_fields = {field.name for field in fields(target)}.intersection({field.name for field in fields(source)})
         for field in common_fields:
             if overwrite or not getattr(target, field):
                 setattr(
@@ -98,13 +96,8 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         else:
             return conversation.last_message.type == MessageType.ROUTING
 
-    def create_or_update_longterm_memory(
-        self, conversation: Conversation, overwrite: bool = False
-    ) -> Conversation:
-        longterm_memory = (
-            conversation.get_agent_longterm_memory(self.name)
-            or self.prompt.init_longterm_memory()
-        )
+    def create_or_update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation:
+        longterm_memory = conversation.get_agent_longterm_memory(self.name) or self.prompt.init_longterm_memory()
 
         source = (
             conversation.get_agent_longterm_memory(conversation.last_message.name)
@@ -113,17 +106,13 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         )
 
         if source:
-            longterm_memory = self.update_longterm_memory(
-                source, longterm_memory, overwrite
-            )
+            longterm_memory = self.update_longterm_memory(source, longterm_memory, overwrite)
         else:
             self.logger.warning(
                 f"No suitable user prompt argument nor long-term memory found in conversation {conversation}"
             )
 
-        return conversation.update_agent_longterm_memory(
-            agent_name=self.name, longterm_memory=longterm_memory
-        )
+        return conversation.update_agent_longterm_memory(agent_name=self.name, longterm_memory=longterm_memory)
 
     def invoke(self, conversation: Conversation) -> Conversation:
         self.logger.debug(f"Invoke called on conductor agent {self.name}")
@@ -139,12 +128,8 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
         # TODO: try to unify with multistep agent
         for reasoning_step in range(self.max_trials):
-            self.logger.debug(
-                f"Reasoning step {reasoning_step + 1} for Agent {self.name}"
-            )
-            conversation = self.generate_validated_response(
-                conversation, message_type=MessageType.ROUTING
-            )
+            self.logger.debug(f"Reasoning step {reasoning_step + 1} for Agent {self.name}")
+            conversation = self.generate_validated_response(conversation, message_type=MessageType.ROUTING)
 
             if (
                 self.prompt.is_final(conversation.user_prompt_argument)
@@ -168,19 +153,17 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         self.n_dispatches += 1
         conversation = self.create_or_update_longterm_memory(conversation)
 
-        if conversation.get_agent_longterm_memory(
-            self.name
-        ) and self.prompt.can_finalize(
+        if conversation.get_agent_longterm_memory(self.name) and self.prompt.can_finalize(
             conversation.get_agent_longterm_memory(self.name)
         ):
             formated_response = self.finalize(conversation=conversation)
             self.n_dispatches = 0
-            self.dispatcher.finalize(response=formated_response)
+            conversation.final_result = formated_response
 
         elif self.max_dispatches <= self.n_dispatches:
             formatted_response = self.fail(conversation=conversation)
             self.n_dispatches = 0
-            self.dispatcher.finalize(response=formatted_response)
+            conversation.final_result = formatted_response
         else:
             conversation = self.invoke(conversation)
             next_agent = json.loads(conversation.last_message.content).get("next_agent")

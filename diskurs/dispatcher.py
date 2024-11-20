@@ -1,5 +1,3 @@
-from concurrent.futures import Future
-
 from diskurs.logger_setup import get_logger
 from diskurs.protocols import (
     ConversationParticipant,
@@ -30,23 +28,17 @@ class SynchronousConversationDispatcher(ConversationDispatcher):
         if topic in self._topics:
             self._topics[topic].remove(subscriber)
 
-    def publish(self, topic: str, conversation: Conversation, finish_diskurs: bool = False) -> None:
+    def publish(self, topic: str, conversation: Conversation) -> None:
         self.logger.debug(f"Publishing conversation to topic {topic}")
 
-        if finish_diskurs:
-            if not self.future.done():
-                self.future.set_result(self.final_conversation)
         if topic in self._topics:
             for agent in self._topics[topic]:
                 agent.process_conversation(conversation)
-
-    def finalize(self, response: dict) -> None:
-        self.logger.debug(f"Set result on future")
-        if not self.future.done():
-            self.future.set_result(response)
+        else:
+            self.logger.error(f"No subscribers for topic {topic}")
+            raise ValueError(f"No subscribers for topic {topic}")
 
     def run(self, participant: ConversationParticipant, conversation: Conversation) -> dict:
         participant.process_conversation(conversation=conversation)
 
-        final_result = self.future.result()
-        return final_result
+        return conversation.final_result

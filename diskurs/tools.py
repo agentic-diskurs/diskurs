@@ -105,25 +105,19 @@ class ToolExecutor(ToolExecutorProtocol):
             new_tools = {tool.__name__: tool for tool in tool_list}
             for name in new_tools:
                 if name in self.tools:
-                    logger.warning(
-                        f"Tool '{name}' already exists and will be overwritten."
-                    )
+                    logger.warning(f"Tool '{name}' already exists and will be overwritten.")
             self.tools = {**self.tools, **new_tools}
         else:
             tool_name = tool_list.__name__
             if tool_name in self.tools:
-                logger.warning(
-                    f"Tool '{tool_name}' already exists and will be overwritten."
-                )
+                logger.warning(f"Tool '{tool_name}' already exists and will be overwritten.")
             self.tools = {**self.tools, tool_name: tool_list}
 
     def execute_tool(self, tool_call: ToolCall, metadata: dict) -> ToolCallResult:
         if tool := self.tools.get(tool_call.function_name):
             invisible_args = {}
             if tool.invisible_args:
-                invisible_args = {
-                    key: metadata[key] for key in tool.invisible_args if key in metadata
-                }
+                invisible_args = {key: metadata[key] for key in tool.invisible_args if key in metadata}
             return ToolCallResult(
                 tool_call_id=tool_call.tool_call_id,
                 function_name=tool_call.function_name,
@@ -141,46 +135,29 @@ class ToolExecutor(ToolExecutorProtocol):
         :param arguments: The arguments to pass to the function.
         :return: The result of the function call.
         """
-        tool_call = ToolCall(
-            tool_call_id="0", function_name=function_name, arguments=arguments
-        )
+        tool_call = ToolCall(tool_call_id="0", function_name=function_name, arguments=arguments)
         return self.execute_tool(tool_call, {}).result
 
 
-def create_func_with_closure(
-    func: Callable, config: ToolConfig, dependency_config: list[ToolDependency]
-) -> Callable:
+def create_func_with_closure(func: Callable, config: ToolConfig, dependency_config: list[ToolDependency]) -> Callable:
     func_args = {}
 
     if config.dependencies:
         dependency_config_map = {cfg.name: cfg for cfg in dependency_config}
-        func_args = {
-            dep: dependency_config_map[dep]
-            for dep in config.dependencies
-            if dep in dependency_config_map
-        }
+        func_args = {dep: dependency_config_map[dep] for dep in config.dependencies if dep in dependency_config_map}
 
-        missing_deps = [
-            dep for dep in config.dependencies if dep not in dependency_config_map
-        ]
+        missing_deps = [dep for dep in config.dependencies if dep not in dependency_config_map]
         if missing_deps:
-            raise ValueError(
-                f"Missing configurations for dependencies: {', '.join(missing_deps)}"
-            )
+            raise ValueError(f"Missing configurations for dependencies: {', '.join(missing_deps)}")
 
     try:
         return func(config.configs, **func_args)
 
     except AttributeError as e:
-        raise ImportError(
-            f"Could not load '{config.function_name}'"
-            + f"from '{config.module_path.name}': {e}"
-        )
+        raise ImportError(f"Could not load '{config.function_name}'" + f"from '{config.module_path.name}': {e}")
 
 
-def load_tools(
-    tool_configs: list[ToolConfig], tool_dependencies: list[ToolDependency]
-) -> list[Callable]:
+def load_tools(tool_configs: list[ToolConfig], tool_dependencies: list[ToolDependency]) -> list[Callable]:
     modules_to_functions = defaultdict(list)
 
     for tool in tool_configs:

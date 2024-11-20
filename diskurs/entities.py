@@ -161,3 +161,8 @@ class ToolDescription:
             description=function.description,
             arguments=function.args,
         )
+
+
+@dataclass
+class ResultHolder(JsonSerializable):
+    result: Optional[dict[str, Any]] = None

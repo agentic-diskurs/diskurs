@@ -27,9 +27,7 @@ class YamlSerializable:
     """
 
     @classmethod
-    def load_from_yaml(
-        cls: Type[T], yaml_content: str, base_path: Optional[Path] = None
-    ) -> T:
+    def load_from_yaml(cls: Type[T], yaml_content: str, base_path: Optional[Path] = None) -> T:
         """
         Load a YAML string with camelCase keys and convert it into an instance
         of the dataclass, mapping keys to snake_case.
@@ -76,10 +74,7 @@ class YamlSerializable:
         to snake_case.
         """
         if isinstance(d, dict):
-            return {
-                cls._camel_to_snake(k): cls._convert_keys_to_snake_case(v)
-                for k, v in d.items()
-            }
+            return {cls._camel_to_snake(k): cls._convert_keys_to_snake_case(v) for k, v in d.items()}
         elif isinstance(d, list):
             return [cls._convert_keys_to_snake_case(i) for i in d]
         else:
@@ -92,10 +87,7 @@ class YamlSerializable:
         to camelCase.
         """
         if isinstance(d, dict):
-            return {
-                cls._snake_to_camel(k): cls._convert_keys_to_camel_case(v)
-                for k, v in d.items()
-            }
+            return {cls._snake_to_camel(k): cls._convert_keys_to_camel_case(v) for k, v in d.items()}
         elif isinstance(d, list):
             return [cls._convert_keys_to_camel_case(i) for i in d]
         else:
@@ -300,9 +292,7 @@ class ForumConfig(YamlSerializable):
     tool_dependencies: list[ToolDependency] = field(default_factory=dict)
     conversation_type: str = "immutable_conversation"
     conversation_store: ConversationStoreConfig = field(
-        default_factory=lambda: FilesystemConversationStoreConfig(
-            directory=Path(__file__).parent / "conversations"
-        )
+        default_factory=lambda: FilesystemConversationStoreConfig(directory=Path(__file__).parent / "conversations")
     )
 
 
@@ -318,12 +308,8 @@ def resolve_env_vars(data):
         for var, default in matches:
             env_value = os.getenv(var, default)
             if env_value is None:
-                raise ValueError(
-                    f"Environment variable '{var}' is not set and no default value provided."
-                )
-            data = data.replace(
-                f'${{{var}{":" + default if default else ""}}}', env_value
-            )
+                raise ValueError(f"Environment variable '{var}' is not set and no default value provided.")
+            data = data.replace(f'${{{var}{":" + default if default else ""}}}', env_value)
         return data
     else:
         return data
@@ -340,9 +326,7 @@ def get_dataclass_subclass(base_class, data):
             else:
                 raise ValueError(f"Unknown {base_class.__name__} type: {key}")
         else:
-            raise ValueError(
-                f"Discriminator '{discriminator}' not found in data for {base_class.__name__}"
-            )
+            raise ValueError(f"Discriminator '{discriminator}' not found in data for {base_class.__name__}")
     else:
         return base_class
 
@@ -352,10 +336,7 @@ def dataclass_loader(dataclass_type, data, base_path: Optional[Path] = None):
     if is_dataclass(dataclass_type) and isinstance(data, dict):
         # Get the correct subclass based on data
         dataclass_type = get_dataclass_subclass(dataclass_type, data)
-        field_types = {
-            field.name: field.type
-            for field in dataclass_type.__dataclass_fields__.values()
-        }
+        field_types = {field.name: field.type for field in dataclass_type.__dataclass_fields__.values()}
         return dataclass_type(
             **{
                 key: dataclass_loader(field_types[key], value, base_path=base_path)
@@ -387,9 +368,7 @@ def pre_load_custom_modules(yaml_data, base_path: Path):
         load_module_from_path(module_full_path.stem, module_full_path)
 
 
-def load_config_from_yaml(
-    config: str | Path, base_path: Optional[Path] = None
-) -> ForumConfig:
+def load_config_from_yaml(config: str | Path, base_path: Optional[Path] = None) -> ForumConfig:
     """
     Loads the complete configuration from YAML content and maps it
     to the ForumConfig dataclass.

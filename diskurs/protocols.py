@@ -21,6 +21,7 @@ from diskurs.entities import (
     PromptArgument,
     ChatMessage,
     MessageType,
+    ResultHolder,
 )
 
 
@@ -362,6 +363,8 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
     protocol are responsible for managing the state and flow of conversations, ensuring
     immutability, and providing mechanisms for rendering and parsing prompts.
     """
+
+    final_result: dict[str, Any]
 
     @property
     def chat(self) -> List[ChatMessage]:

@@ -117,9 +117,7 @@ class BaseOaiApiLLMClient(LLMClient):
             if message.tool_calls
             else {}
         )
-        tool_call_id = (
-            {"tool_call_id": message.tool_call_id} if message.tool_call_id else {}
-        )
+        tool_call_id = {"tool_call_id": message.tool_call_id} if message.tool_call_id else {}
         return {
             "role": str(message.role),
             "content": str(message.content),
@@ -141,11 +139,7 @@ class BaseOaiApiLLMClient(LLMClient):
         """
         self.logger.debug(f"Formatting conversation for LLM")
 
-        formatted_tools = (
-            {"tools": [self.format_tool_description_for_llm(tool) for tool in tools]}
-            if tools
-            else {}
-        )
+        formatted_tools = {"tools": [self.format_tool_description_for_llm(tool) for tool in tools]} if tools else {}
 
         messages = []
         for message in conversation.render_chat():
@@ -158,14 +152,10 @@ class BaseOaiApiLLMClient(LLMClient):
                 messages.append(self.format_message_for_llm(message))
 
         n_tokens_tool_descriptions = (
-            self.count_tokens_of_tool_descriptions(formatted_tools["tools"])
-            if formatted_tools
-            else 0
+            self.count_tokens_of_tool_descriptions(formatted_tools["tools"]) if formatted_tools else 0
         )
 
-        if (
-            self.count_tokens_in_conversation(messages) + n_tokens_tool_descriptions
-        ) > self.max_tokens:
+        if (self.count_tokens_in_conversation(messages) + n_tokens_tool_descriptions) > self.max_tokens:
             messages = self.truncate_chat_history(messages, n_tokens_tool_descriptions)
 
         return {
@@ -226,15 +216,11 @@ class BaseOaiApiLLMClient(LLMClient):
         :return: Flat list of ChatMessages containing the user prompt and LLM response
         """
         user_prompt = (
-            conversation.user_prompt
-            if isinstance(conversation.user_prompt, list)
-            else [conversation.user_prompt]
+            conversation.user_prompt if isinstance(conversation.user_prompt, list) else [conversation.user_prompt]
         )
         agent_name, message_type = next(((m.name, m.type) for m in user_prompt))
         return user_prompt + [
-            cls.llm_response_to_chat_message(
-                completion=completion, agent_name=agent_name, message_type=message_type
-            )
+            cls.llm_response_to_chat_message(completion=completion, agent_name=agent_name, message_type=message_type)
         ]
 
     def count_tokens_in_conversation(self, messages: list[dict]) -> int:
@@ -258,14 +244,10 @@ class BaseOaiApiLLMClient(LLMClient):
             tokens_per_name = 1
             tokens_per_function_call = 3  # tokens per function call
         elif self.model == "gpt-3.5-turbo-0301":
-            tokens_per_message = (
-                4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
-            )
+            tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
             tokens_per_name = -1  # if there's a name, the role is omitted
         else:
-            raise NotImplementedError(
-                f"""num_tokens_from_messages() is not implemented for model {self.model}."""
-            )
+            raise NotImplementedError(f"""num_tokens_from_messages() is not implemented for model {self.model}.""")
         num_tokens = 0
         for message in messages:
             num_tokens += tokens_per_message
@@ -310,9 +292,7 @@ class BaseOaiApiLLMClient(LLMClient):
         num_tokens = len(self.tokenizer.encode(text))
         return num_tokens
 
-    def count_tokens_of_tool_descriptions(
-        self, tool_descriptions: list[dict[str, Any]]
-    ) -> int:
+    def count_tokens_of_tool_descriptions(self, tool_descriptions: list[dict[str, Any]]) -> int:
         """
         Return the number of tokens used by the tool i.e. function description.
         Unfortunately, there's no documented way of counting those tokens, therefore we resort to best effort approach,
@@ -388,9 +368,7 @@ class BaseOaiApiLLMClient(LLMClient):
 
             if self.count_tokens_in_conversation(truncated_chat) > max_tokens:
                 break
-        self.logger.warn(
-            f"Removed {len(messages) - len(truncated_chat)} messages from chat history"
-        )
+        self.logger.warn(f"Removed {len(messages) - len(truncated_chat)} messages from chat history")
 
         return chat_start + truncated_chat + [user_prompt]
 
@@ -414,11 +392,7 @@ class BaseOaiApiLLMClient(LLMClient):
         while fail_counter < self.max_repeat:
             try:
                 completion = self.send_request(request_body)
-                return conversation.append(
-                    self.concatenate_user_prompt_with_llm_response(
-                        conversation, completion
-                    )
-                )
+                return conversation.append(self.concatenate_user_prompt_with_llm_response(conversation, completion))
 
             except (
                 UnprocessableEntityError,
@@ -455,6 +429,4 @@ class OpenAILLMClient(BaseOaiApiLLMClient):
         client = OpenAI()
         client.api_key = api_key
 
-        return cls(
-            client=client, model=model, tokenizer=tokenizer, max_tokens=max_tokens
-        )
+        return cls(client=client, model=model, tokenizer=tokenizer, max_tokens=max_tokens)

@@ -170,8 +170,7 @@ def test_process_conversation_finalize(conductor_agent):
 
     conductor_agent.process_conversation(conversation)
 
-    conductor_agent.prompt.finalize.assert_called_once_with(longterm_memory)
-    conductor_agent.dispatcher.finalize.assert_called_once_with(response={"result": "final result"})
+    assert conversation.final_result == {"result": "final result"}
     conductor_agent.generate_validated_response.assert_not_called()
 
 
@@ -223,5 +222,4 @@ def test_conductor_agent_fail_on_max_dispatches(conductor_agent):
 
     conductor_agent.process_conversation(conversation)
 
-    conductor_agent.dispatcher.finalize.assert_called_once()
     conductor_agent.prompt.fail.assert_called_once()
