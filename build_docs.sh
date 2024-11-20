@@ -4,17 +4,18 @@
 set -e
 
 echo "Building Sphinx documentation..."
-poetry run sphinx-build -b markdown -W --keep-going \
-    -d docs/build/doctrees docs/source docs/build/markdown
+cd doc
+make markdown
+cd ..
 
 echo "Creating API docs directory..."
-mkdir -p docs-site/docs/api
+mkdir -p website/docs/api
 
 echo "Copying Markdown files to Docusaurus..."
-cp -r docs/build/markdown/* docs-site/docs/api
+cp -r doc/_build/markdown/* website/docs/api
 
 echo "Building Docusaurus site..."
-cd docs-site
+cd website
 
 echo "Cleaning Docusaurus dependencies..."
 rm -rf node_modules .cache

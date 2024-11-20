@@ -52,6 +52,8 @@ sphinx-autodoc-typehints = "^2.5.0"
 furo = "^2024.8.6"
 
 sphinx-markdown-builder = "^0.6.7"
+myst-parser = "^4.0.0"
+pdoc = "^15.0.0"
 [tool.poetry.scripts]
 diskurs = "diskurs.cli:cli"
 
