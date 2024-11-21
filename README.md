@@ -1,3 +1,5 @@
+[![Documentation Status](https://readthedocs.org/projects/diskurs/badge/?version=latest&style=flat-square)](https://diskurs.readthedocs.io/en/latest/)
+
 # Diskurs
 *Please note: diskurs is currently under development (meaning early alpha state) and not yet ready for production use.*
 
