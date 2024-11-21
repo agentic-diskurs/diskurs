@@ -47,7 +47,11 @@ html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
 
 html_sidebars = {"**": ["globaltoc.html"]}
-# -- MDX conversion functions -----------------------------------------------
+
+
+# -- Options for myst_parser -------------------------------------------------
+# https://myst-parser.readthedocs.io/en/latest/sphinx/intro.html#configuration
+
 MAX_HEADING_DEPTH = 6
 
 myst_heading_anchors = MAX_HEADING_DEPTH
