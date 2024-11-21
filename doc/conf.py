@@ -5,8 +5,6 @@
 import os
 import sys
 
-from doc.sphinx_utils import process_markdown_files
-
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 sys.path.insert(0, os.path.abspath("../"))
