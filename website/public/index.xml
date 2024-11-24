@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Hugo Fresh Theme</title>
+    <link>http://localhost:1313/</link>
+    <description>Recent content on Hugo Fresh Theme</description>
+    <generator>Hugo</generator>
+    <language>en-us</language>
+    <atom:link href="http://localhost:1313/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Overview</title>
+      <link>http://localhost:1313/overview/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      <guid>http://localhost:1313/overview/</guid>
+      <description>&lt;h1 id=&#34;declarative-configuration&#34;&gt;Declarative Configuration&lt;/h1&gt;&#xA;&lt;p&gt;Diskurs simplifies the setup and management of multi-agent systems with a declarative approach to configuration.&#xA;Instead of hardcoding system details, everything is centrally defined in a YAML configuration file, offering unparalleled flexibility and ease of use.&lt;/p&gt;&#xA;&lt;h2 id=&#34;what-you-can-configure&#34;&gt;What You Can Configure&lt;/h2&gt;&#xA;&lt;p&gt;In the YAML configuration file, you can define:&lt;/p&gt;&#xA;&lt;p&gt;LLM settings: Specify the language model to use, including its parameters.&#xA;Agent definitions: Identify agent types and the locations of their associated assets.&#xA;Communication patterns: Map which agents interact with each other.&#xA;Tooling: Outline the tools available, their code locations, and the agents that rely on them.&#xA;External dependencies: Configure connections to databases, object storage, or other external services.&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

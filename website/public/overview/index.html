@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+    
+
+<meta property="og:url" content="http://localhost:1313/overview/">
+  <meta property="og:site_name" content="Hugo Fresh Theme">
+  <meta property="og:title" content="Overview">
+  <meta property="og:description" content="Declarative Configuration Diskurs simplifies the setup and management of multi-agent systems with a declarative approach to configuration. Instead of hardcoding system details, everything is centrally defined in a YAML configuration file, offering unparalleled flexibility and ease of use.
+What You Can Configure In the YAML configuration file, you can define:
+LLM settings: Specify the language model to use, including its parameters. Agent definitions: Identify agent types and the locations of their associated assets. Communication patterns: Map which agents interact with each other. Tooling: Outline the tools available, their code locations, and the agents that rely on them. External dependencies: Configure connections to databases, object storage, or other external services.">
+  <meta property="og:locale" content="en_us">
+  <meta property="og:type" content="article">
+
+
+<meta name="description" content="Hardcoded description; the author should update :)" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+    <title>Hugo Fresh Theme</title>
+    
+  
+<link rel="icon" type="image/png" href="/images/favicon.png" />
+<link href="https://fonts.googleapis.com/css?family=Open&#43;Sans:400,600" rel="stylesheet">
+<link rel="stylesheet" type="text/css" href="/css/style.css">
+<link rel="stylesheet" type="text/css" href="/css/icons.css">
+
+  </head>
+  <body>
+    
+    
+    <div id="preloader">
+      <div id="status"></div>
+    </div>
+    
+
+    
+
+  
+<nav class="navbar is-fresh is-transparent no-shadow" role="navigation" aria-label="main navigation">
+  <div class="container">
+    <div class="navbar-brand">
+      <a class="navbar-item" href="/">
+        <img src="/images/logos/diskurs_font_horiz.svg" alt="" width="112" height="28">
+      </a>
+
+      <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbar-menu">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+      </a>
+    </div>
+
+      <div id="navbar-menu" class="navbar-menu is-static">
+
+        <div class="navbar-end">
+          <a href="https://github.com/agentic-diskurs/diskurs" class="navbar-item">
+            <span class="button signup-button rounded secondary-btn raised">
+              Github
+            </span>
+          </a>
+        </div>
+      </div>
+  </div>
+</nav>
+
+
+<nav id="navbar-clone" class="navbar is-fresh is-transparent" role="navigation" aria-label="main navigation">
+  <div class="container">
+    <div class="navbar-brand">
+      <a class="navbar-item" href="/">
+        <img src="/images/logos/diskurs_font_horiz.svg" alt="" width="112" height="28">
+      </a>
+
+      <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="cloned-navbar-menu">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+      </a>
+    </div>
+
+    <div id="cloned-navbar-menu" class="navbar-menu is-fixed">
+
+      <div class="navbar-end">
+        <a href="https://github.com/agentic-diskurs/diskurs" class="navbar-item">
+          <span class="button signup-button rounded secondary-btn raised">
+            Github
+          </span>
+        </a>
+      </div>
+    </div>
+</div>
+</nav>
+
+<section class="section is-medium">
+  <div class="container">
+    <div class="columns">
+      <div class="column is-centered-tablet-portrait">
+        <h1 class="title section-title">Overview</h1>
+        <h5 class="subtitle is-5 is-muted"></h5>
+        <div class="divider"></div>
+      </div>
+    </div>
+
+    <div class="content">
+      <h1 id="declarative-configuration">Declarative Configuration</h1>
+<p>Diskurs simplifies the setup and management of multi-agent systems with a declarative approach to configuration.
+Instead of hardcoding system details, everything is centrally defined in a YAML configuration file, offering unparalleled flexibility and ease of use.</p>
+<h2 id="what-you-can-configure">What You Can Configure</h2>
+<p>In the YAML configuration file, you can define:</p>
+<p>LLM settings: Specify the language model to use, including its parameters.
+Agent definitions: Identify agent types and the locations of their associated assets.
+Communication patterns: Map which agents interact with each other.
+Tooling: Outline the tools available, their code locations, and the agents that rely on them.
+External dependencies: Configure connections to databases, object storage, or other external services.</p>
+<h2 id="why-declarative-configuration-matters">Why Declarative Configuration Matters</h2>
+<p>Our approach empowers you to adapt your system with ease. Whether it’s adjusting communication patterns, assigning different LLMs to agents, or reconfiguring external service integrations, everything can be modified by simply updating the YAML file.
+This eliminates the need to alter code, streamlining the development process and reducing the risk of introducing errors.</p>
+<p>By providing this central configuration file, Diskurs automatically sets up a fully operational system tailored to your specifications, allowing you to focus on building functionality rather than managing infrastructure.</p>
+<h1 id="jinja2-templating">Jinja2 Templating</h1>
+<p>Diskurs adheres to the principle of separation of concerns by using Jinja2 templates for all prompts.
+This includes prompts for agents as well as those used internally by the framework.</p>
+<p>By leveraging Jinja2&rsquo;s powerful features, you can create highly sophisticated prompts. Conditional rendering, loops, and other advanced templating capabilities allow you to dynamically adapt prompts to various contexts. For instance, you can tailor responses based on specific agent states, include or exclude information conditionally, or iterate over dynamic lists of input data—all without modifying the underlying code.</p>
+<p>Moreover, you can easily customize prompts to meet your specific needs, such as translating them into different languages or aligning them with unique project requirements. This flexibility ensures that Diskurs remains adaptable and user-friendly.</p>
+<h1 id="extensions">Extensions</h1>
+<p>Diskurs is built on a modular architecture with entities like LLM clients, agents, a message bus, and more.
+These entities are registered through decorators, enabling Diskurs to automatically instantiate them based on the YAML configuration file.</p>
+<p>We’ve designed Diskurs to offer maximum flexibility for customization. If you need to implement deep customizations, simply adhere to the exposed interface of the respective entity. For minor adjustments, you can subclass the entities provided by Diskurs, allowing you to tweak specific details without starting from scratch.</p>
+<p>This modularity and extensibility ensure that Diskurs adapts seamlessly to your unique requirements. To add new entities:</p>
+<p>Apply the appropriate decorators to your custom entity.
+List the module in the configuration file.
+Diskurs will detect and integrate the new entities automatically, enabling your system to evolve effortlessly as your needs grow.</p>
+
+    </div>
+  </div>
+</section>
+
+
+
+  
+
+  
+
+
+
+    
+    <div id="backtotop"><a href="#"></a></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+<script src="https://unpkg.com/feather-icons"></script>
+<script src="/js/fresh.js"></script>
+<script src="/js/jquery.panelslider.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/modernizr/2.8.3/modernizr.min.js"></script>
+
+  </body>
+</html>
