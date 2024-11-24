@@ -72,15 +72,15 @@ params:
     - title: Declarative
       icon: settings_applications
       text: The system is configured declaratively in a central file
-      url: "/overview#declarative-configuration"
+      url: "/diskurs/overview#declarative-configuration"
       buttonText: Learn More
     - title: Powerful Templating
       icon: data_object
       text: All prompts are defined in Jinja2 templates
-      url: "/overview#jinja2-templating"
+      url: "/diskurs/overview#jinja2-templating"
       buttonText: Learn More
     - title: Extendable
       icon: extension
       text: Easily add components to diskurs via plugins
-      url: "/overview#extensions"
+      url: "/diskurs/overview#extensions"
       buttonText: Learn More
