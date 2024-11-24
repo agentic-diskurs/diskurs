@@ -3,34 +3,35 @@ name: Deploy Website
 on:
   push:
     branches:
-      - main  # Deploy only when pushing to the main branch
+      - main  # Deploy only on changes pushed to the main branch
     paths:
-      - 'website/**'  # Trigger if files in the `website/` directory change
+      - 'website/**'  # Trigger only if files in the website directory change
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the repository and submodules
-      - name: Checkout repository and submodules
+      # Step 1: Checkout the repository
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive  # Ensure submodules are initialized and updated
+          submodules: recursive  # Initialize and update submodules
 
       # Step 2: Set up Hugo
       - name: Setup Hugo
-        uses: peaceiris/actions-hugo@v4
+        uses: actions/setup-hugo@v3
         with:
-          hugo-version: 'latest'
+          hugo-version: 'latest'  # Use the latest Hugo version
 
       # Step 3: Build the Hugo website
-      - name: Build Website
-        run: hugo --source website
+      - name: Build the website
+        run: hugo --source website  # Specify the source directory for Hugo
 
       # Step 4: Deploy to GitHub Pages
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: website/public  # Directory where Hugo outputs the built site
+          branch: gh-pages  # Deploy to the gh-pages branch
+          folder: website/public  # Folder containing the built site
+          clean: true  # Clean the target branch before deploying
