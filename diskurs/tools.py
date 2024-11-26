@@ -6,9 +6,9 @@ from functools import wraps
 from pathlib import Path
 from typing import Callable, Optional, Any
 
-from diskurs.protocols import ToolExecutor as ToolExecutorProtocol
-from diskurs.config import ToolConfig, ToolDependency
+from diskurs.config import ToolConfig, ToolDependencyConfig
 from diskurs.entities import ToolCallResult, ToolCall
+from diskurs.protocols import ToolExecutor as ToolExecutorProtocol, ToolDependency
 from diskurs.registry import register_tool_executor
 from diskurs.utils import load_module_from_path
 
@@ -97,21 +97,28 @@ def tool(func):
 @register_tool_executor("default")
 class ToolExecutor(ToolExecutorProtocol):
 
-    def __init__(self, tools: Optional[dict[str, Callable]] = None):
+    def __init__(
+        self, tools: Optional[dict[str, Callable]] = None, dependencies: Optional[dict[str, ToolDependency]] = None
+    ):
         self.tools = tools or {}
+        self.dependencies = dependencies or {}
 
-    def register_tools(self, tool_list: list[Callable] | Callable) -> None:
-        if isinstance(tool_list, list):
-            new_tools = {tool.__name__: tool for tool in tool_list}
-            for name in new_tools:
-                if name in self.tools:
-                    logger.warning(f"Tool '{name}' already exists and will be overwritten.")
-            self.tools = {**self.tools, **new_tools}
-        else:
-            tool_name = tool_list.__name__
+    def register_tools(self, tools: list[Callable] | Callable) -> None:
+        if not isinstance(tools, list):
+            tools = [tools]
+        for tool in tools:
+            tool_name = tool.__name__
             if tool_name in self.tools:
                 logger.warning(f"Tool '{tool_name}' already exists and will be overwritten.")
-            self.tools = {**self.tools, tool_name: tool_list}
+            self.tools[tool_name] = tool
+
+    def register_dependencies(self, dependencies: list[ToolDependency] | ToolDependency) -> None:
+        if not isinstance(dependencies, list):
+            dependencies = [dependencies]
+        for dependency in dependencies:
+            if dependency.name in self.dependencies:
+                logger.warning(f"Dependency '{dependency.name}' already exists and will be overwritten.")
+            self.dependencies[dependency.name] = dependency
 
     def execute_tool(self, tool_call: ToolCall, metadata: dict) -> ToolCallResult:
         if tool := self.tools.get(tool_call.function_name):
@@ -139,14 +146,16 @@ class ToolExecutor(ToolExecutorProtocol):
         return self.execute_tool(tool_call, {}).result
 
 
-def create_func_with_closure(func: Callable, config: ToolConfig, dependency_config: list[ToolDependency]) -> Callable:
+def create_func_with_closure(func: Callable, config: ToolConfig, dependencies: list[ToolDependency]) -> Callable:
     func_args = {}
 
     if config.dependencies:
-        dependency_config_map = {cfg.name: cfg for cfg in dependency_config}
-        func_args = {dep: dependency_config_map[dep] for dep in config.dependencies if dep in dependency_config_map}
+        dependency_map = {dep.name: dep for dep in dependencies}
+        func_args = {
+            dep_name: dependency_map[dep_name] for dep_name in config.dependencies if dep_name in dependency_map
+        }
 
-        missing_deps = [dep for dep in config.dependencies if dep not in dependency_config_map]
+        missing_deps = [dep for dep in config.dependencies if dep not in dependency_map]
         if missing_deps:
             raise ValueError(f"Missing configurations for dependencies: {', '.join(missing_deps)}")
 
@@ -178,7 +187,7 @@ def load_tools(tool_configs: list[ToolConfig], tool_dependencies: list[ToolDepen
                 func = create_func_with_closure(
                     func=func,
                     config=tool_idx[function_name],
-                    dependency_config=tool_dependencies,
+                    dependencies=tool_dependencies,
                 )
             else:
                 try:
@@ -196,3 +205,25 @@ def load_tools(tool_configs: list[ToolConfig], tool_dependencies: list[ToolDepen
             tool_functions.append(func)
 
     return tool_functions
+
+
+def load_dependencies(dependency_configs: list[ToolDependencyConfig]) -> list[ToolDependency]:
+    dependencies = []
+
+    modules_to_classes = defaultdict(list)
+    for dependency in dependency_configs:
+        modules_to_classes[dependency.module_path].append(dependency)
+
+    for module_path, dependencies_list in modules_to_classes.items():
+        module_name = Path(module_path).stem
+        module_path = Path(module_path).resolve()
+        module = load_module_from_path(module_name, module_path)
+
+        for dependency in dependencies_list:
+            class_ = getattr(module, dependency.class_name)
+
+            instance = class_.create(name=dependency.name, **dependency.parameters)
+
+            dependencies.append(instance)
+
+    return dependencies

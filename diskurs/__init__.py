@@ -1,4 +1,4 @@
-from .config import ToolDependency, ConversationStoreConfig
+from .config import ToolDependencyConfig, ConversationStoreConfig
 from .dispatcher import SynchronousConversationDispatcher
 from .entities import PromptArgument, LongtermMemory, DiskursInput
 from .forum import create_forum_from_config, ForumFactory
@@ -38,7 +38,7 @@ __all__ = [
     "MultiStepAgent",
     "ConductorAgent",
     "SynchronousConversationDispatcher",
-    "ToolDependency",
+    "ToolDependencyConfig",
     "ImmutableConversation",
     "PromptValidationError",
     "tool",

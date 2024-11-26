@@ -13,6 +13,7 @@ from typing import (
     runtime_checkable,
 )
 
+from diskurs import ToolDependencyConfig
 from diskurs.entities import (
     ToolDescription,
     LongtermMemory,
@@ -898,7 +899,8 @@ class ToolExecutor(Protocol):
     processing workflow.
     """
 
-    tools: Dict[str, Callable]
+    tools: dict[str, Callable]
+    dependencies: dict[str, "ToolDependency"]
 
     def register_tools(self, tool_list: List[Callable] | Callable) -> None:
         """
@@ -909,6 +911,18 @@ class ToolExecutor(Protocol):
         be invoked with specific arguments.
 
         :param tool_list: A single callable or a list of callables representing the tools to be registered.
+        """
+        ...
+
+    def register_dependencies(self, dependencies: list["ToolDependency"]) -> None:
+        """
+        Registers tool dependencies with the executor.
+
+        This method allows the registration of tool dependencies that are required for the execution of tools.
+        This is the prefered way to handle things like DB connection pools, as it allows for central creation of
+        a single connection pool that can be shared across multiple tools.
+
+        :param dependencies: A list of ToolDependency objects representing the dependencies to be registered.
         """
         ...
 
@@ -939,5 +953,41 @@ class ToolExecutor(Protocol):
         :param function_name: The name of the tool function to be called.
         :param arguments: A dictionary containing the arguments to be passed to the tool function.
         :return: The result of the tool function execution.
+        """
+        ...
+
+
+class ToolDependency(Protocol):
+    """
+    The `ToolDependency` protocol defines the interface for tool dependencies within the Diskurs framework.
+    Implementations of this protocol are responsible for managing the lifecycle of tool dependencies,
+    such as database connections or external services. This protocol ensures that any implementing class
+    can effectively handle tool dependencies and provide a mechanism for registering and accessing them.
+    """
+
+    name: str
+
+    def create(self, **kwargs) -> Self:
+        """
+        Creates a new instance of the tool dependency.
+
+        This method is responsible for creating a new instance of the tool dependency
+        based on the provided keyword arguments. It ensures that the dependency is
+        properly initialized and ready for use by the tool executor.
+
+        :param kwargs: Additional keyword arguments used to configure the tool dependency.
+        :return: An instance of the tool dependency.
+        """
+        ...
+
+    def close(self) -> None:
+        """
+        Closes the tool dependency and releases any associated resources.
+
+        This method is responsible for closing the tool dependency and releasing any
+        resources that are associated with it. It ensures that the dependency is properly
+        cleaned up and ready for disposal.
+
+        :return: None
         """
         ...

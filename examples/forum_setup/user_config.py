@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 
-from diskurs import ToolDependency
+from diskurs import ToolDependencyConfig
 
 
 @dataclass(kw_only=True)
-class SomeExternalDependency(ToolDependency):
+class SomeExternalDependencyConfig(ToolDependencyConfig):
     user_name: str
     street: str
