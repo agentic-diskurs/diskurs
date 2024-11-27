@@ -114,7 +114,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
         return conversation.update_agent_longterm_memory(agent_name=self.name, longterm_memory=longterm_memory)
 
-    def invoke(self, conversation: Conversation) -> Conversation:
+    async def invoke(self, conversation: Conversation) -> Conversation:
         self.logger.debug(f"Invoke called on conductor agent {self.name}")
 
         conversation = self.prepare_conversation(
@@ -129,7 +129,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         # TODO: try to unify with multistep agent
         for reasoning_step in range(self.max_trials):
             self.logger.debug(f"Reasoning step {reasoning_step + 1} for Agent {self.name}")
-            conversation = self.generate_validated_response(conversation, message_type=MessageType.ROUTING)
+            conversation = await self.generate_validated_response(conversation, message_type=MessageType.ROUTING)
 
             if (
                 self.prompt.is_final(conversation.user_prompt_argument)
@@ -148,7 +148,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         self.logger.debug(f"End conversation with fail on conductor agent {self.name}")
         return self.prompt.fail(conversation.get_agent_longterm_memory(self.name))
 
-    def process_conversation(self, conversation: Conversation) -> None:
+    async def process_conversation(self, conversation: Conversation) -> None:
         self.logger.info(f"Process conversation on conductor agent: {self.name}")
         self.n_dispatches += 1
         conversation = self.create_or_update_longterm_memory(conversation)
@@ -165,6 +165,6 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             self.n_dispatches = 0
             conversation.final_result = formatted_response
         else:
-            conversation = self.invoke(conversation)
+            conversation = await self.invoke(conversation)
             next_agent = json.loads(conversation.last_message.content).get("next_agent")
-            self.dispatcher.publish(topic=next_agent, conversation=conversation)
+            await self.dispatcher.publish(topic=next_agent, conversation=conversation)

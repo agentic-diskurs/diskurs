@@ -120,7 +120,7 @@ class ToolExecutor(ToolExecutorProtocol):
                 logger.warning(f"Dependency '{dependency.name}' already exists and will be overwritten.")
             self.dependencies[dependency.name] = dependency
 
-    def execute_tool(self, tool_call: ToolCall, metadata: dict) -> ToolCallResult:
+    async def execute_tool(self, tool_call: ToolCall, metadata: dict) -> ToolCallResult:
         if tool := self.tools.get(tool_call.function_name):
             invisible_args = {}
             if tool.invisible_args:
@@ -128,12 +128,12 @@ class ToolExecutor(ToolExecutorProtocol):
             return ToolCallResult(
                 tool_call_id=tool_call.tool_call_id,
                 function_name=tool_call.function_name,
-                result=tool(**{**tool_call.arguments, **invisible_args}),
+                result=await tool(**{**tool_call.arguments, **invisible_args}),
             )
         else:
             raise ValueError(f"Tool '{tool_call.function_name}' not found.")
 
-    def call_tool(self, function_name: str, arguments: dict[str, Any]) -> Any:
+    async def call_tool(self, function_name: str, arguments: dict[str, Any]) -> Any:
         """
         Can be used to call a tool directly by providing the function name and arguments.
         This can be handy, when one wants to manually call a tool, without calling an LLM.
@@ -143,7 +143,7 @@ class ToolExecutor(ToolExecutorProtocol):
         :return: The result of the function call.
         """
         tool_call = ToolCall(tool_call_id="0", function_name=function_name, arguments=arguments)
-        return self.execute_tool(tool_call, {}).result
+        return await self.execute_tool(tool_call, {}).result
 
 
 def create_func_with_closure(func: Callable, config: ToolConfig, dependencies: list[ToolDependency]) -> Callable:

@@ -3,6 +3,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import List, Callable, Type, Any
 
+from asyncer import asyncify
+
 from diskurs.config import load_config_from_yaml
 from diskurs.entities import (
     ToolDescription,
@@ -67,13 +69,13 @@ class Forum:
 
         self.logger.info("Initializing forum")
 
-    def fetch_or_create_conversation(self, diskurs_input: DiskursInput) -> Conversation:
+    async def fetch_or_create_conversation(self, diskurs_input: DiskursInput) -> Conversation:
         """
         If a conversation store is present, we try to getch an existing conversation from the conversation store
         or creates a new one if it doesn't exist.
         """
-        if self.conversation_store and self.conversation_store.exists(diskurs_input.conversation_id):
-            return self.conversation_store.fetch(diskurs_input.conversation_id)
+        if self.conversation_store and await asyncify(self.conversation_store.exists)(diskurs_input.conversation_id):
+            return await asyncify(self.conversation_store.fetch)(diskurs_input.conversation_id)
         else:
             longterm_memory = init_longterm_memories(self.agents)
             conversation = self.conversation_class(
@@ -92,14 +94,14 @@ class Forum:
             )
         return conversation
 
-    def ama(self, diskurs_input: DiskursInput):
+    async def ama(self, diskurs_input: DiskursInput):
         if not diskurs_input.conversation_id:
             self.logger.warning("Conversation ID not provided. Using default value 'default'.")
             diskurs_input.conversation_id = "default"
 
-        conversation = self.fetch_or_create_conversation(diskurs_input)
+        conversation = await self.fetch_or_create_conversation(diskurs_input)
 
-        answer = self.dispatcher.run(participant=self.first_contact, conversation=conversation)
+        answer = await self.dispatcher.run(participant=self.first_contact, conversation=conversation)
         return answer
 
 

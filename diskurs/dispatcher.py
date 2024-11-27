@@ -28,17 +28,17 @@ class SynchronousConversationDispatcher(ConversationDispatcher):
         if topic in self._topics:
             self._topics[topic].remove(subscriber)
 
-    def publish(self, topic: str, conversation: Conversation) -> None:
+    async def publish(self, topic: str, conversation: Conversation) -> None:
         self.logger.debug(f"Publishing conversation to topic {topic}")
 
         if topic in self._topics:
             for agent in self._topics[topic]:
-                agent.process_conversation(conversation)
+                await agent.process_conversation(conversation)
         else:
             self.logger.error(f"No subscribers for topic {topic}")
             raise ValueError(f"No subscribers for topic {topic}")
 
-    def run(self, participant: ConversationParticipant, conversation: Conversation) -> dict:
-        participant.process_conversation(conversation=conversation)
+    async def run(self, participant: ConversationParticipant, conversation: Conversation) -> dict:
+        await participant.process_conversation(conversation=conversation)
 
         return conversation.final_result

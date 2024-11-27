@@ -1,9 +1,8 @@
 import os
 
 import tiktoken
+from openai import AsyncAzureOpenAI
 from typing_extensions import Self
-
-from openai import AzureOpenAI
 
 from diskurs.llm_client import BaseOaiApiLLMClient
 from diskurs.registry import register_llm
@@ -40,7 +39,7 @@ class AzureOpenAIClient(BaseOaiApiLLMClient):
         else:
             client_params["api_key"] = api_key
 
-        client = AzureOpenAI(**client_params)
+        client = AsyncAzureOpenAI(**client_params)
 
         return cls(
             client=client,

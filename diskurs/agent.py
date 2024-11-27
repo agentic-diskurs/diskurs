@@ -60,7 +60,7 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
         self.logger.debug(f"Registered dispatcher {dispatcher} for agent {self.name}")
 
     @abstractmethod
-    def process_conversation(self, conversation: Conversation) -> None:
+    async def process_conversation(self, conversation: Conversation) -> None:
         """
         Receives a conversation from the dispatcher, i.e. message bus, processes it and finally publishes
         a deep copy of the resulting conversation back to the dispatcher.
@@ -110,7 +110,7 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
             )
         )
 
-    def generate_validated_response(
+    async def generate_validated_response(
         self,
         conversation: Conversation,
         message_type: MessageType = MessageType.CONVERSATION,
@@ -131,7 +131,7 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
         for max_trials in range(self.max_trials):
             self.logger.debug(f"Generating validated response trial {max_trials + 1} for Agent {self.name}")
 
-            response = self.llm_client.generate(conversation, getattr(self, "tools", None))
+            response = await self.llm_client.generate(conversation, getattr(self, "tools", None))
 
             parsed_response = self.prompt.parse_user_prompt(
                 llm_response=response.last_message.content,

@@ -12,6 +12,7 @@ from openai import (
     RateLimitError,
     UnprocessableEntityError,
     AuthenticationError,
+    AsyncOpenAI,
 )
 from openai import OpenAI, BadRequestError
 from openai.types.chat import ChatCompletion
@@ -27,7 +28,7 @@ from diskurs.tools import map_python_type_to_json
 class BaseOaiApiLLMClient(LLMClient):
     def __init__(
         self,
-        client: OpenAI,
+        client: AsyncOpenAI,
         model: str,
         tokenizer: Callable[[str], int],
         max_tokens: int,
@@ -54,12 +55,12 @@ class BaseOaiApiLLMClient(LLMClient):
         # Abstract create method to be implemented in subclasses
         pass
 
-    def send_request(
+    async def send_request(
         self,
         body: dict[str, Any],
     ) -> ChatCompletion:
         self.logger.debug("Sending request to API.")
-        completion = self.client.chat.completions.create(**body)
+        completion = await self.client.chat.completions.create(**body)
         self.logger.debug("Received response from API.")
         return completion
 
@@ -372,7 +373,7 @@ class BaseOaiApiLLMClient(LLMClient):
 
         return chat_start + truncated_chat + [user_prompt]
 
-    def generate(
+    async def generate(
         self,
         conversation: ImmutableConversation,
         tools: Optional[ToolDescription] = None,
@@ -391,7 +392,7 @@ class BaseOaiApiLLMClient(LLMClient):
 
         while fail_counter < self.max_repeat:
             try:
-                completion = self.send_request(request_body)
+                completion = await self.send_request(request_body)
                 return conversation.append(self.concatenate_user_prompt_with_llm_response(conversation, completion))
 
             except (
@@ -426,7 +427,7 @@ class OpenAILLMClient(BaseOaiApiLLMClient):
 
         tokenizer = tiktoken.encoding_for_model(model)
 
-        client = OpenAI()
+        client = AsyncOpenAI()
         client.api_key = api_key
 
         return cls(client=client, model=model, tokenizer=tokenizer, max_tokens=max_tokens)

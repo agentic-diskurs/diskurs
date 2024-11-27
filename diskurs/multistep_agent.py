@@ -96,7 +96,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         else:
             self.tools = self.tools + new_tools
 
-    def compute_tool_response(self, response: Conversation) -> list[ChatMessage]:
+    async def compute_tool_response(self, response: Conversation) -> list[ChatMessage]:
         """
         Executes the tool calls in the response and returns the tool responses.
 
@@ -107,7 +107,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
 
         tool_responses = []
         for tool in response.last_message.tool_calls:
-            tool_call_result = self.tool_executor.execute_tool(tool, response.metadata)
+            tool_call_result = await self.tool_executor.execute_tool(tool, response.metadata)
             tool_responses.append(
                 ChatMessage(
                     role=Role.TOOL,
@@ -118,7 +118,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
             )
         return tool_responses
 
-    def generate_validated_response(
+    async def generate_validated_response(
         self,
         conversation: Conversation,
         message_type: MessageType = MessageType.CONVERSATION,
@@ -128,10 +128,10 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         for max_trials in range(self.max_trials):
             self.logger.debug(f"Generating validated response trial {max_trials + 1} for Agent {self.name}")
 
-            response = self.llm_client.generate(conversation, getattr(self, "tools", None))
+            response = await self.llm_client.generate(conversation, getattr(self, "tools", None))
 
             if response.has_pending_tool_call():
-                tool_responses = self.compute_tool_response(response)
+                tool_responses = await self.compute_tool_response(response)
                 conversation = response.update(user_prompt=tool_responses)
             else:
 
@@ -156,7 +156,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
 
         return self.return_fail_validation_message(response or conversation)
 
-    def invoke(self, conversation: Conversation) -> Conversation:
+    async def invoke(self, conversation: Conversation) -> Conversation:
 
         self.logger.debug(f"Invoke called on agent {self.name}")
 
@@ -177,7 +177,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
 
         for reasoning_step in range(self.max_reasoning_steps):
             self.logger.debug(f"Reasoning step {reasoning_step + 1} for Agent {self.name}")
-            conversation = self.generate_validated_response(conversation)
+            conversation = await self.generate_validated_response(conversation)
 
             if (
                 self.prompt.is_final(conversation.user_prompt_argument)
@@ -188,7 +188,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
 
         return conversation.update()
 
-    def process_conversation(self, conversation: Conversation) -> None:
+    async def process_conversation(self, conversation: Conversation) -> None:
         self.logger.info(f"Process conversation on agent: {self.name}")
-        conversation = self.invoke(conversation)
-        self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)
+        conversation = await self.invoke(conversation)
+        await self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)

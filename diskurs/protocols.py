@@ -306,7 +306,7 @@ class HeuristicPrompt(Protocol):
 
     user_prompt_argument: Type[PromptArgument]
 
-    def heuristic_sequence(self, conversation: "Conversation", call_tool: CallTool) -> "Conversation":
+    async def heuristic_sequence(self, conversation: "Conversation", call_tool: CallTool) -> "Conversation":
         """
         Executes a heuristic sequence on the given conversation.
 
@@ -635,7 +635,9 @@ class LLMClient(Protocol):
     @classmethod
     def create(cls, **kwargs) -> Self: ...
 
-    def generate(self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None) -> Conversation:
+    async def generate(
+        self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None
+    ) -> Conversation:
         """
         Generates a response from the language model (LLM) based on the current state of the conversation.
 
@@ -661,7 +663,7 @@ class ConversationParticipant(Protocol):
 
     topics: list[str]
 
-    def process_conversation(self, conversation: Conversation) -> None:
+    async def process_conversation(self, conversation: Conversation) -> None:
         """
         Actively participate in a conversation.
 
@@ -722,7 +724,7 @@ class ConversationDispatcher(Protocol):
         """
         pass
 
-    def publish(self, topic: str, conversation: Conversation) -> None:
+    async def publish(self, topic: str, conversation: Conversation) -> None:
         """
         Dispatch a conversation to all participants subscribed to the topic.
 
@@ -848,7 +850,7 @@ class Agent(Protocol):
     @classmethod
     def create(cls, name: str, prompt: Prompt, llm_client: LLMClient, **kwargs): ...
 
-    def invoke(self, conversation: Conversation) -> Conversation:
+    async def invoke(self, conversation: Conversation) -> Conversation:
         """
         Run the agent on a conversation.
 
@@ -926,7 +928,7 @@ class ToolExecutor(Protocol):
         """
         ...
 
-    def execute_tool(self, tool_call: ToolCall, metadata: Dict[str, Any]) -> ToolCallResult:
+    async def execute_tool(self, tool_call: ToolCall, metadata: Dict[str, Any]) -> ToolCallResult:
         """
         Executes a registered tool based on the provided tool call and metadata.
 

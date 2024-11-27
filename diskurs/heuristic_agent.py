@@ -60,7 +60,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
         self.logger.debug(f"Preparing conversation for agent {self.name}")
         return conversation.update(user_prompt_argument=user_prompt_argument, active_agent=self.name)
 
-    def invoke(self, conversation: Conversation | str) -> Conversation:
+    async def invoke(self, conversation: Conversation | str) -> Conversation:
         self.logger.debug(f"Invoke called on agent {self.name}")
 
         conversation = self.prepare_conversation(
@@ -77,7 +77,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
         else:
             call_tool = None
 
-        conversation = self.prompt.heuristic_sequence(conversation, call_tool=call_tool)
+        conversation = await self.prompt.heuristic_sequence(conversation, call_tool=call_tool)
 
         if self.render_prompt:
             conversation = conversation.append(
@@ -91,7 +91,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
 
         return conversation
 
-    def process_conversation(self, conversation: Conversation) -> None:
+    async def process_conversation(self, conversation: Conversation) -> None:
         self.logger.info(f"Process conversation on agent: {self.name}")
-        conversation = self.invoke(conversation)
-        self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)
+        conversation = await self.invoke(conversation)
+        await self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)
