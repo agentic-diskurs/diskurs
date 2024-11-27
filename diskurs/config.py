@@ -260,8 +260,7 @@ class ToolConfig(YamlSerializable):
 
 
 @dataclass
-class ToolDependencyConfig(YamlSerializable, Registrable):
-    type: str
+class ToolDependencyConfig(YamlSerializable):
     name: str
     module_path: Path
     class_name: str
@@ -292,7 +291,7 @@ class ForumConfig(YamlSerializable):
     llms: list[LLMConfig]
     tools: list[ToolConfig] = field(default_factory=list)
     custom_modules: list[str] = field(default_factory=list)
-    tool_dependencies: list[ToolDependencyConfig] = field(default_factory=dict)
+    tool_dependencies: list[ToolDependencyConfig] = field(default_factory=list)
     conversation_type: str = "immutable_conversation"
     conversation_store: ConversationStoreConfig = field(
         default_factory=lambda: FilesystemConversationStoreConfig(directory=Path(__file__).parent / "conversations")

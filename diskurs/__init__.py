@@ -17,6 +17,7 @@ from .protocols import (
     CallTool,
     ToolExecutor,
     ConductorAgent,
+    ToolDependency,
 )
 from .registry import (
     register_conversation_store,
@@ -60,4 +61,5 @@ __all__ = [
     "ConversationDispatcher",
     "CallTool",
     "ToolExecutor",
+    "ToolDependency",
 ]

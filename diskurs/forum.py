@@ -110,6 +110,7 @@ class ForumFactory:
         base_path: Path,
         conversation_store: ConversationStore = None,
     ):
+        self.tool_dependencies = None
         self.base_path = base_path
         self.config = load_config_from_yaml(config=config_path, base_path=base_path)
         self.llm_clients = {}
@@ -141,8 +142,8 @@ class ForumFactory:
     def create_forum(self) -> Forum:
         self.import_modules()
         self.load_custom_modules()
-        self.tool_executor = self.create_tool_executor()
-        self.tool_executor.register_dependencies(self.config.tool_dependencies)
+        self.create_tool_executor()
+        self.load_and_register_tool_dependencies()
         self.load_and_register_tools()
         self.create_dispatcher()
         self.create_llm_clients()
@@ -179,7 +180,7 @@ class ForumFactory:
         tool_executor_cls = TOOL_EXECUTOR_REGISTRY.get(self.config.tool_executor_type)
         if tool_executor_cls is None:
             raise ValueError(f"ToolExecutor type '{self.config.tool_executor_type}' is not registered.")
-        return tool_executor_cls()
+        self.tool_executor = tool_executor_cls()
 
     def load_conversation(self):
         """Load conversation class from the configuration."""
@@ -187,16 +188,16 @@ class ForumFactory:
         if self.conversation_cls is None:
             raise ValueError(f"Conversation class '{self.config.conversation_type}' is not registered.")
 
-    def load_and_register_dependencies(self):
+    def load_and_register_tool_dependencies(self):
         """Load and register tools with the tool executor."""
         if self.config.tool_dependencies:
-            self.tools = load_dependencies(self.config.tool_dependencies)
-            self.tool_executor.register_dependencies(self.tools)
+            self.tool_dependencies = load_dependencies(self.config.tool_dependencies)
+            self.tool_executor.register_dependencies(self.tool_dependencies)
 
     def load_and_register_tools(self):
         """Load and register tools with the tool executor."""
         if self.config.tools:
-            self.tools = load_tools(self.config.tools, self.config.tool_dependencies)
+            self.tools = load_tools(self.config.tools, self.tool_dependencies)
             self.tool_executor.register_tools(self.tools)
 
     def create_dispatcher(self):
