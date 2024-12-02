@@ -143,7 +143,8 @@ class ToolExecutor(ToolExecutorProtocol):
         :return: The result of the function call.
         """
         tool_call = ToolCall(tool_call_id="0", function_name=function_name, arguments=arguments)
-        return await self.execute_tool(tool_call, {}).result
+        tool_response = await self.execute_tool(tool_call, {})
+        return tool_response.result
 
 
 def create_func_with_closure(func: Callable, config: ToolConfig, dependencies: list[ToolDependency]) -> Callable:

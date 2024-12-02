@@ -674,8 +674,10 @@ class HeuristicPrompt(HeuristicPromptProtocol):
             agent_description=agent_description,
         )
 
-    def heuristic_sequence(self, conversation: Conversation, call_tool: Optional[CallTool] = None) -> Conversation:
-        return self._heuristic_sequence(conversation, call_tool)
+    async def heuristic_sequence(
+        self, conversation: Conversation, call_tool: Optional[CallTool] = None
+    ) -> Conversation:
+        return await self._heuristic_sequence(conversation, call_tool)
 
     def create_user_prompt_argument(self, **prompt_args) -> PromptArgument:
         return self.user_prompt_argument(**prompt_args)
