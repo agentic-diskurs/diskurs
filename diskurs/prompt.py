@@ -1,9 +1,8 @@
 import json
 from dataclasses import dataclass, is_dataclass, fields, MISSING, asdict
 from pathlib import Path
-from typing import Optional, Callable, Any, Type, TypeVar, Self
+from typing import Optional, Callable, Any, Type, TypeVar, Self, Union
 
-from click import prompt
 from jinja2 import Environment, FileSystemLoader, Template
 
 from diskurs.entities import (
@@ -32,6 +31,8 @@ FAIL_DEFAULT_VALUE_NAME = "fail"
 FINALIZE_DEFAULT_VALUE_NAME = "finalize"
 
 logger = get_logger(f"diskurs.{__name__}")
+
+T = TypeVar("T", bound=dataclass)
 
 
 class PromptValidationError(Exception):
@@ -86,77 +87,78 @@ class PromptParserMixin:
     def validate_dataclass(
         cls,
         parsed_response: dict[str, Any],
-        user_prompt_argument: Type[dataclass],
-        strict: bool = False,
-    ) -> dataclass:
+        user_prompt_argument: Type[T],
+    ) -> T:
         """
-        Validate that the JSON fields match the target dataclass.
-        In strict mode, all fields must be present. If not strict, all required fields (without default values)
-        must be present at minimum. Also performs type coercion where necessary.
+        Validate and convert a dictionary to a dataclass instance with proper type coercion.
 
-        :param parsed_response: Dictionary representing the LLM's response.
-        :param user_prompt_argument: The dataclass type to validate against.
-        :param strict: If True, all fields must be present. If False, required fields must be present.
-        :return: An instance of the dataclass if validation succeeds.
-        :raises: LLMResponseParseError if validation fails.
+        :param parsed_response: Dictionary from parsed JSON/response
+        :param user_prompt_argument: Target dataclass type
+
+        :return: An instance of the target dataclass
+
+        :raises TypeError: If user_prompt_argument is not a dataclass
+        :raises PromptValidationError: If validation or conversion fails
         """
-        logger.debug("Validating parsed prompt arguments")
-
         if not is_dataclass(user_prompt_argument):
             raise TypeError(f"{user_prompt_argument} is not a valid dataclass")
 
+        # Validate field presence
         dataclass_fields = {f.name: f for f in fields(user_prompt_argument)}
         required_fields = {
             f.name for f in dataclass_fields.values() if f.default is MISSING and f.default_factory is MISSING
         }
 
-        missing_fields = (
-            (dataclass_fields.keys() - parsed_response.keys())
-            if strict
-            else (required_fields - parsed_response.keys())
-        )
+        missing_required = required_fields - parsed_response.keys()
         extra_fields = parsed_response.keys() - dataclass_fields.keys()
 
-        if missing_fields or extra_fields:
-            error_message = []
-            if missing_fields:
-                error_message.append(f"Missing required fields: {', '.join(missing_fields)}.")
+        if missing_required or extra_fields:
+            error_parts = []
+            if missing_required:
+                error_parts.append(f"Missing required fields: {', '.join(missing_required)}.")
             if extra_fields:
-                error_message.append(f"Extra fields provided: {', '.join(extra_fields)}. Please remove them.")
+                error_parts.append(f"Extra fields provided: {', '.join(extra_fields)}. Please remove them.")
+
             valid_fields = ", ".join(dataclass_fields.keys())
+            error_parts.append(f"Valid fields are: {valid_fields}.")
 
-            error_message.append(f"Valid fields are: {valid_fields}.")
-            logger.debug("Found errors while validating the parsed prompt arguments")
+            raise PromptValidationError(" ".join(error_parts))
 
-            raise PromptValidationError(" ".join(error_message))
+        # Convert and validate fields
+        converted = {}
+        for field_name, field in dataclass_fields.items():
+            if field_name not in parsed_response:
+                continue
 
-        # Perform type coercion before creating the dataclass instance
-        converted_response = {}
-        for field_name, value in parsed_response.items():
-            field = dataclass_fields[field_name]
+            value = parsed_response[field_name]
+            if value is None:
+                converted[field_name] = None
+                continue
+
             field_type = field.type
+            # Handle Optional types
+            if hasattr(field_type, "__origin__") and field_type.__origin__ is Union:
+                field_types = field_type.__args__
+                if type(None) in field_types:  # Optional field
+                    field_type = next(t for t in field_types if t != type(None))
 
             try:
                 if field_type == bool and isinstance(value, str):
-                    # Handle boolean conversion from string
-                    converted_response[field_name] = value.lower() == "true"
+                    converted[field_name] = value.lower() == "true"
                 elif isinstance(value, list) and hasattr(field_type, "__origin__") and field_type.__origin__ is list:
-                    # Handle list type with its element type
                     element_type = field_type.__args__[0]
-                    converted_response[field_name] = [element_type(item) for item in value]
+                    converted[field_name] = [element_type(item) for item in value]
                 else:
-                    # For other types, try direct conversion
-                    converted_response[field_name] = field_type(value)
+                    converted[field_name] = field_type(value)
             except (ValueError, TypeError) as e:
                 raise PromptValidationError(
                     f"Type conversion failed for field '{field_name}': expected {field_type}, got {type(value)}"
                 )
 
         try:
-            return user_prompt_argument(**converted_response)
+            return user_prompt_argument(**converted)
         except TypeError as e:
-            logger.debug(f"Error constructing {user_prompt_argument.__name__}: {e}")
-            raise PromptValidationError(f"Error constructing {user_prompt_argument.__name__}: {e}")
+            raise PromptValidationError(f"Error creating {user_prompt_argument.__name__}: {e}")
 
     @classmethod
     def validate_json(cls, llm_response: str) -> dict:

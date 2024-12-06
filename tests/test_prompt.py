@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 from unittest.mock import Mock, AsyncMock
 
 import pytest
@@ -93,9 +94,9 @@ class ExamplePromptArg(PromptArgument):
 
 @dataclass
 class ExampleTypedPromptArg(PromptArgument):
-    url: str
-    is_valid: bool
-    comments: list[str]
+    url: Optional[str] = ""
+    is_valid: Optional[bool] = None
+    comments: Optional[list[str]] = None
 
 
 def test_validate_dataclass():
@@ -125,6 +126,23 @@ def test_validate_dataclass_typed():
         res_prompt_arg.url == response["url"]
         and res_prompt_arg.is_valid == True
         and type(res_prompt_arg.comments) == list
+        and type(res_prompt_arg.comments[0]) == str
+    )
+
+
+def test_validate_dataclass_typed_empty():
+    response = {
+        "url": "https://diskurs.dev",
+        "comments": ["Do what thou wilt", "Do what thou wilt"],
+    }
+    res_prompt_arg = PromptParserMixin.validate_dataclass(
+        parsed_response=response, user_prompt_argument=ExampleTypedPromptArg
+    )
+
+    assert (
+        res_prompt_arg.url == response["url"]
+        and type(res_prompt_arg.comments) == list
+        and res_prompt_arg.is_valid is None
         and type(res_prompt_arg.comments[0]) == str
     )
 
