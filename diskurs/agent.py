@@ -51,7 +51,7 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
         self._topics = value
 
     @abstractmethod
-    def invoke(self, conversation: Conversation | str) -> Conversation:
+    async def invoke(self, conversation: Conversation | str) -> Conversation:
         pass
 
     def register_dispatcher(self, dispatcher: ConversationDispatcher) -> None:

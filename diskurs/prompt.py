@@ -92,7 +92,7 @@ class PromptParserMixin:
         """
         Validate that the JSON fields match the target dataclass.
         In strict mode, all fields must be present. If not strict, all required fields (without default values)
-        must be present at minimum.
+        must be present at minimum. Also performs type coercion where necessary.
 
         :param parsed_response: Dictionary representing the LLM's response.
         :param user_prompt_argument: The dataclass type to validate against.
@@ -130,8 +130,30 @@ class PromptParserMixin:
 
             raise PromptValidationError(" ".join(error_message))
 
+        # Perform type coercion before creating the dataclass instance
+        converted_response = {}
+        for field_name, value in parsed_response.items():
+            field = dataclass_fields[field_name]
+            field_type = field.type
+
+            try:
+                if field_type == bool and isinstance(value, str):
+                    # Handle boolean conversion from string
+                    converted_response[field_name] = value.lower() == "true"
+                elif isinstance(value, list) and hasattr(field_type, "__origin__") and field_type.__origin__ is list:
+                    # Handle list type with its element type
+                    element_type = field_type.__args__[0]
+                    converted_response[field_name] = [element_type(item) for item in value]
+                else:
+                    # For other types, try direct conversion
+                    converted_response[field_name] = field_type(value)
+            except (ValueError, TypeError) as e:
+                raise PromptValidationError(
+                    f"Type conversion failed for field '{field_name}': expected {field_type}, got {type(value)}"
+                )
+
         try:
-            return user_prompt_argument(**parsed_response)
+            return user_prompt_argument(**converted_response)
         except TypeError as e:
             logger.debug(f"Error constructing {user_prompt_argument.__name__}: {e}")
             raise PromptValidationError(f"Error constructing {user_prompt_argument.__name__}: {e}")

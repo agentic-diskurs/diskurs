@@ -32,7 +32,6 @@ def tool_configs():
 @pytest.fixture()
 def dependency_config():
     my_dep_conf = ToolDependencyConfig(
-        type="foo",
         name="dummy_dependency_name",
         module_path=Path(__file__).parent / "test_files" / "tool_test_files" / "dummy_module.py",
         class_name="ExampleDependency",

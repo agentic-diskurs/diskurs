@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, AsyncMock
 
 import pytest
 
@@ -91,6 +91,13 @@ class ExamplePromptArg(PromptArgument):
     username: str = ""
 
 
+@dataclass
+class ExampleTypedPromptArg(PromptArgument):
+    url: str
+    is_valid: bool
+    comments: list[str]
+
+
 def test_validate_dataclass():
     response = {"url": "https://diskurs.dev", "comment": "Do what thou wilt", "username": "Jane"}
     res_prompt_arg = PromptParserMixin.validate_dataclass(
@@ -104,8 +111,26 @@ def test_validate_dataclass():
     )
 
 
+def test_validate_dataclass_typed():
+    response = {
+        "url": "https://diskurs.dev",
+        "is_valid": "true",
+        "comments": ["Do what thou wilt", "Do what thou wilt"],
+    }
+    res_prompt_arg = PromptParserMixin.validate_dataclass(
+        parsed_response=response, user_prompt_argument=ExampleTypedPromptArg
+    )
+
+    assert (
+        res_prompt_arg.url == response["url"]
+        and res_prompt_arg.is_valid == True
+        and type(res_prompt_arg.comments) == list
+        and type(res_prompt_arg.comments[0]) == str
+    )
+
+
 def test_validate_dataclass_additional_fields():
-    response = {"url": "https://diskurs.dev", "foo": "just foo"}
+    response = {"url": "https://www.diskurs.dev", "foo": "just foo"}
 
     with pytest.raises(PromptValidationError) as exc_info:
         res_prompt_arg = PromptParserMixin.validate_dataclass(
@@ -193,7 +218,7 @@ def tool_executor():
 
 @pytest.fixture
 def heuristic_prompt(conversation):
-    prompt = Mock(spec=HeuristicPrompt)
+    prompt = AsyncMock(spec=HeuristicPrompt)  # Change to AsyncMock
 
     # Create an instance of MyHeuristicPromptArgument to be returned
     prompt_arg_instance = MyHeuristicPromptArgument()
@@ -202,7 +227,7 @@ def heuristic_prompt(conversation):
     prompt.create_user_prompt_argument.return_value = prompt_arg_instance
 
     # Side effect function for heuristic_sequence
-    def heuristic_sequence_side_effect(user_prompt_argument, metadata, call_tool):
+    async def heuristic_sequence_side_effect(user_prompt_argument, metadata, call_tool):
         # Assert that heuristic_sequence is called with the correct Conversation instance
         assert user_prompt_argument == conversation.user_prompt_argument, "Expected correct user_prompt_argument"
         assert metadata == conversation.metadata, "Expected correct metadata"
@@ -215,11 +240,12 @@ def heuristic_prompt(conversation):
     return prompt
 
 
-def test_heuristic_prompt(heuristic_prompt, conversation):
+@pytest.mark.asyncio
+async def test_heuristic_prompt(heuristic_prompt, conversation):
     result = heuristic_prompt.create_user_prompt_argument()
     assert isinstance(result, MyHeuristicPromptArgument)
 
-    result = heuristic_prompt.heuristic_sequence(
+    result = await heuristic_prompt.heuristic_sequence(
         user_prompt_argument=conversation.user_prompt_argument,
         metadata=conversation.metadata,
         call_tool=lambda x: x,  # Mock or real function as needed
