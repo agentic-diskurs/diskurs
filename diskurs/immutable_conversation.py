@@ -1,5 +1,5 @@
 import copy
-from dataclasses import fields, replace, field
+from dataclasses import fields, replace
 from typing import TypeVar, Optional, Any
 
 from diskurs import LongtermMemory
@@ -125,21 +125,34 @@ class ImmutableConversation(Conversation):
 
         return self.update(longterm_memory=updated_longterm_memory)
 
+    @staticmethod
+    def update_prompt_argument(source_values, target_values):
+        updated_fields = {}
+        for field in fields(target_values):
+            if hasattr(source_values, field.name):
+                source_value = getattr(source_values, field.name)
+                if source_value:
+                    updated_fields[field.name] = source_value
+        updated_user_prompt_argument = replace(target_values, **updated_fields)
+        return updated_user_prompt_argument
+
     def update_prompt_argument_with_longterm_memory(self, conductor_name: str) -> "ImmutableConversation":
         longterm_memory = self.get_agent_longterm_memory(conductor_name)
-        prompt_argument = self.user_prompt_argument
+        updated_prompt_argument = self.update_prompt_argument(
+            source_values=longterm_memory, target_values=self.user_prompt_argument
+        )
 
-        updated_fields = {}
+        return self.update(user_prompt_argument=updated_prompt_argument)
 
-        for field in fields(prompt_argument):
-            if hasattr(longterm_memory, field.name):
-                longterm_value = getattr(longterm_memory, field.name)
-                if longterm_value:
-                    updated_fields[field.name] = longterm_value
+    def update_prompt_argument_with_previous_agent(
+        self, prompt_argument: GenericUserPromptArg
+    ) -> "ImmutableConversation":
+        previous_agent_prompt_argument = self.user_prompt_argument
+        updated_prompt_argument = self.update_prompt_argument(
+            source_values=previous_agent_prompt_argument, target_values=prompt_argument
+        )
 
-        updated_user_prompt_argument = replace(prompt_argument, **updated_fields)
-
-        return self.update(user_prompt_argument=updated_user_prompt_argument)
+        return self.update(user_prompt_argument=updated_prompt_argument)
 
     def update(
         self,

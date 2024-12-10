@@ -32,12 +32,14 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         max_reasoning_steps: int = 5,
         max_trials: int = 5,
         init_prompt_arguments_with_longterm_memory: bool = True,
+        init_prompt_arguments_with_previous_agent: bool = True,
     ):
         super().__init__(name, prompt, llm_client, topics, dispatcher, max_trials)
         self.tool_executor = tool_executor
         self.tools = tools or []
         self.max_reasoning_steps = max_reasoning_steps
         self.init_prompt_arguments_with_longterm_memory = init_prompt_arguments_with_longterm_memory
+        self.init_prompt_arguments_with_previous_agent = init_prompt_arguments_with_previous_agent
 
     @classmethod
     def create(
@@ -174,6 +176,9 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
                     name=self.name, prompt_args=conversation.user_prompt_argument
                 )
             )
+
+        if not self.is_previous_agent_conductor(conversation) and self.init_prompt_arguments_with_previous_agent:
+            conversation = conversation.update_prompt_argument_with_previous_agent(self.prompt.user_prompt_argument)
 
         for reasoning_step in range(self.max_reasoning_steps):
             self.logger.debug(f"Reasoning step {reasoning_step + 1} for Agent {self.name}")

@@ -89,13 +89,6 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
                 )
         return target
 
-    @staticmethod
-    def is_previous_agent_conductor(conversation):
-        if conversation.is_empty():
-            return False
-        else:
-            return conversation.last_message.type == MessageType.ROUTING
-
     def create_or_update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation:
         longterm_memory = conversation.get_agent_longterm_memory(self.name) or self.prompt.init_longterm_memory()
 

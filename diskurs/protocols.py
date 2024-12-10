@@ -13,7 +13,6 @@ from typing import (
     runtime_checkable,
 )
 
-from diskurs import ToolDependencyConfig
 from diskurs.entities import (
     ToolDescription,
     LongtermMemory,
@@ -22,7 +21,7 @@ from diskurs.entities import (
     PromptArgument,
     ChatMessage,
     MessageType,
-    ResultHolder,
+    Role,
 )
 
 
@@ -483,6 +482,21 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
         """
         ...
 
+    def append(
+        self,
+        message: ChatMessage | list[ChatMessage],
+        role: Optional[Role] = "",
+        name: Optional[str] = "",
+    ) -> "Conversation":
+        """
+        Appends a new chat message and returns a new instance of Conversation.
+
+        :param message: The ChatMessage object to be added to the conversation, alternatively a string can be provided.
+        :param role: Only needed if message is str, the role (system, user, assistant)
+        :param name: Only needed if message is str, name of the agent
+        :return: A new instance of Conversation with the appended message.
+        """
+
     def get_agent_longterm_memory(self, agent_name: str) -> Optional[LongtermMemory]:
         """
         Provides a deep copy of the long-term memory for the specified agent.
@@ -519,6 +533,19 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
         immutability by returning a new instance of the Conversation.
 
         :param conductor_name: The name of the conductor agent whose long-term memory is to be used.
+        :return: A new instance of the Conversation with updated prompt arguments.
+        """
+        ...
+
+    def update_prompt_argument_with_previous_agent(self, prompt_argument: UserPromptArg) -> "Conversation":
+        """
+        Updates the provided prompt arguments with the previous agent's prompt argument.
+
+        This method uses the prompt argument of the last agent from the conversation
+        and updates the provided prompt argument with the relevant data. It ensures that the
+        conversation's state is updated with the necessary information, preserving immutability
+
+        :param prompt_argument: The prompt argument to be updated.
         :return: A new instance of the Conversation with updated prompt arguments.
         """
         ...
