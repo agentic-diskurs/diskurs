@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
-from unittest.mock import Mock, ANY
+from unittest.mock import Mock, ANY, AsyncMock
 
 import pytest
 
@@ -51,9 +51,9 @@ def mock_llm_client():
 
 @pytest.fixture
 def mock_dispatcher():
-    dispatcher = Mock(spec=ConversationDispatcher)
-    dispatcher.publish = Mock()
-    dispatcher.finalize = Mock()
+    dispatcher = AsyncMock(spec=ConversationDispatcher)
+    dispatcher.publish = AsyncMock()
+    dispatcher.finalize = AsyncMock()
     return dispatcher
 
 
@@ -130,7 +130,8 @@ def test_update_longterm_memory_with_overwrite(conductor_agent):
 from unittest.mock import patch
 
 
-def test_process_conversation_updates_longterm_memory(conductor_agent):
+@pytest.mark.asyncio
+async def test_process_conversation_updates_longterm_memory(conductor_agent):
     conversation = ImmutableConversation(
         user_prompt_argument=MyUserPromptArgument(field1="value1", field2="value2", field3="value3")
     ).append(ChatMessage(Role.ASSISTANT, content='{"next_agent": "agent1"}'))
@@ -139,24 +140,28 @@ def test_process_conversation_updates_longterm_memory(conductor_agent):
     with patch.object(
         ImmutableConversation, "update_agent_longterm_memory", return_value=conversation
     ) as mock_update_longterm:
+        # Instead of making get_agent_longterm_memory an AsyncMock, make it a regular Mock
         conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
         conductor_agent.prompt.init_longterm_memory.return_value = longterm_memory
         conductor_agent.prompt.can_finalize.return_value = False
-        conductor_agent.prompt.create_system_prompt_argument.return_value = Mock()
+        conductor_agent.prompt.create_system_prompt_argument.return_value = MyUserPromptArgument(
+            field1="sys1", field2="sys2"
+        )
 
         user_prompt_argument = MyUserPromptArgument(field1="value1", field2="value2")
         conductor_agent.prompt.create_user_prompt_argument.return_value = user_prompt_argument
 
-        conductor_agent.generate_validated_response = Mock(return_value=conversation)
+        conductor_agent.generate_validated_response = AsyncMock(return_value=conversation)
 
-        conductor_agent.process_conversation(conversation)
+        await conductor_agent.process_conversation(conversation)
 
         assert longterm_memory.field1 == "value1"
         assert longterm_memory.field2 == "value2"
         mock_update_longterm.assert_called_once()
 
 
-def test_process_conversation_finalize(conductor_agent):
+@pytest.mark.asyncio
+async def test_process_conversation_finalize(conductor_agent):
     conversation = ImmutableConversation(user_prompt_argument=MyUserPromptArgument())
     longterm_memory = MyLongTermMemory()
 
@@ -168,13 +173,18 @@ def test_process_conversation_finalize(conductor_agent):
 
     conductor_agent.generate_validated_response = Mock()
 
-    conductor_agent.process_conversation(conversation)
+    await conductor_agent.process_conversation(conversation)
 
     assert conversation.final_result == {"result": "final result"}
     conductor_agent.generate_validated_response.assert_not_called()
 
 
-def test_max_dispatches(conductor_agent):
+def test_process_conversation_finalize_with_agent(conductor_agent):
+    pass
+
+
+@pytest.mark.asyncio
+async def test_max_dispatches(conductor_agent):
     conductor_agent.n_dispatches = 49
     conversation = ImmutableConversation(user_prompt_argument=MyUserPromptArgument()).append(
         ChatMessage(Role.ASSISTANT, content='{"next_agent": "agent1"}')
@@ -185,12 +195,13 @@ def test_max_dispatches(conductor_agent):
         agent_name=conductor_agent.name, longterm_memory=longterm_memory
     )
 
-    conductor_agent.process_conversation(conversation)
+    await conductor_agent.process_conversation(conversation)
 
     conductor_agent.prompt.fail.assert_called_once_with(longterm_memory)
 
 
-def test_conductor_agent_valid_next_agent(conductor_agent, mock_llm_client):
+@pytest.mark.asyncio
+async def test_conductor_agent_valid_next_agent(conductor_agent, mock_llm_client):
     conversation = ImmutableConversation()
     llm_response = '{"next_agent": "valid_agent"}'
     assistant_message = ChatMessage(role=Role.ASSISTANT, content=llm_response, type=MessageType.ROUTING)
@@ -200,12 +211,13 @@ def test_conductor_agent_valid_next_agent(conductor_agent, mock_llm_client):
     parsed_prompt_argument = DefaultConductorUserPromptArgument(next_agent="valid_agent")
     conductor_agent.prompt.parse_user_prompt.return_value = parsed_prompt_argument
 
-    conductor_agent.process_conversation(conversation)
+    await conductor_agent.process_conversation(conversation)
 
     conductor_agent.dispatcher.publish.assert_called_once_with(topic="valid_agent", conversation=ANY)
 
 
-def test_conductor_agent_fail_on_max_dispatches(conductor_agent):
+@pytest.mark.asyncio
+async def test_conductor_agent_fail_on_max_dispatches(conductor_agent):
     conductor_agent.n_dispatches = conductor_agent.max_dispatches - 1
 
     conversation = ImmutableConversation()
@@ -220,6 +232,6 @@ def test_conductor_agent_fail_on_max_dispatches(conductor_agent):
 
     conductor_agent.prompt.is_valid = is_valid
 
-    conductor_agent.process_conversation(conversation)
+    await conductor_agent.process_conversation(conversation)
 
     conductor_agent.prompt.fail.assert_called_once()
