@@ -145,11 +145,10 @@ class ImmutableConversation(Conversation):
         return self.update(user_prompt_argument=updated_prompt_argument)
 
     def update_prompt_argument_with_previous_agent(
-        self, prompt_argument: GenericUserPromptArg
+        self, previous_agent_prompt_argument: GenericUserPromptArg
     ) -> "ImmutableConversation":
-        previous_agent_prompt_argument = self.user_prompt_argument
         updated_prompt_argument = self.update_prompt_argument(
-            source_values=previous_agent_prompt_argument, target_values=prompt_argument
+            source_values=previous_agent_prompt_argument, target_values=self.user_prompt_argument
         )
 
         return self.update(user_prompt_argument=updated_prompt_argument)

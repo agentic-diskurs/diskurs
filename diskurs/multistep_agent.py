@@ -162,6 +162,8 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
 
         self.logger.debug(f"Invoke called on agent {self.name}")
 
+        previouse_user_prompt_arugment = conversation.user_prompt_argument
+
         conversation = self.prepare_conversation(
             conversation,
             system_prompt_argument=self.prompt.create_system_prompt_argument(),
@@ -178,7 +180,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
             )
 
         if not self.is_previous_agent_conductor(conversation) and self.init_prompt_arguments_with_previous_agent:
-            conversation = conversation.update_prompt_argument_with_previous_agent(self.prompt.user_prompt_argument)
+            conversation = conversation.update_prompt_argument_with_previous_agent(previouse_user_prompt_arugment)
 
         for reasoning_step in range(self.max_reasoning_steps):
             self.logger.debug(f"Reasoning step {reasoning_step + 1} for Agent {self.name}")
