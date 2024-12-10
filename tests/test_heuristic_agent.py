@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 
 from diskurs.entities import MessageType
 from diskurs.heuristic_agent import HeuristicAgent
@@ -68,7 +68,8 @@ def test_prepare_conversation():
     assert result == updated_conversation
 
 
-def test_invoke():
+@pytest.mark.asyncio
+async def test_invoke():
     name = "test_agent"
     prompt = MagicMock()
     conversation = MagicMock(spec=Conversation)
@@ -79,22 +80,24 @@ def test_invoke():
     tool_executor = MagicMock()
     prompt.create_user_prompt_argument.return_value = MagicMock()
 
+    # Make heuristic_sequence an AsyncMock
+    prompt.heuristic_sequence = AsyncMock(return_value=heuristic_sequence_conversation)
+
     agent = HeuristicAgent(
         name=name,
         prompt=prompt,
         tool_executor=tool_executor,
-        topics=["conductor_name"],  # Provide a non-empty topics list
+        topics=["conductor_name"],
         init_prompt_arguments_with_longterm_memory=True,
         render_prompt=True,
     )
 
     agent.prepare_conversation = MagicMock(return_value=updated_conversation)
     updated_conversation.update_prompt_argument_with_longterm_memory.return_value = updated_conversation_with_memory
-    prompt.heuristic_sequence.return_value = heuristic_sequence_conversation
     prompt.render_user_template.return_value = "rendered_template"
     heuristic_sequence_conversation.append.return_value = final_conversation
 
-    result = agent.invoke(conversation)
+    result = await agent.invoke(conversation)
 
     agent.prepare_conversation.assert_called_once_with(
         conversation=conversation, user_prompt_argument=prompt.create_user_prompt_argument.return_value
@@ -102,7 +105,7 @@ def test_invoke():
     updated_conversation.update_prompt_argument_with_longterm_memory.assert_called_once_with(
         conductor_name=agent.get_conductor_name()
     )
-    prompt.heuristic_sequence.assert_called_once_with(
+    prompt.heuristic_sequence.assert_awaited_once_with(
         updated_conversation_with_memory, call_tool=tool_executor.call_tool
     )
     prompt.render_user_template.assert_called_once_with(
@@ -114,7 +117,8 @@ def test_invoke():
     assert result == final_conversation
 
 
-def test_invoke_no_executor():
+@pytest.mark.asyncio
+async def test_invoke_no_executor():
     name = "test_agent"
     prompt = MagicMock()
     conversation = MagicMock(spec=Conversation)
@@ -122,29 +126,30 @@ def test_invoke_no_executor():
     updated_conversation_with_memory = MagicMock(spec=Conversation)
     heuristic_sequence_conversation = MagicMock(spec=Conversation)
     final_conversation = MagicMock(spec=Conversation)
-    tool_executor = MagicMock()
     prompt.create_user_prompt_argument.return_value = MagicMock()
+
+    prompt.heuristic_sequence = AsyncMock(return_value=heuristic_sequence_conversation)
 
     agent = HeuristicAgent(
         name=name,
         prompt=prompt,
-        topics=["conductor_name"],  # Provide a non-empty topics list
+        topics=["conductor_name"],
         init_prompt_arguments_with_longterm_memory=True,
         render_prompt=True,
     )
 
     agent.prepare_conversation = MagicMock(return_value=updated_conversation)
     updated_conversation.update_prompt_argument_with_longterm_memory.return_value = updated_conversation_with_memory
-    prompt.heuristic_sequence.return_value = heuristic_sequence_conversation
     prompt.render_user_template.return_value = "rendered_template"
     heuristic_sequence_conversation.append.return_value = final_conversation
 
-    result = agent.invoke(conversation)
+    result = await agent.invoke(conversation)
 
-    prompt.heuristic_sequence.assert_called_once_with(updated_conversation_with_memory, call_tool=None)
+    prompt.heuristic_sequence.assert_awaited_once_with(updated_conversation_with_memory, call_tool=None)
 
 
-def test_process_conversation():
+@pytest.mark.asyncio
+async def test_process_conversation():
     name = "test_agent"
     prompt = MagicMock()
     conversation = MagicMock(spec=Conversation)
@@ -152,11 +157,14 @@ def test_process_conversation():
     updated_conversation = MagicMock(spec=Conversation)
 
     agent = HeuristicAgent(name=name, prompt=prompt, dispatcher=dispatcher)
-    agent.invoke = MagicMock(return_value=updated_conversation)
+
+    agent.invoke = AsyncMock(return_value=updated_conversation)
     agent.get_conductor_name = MagicMock(return_value="conductor_name")
 
-    agent.process_conversation(conversation)
+    dispatcher.publish = AsyncMock()
 
-    agent.invoke.assert_called_once_with(conversation)
+    await agent.process_conversation(conversation)
+
+    agent.invoke.assert_awaited_once_with(conversation)
     agent.get_conductor_name.assert_called_once()
-    dispatcher.publish.assert_called_once_with(topic="conductor_name", conversation=updated_conversation)
+    dispatcher.publish.assert_awaited_once_with(topic="conductor_name", conversation=updated_conversation)

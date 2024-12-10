@@ -918,6 +918,18 @@ class ConductorAgent(Protocol):
         """
         ...
 
+    async def finalize(self, conversation: Conversation) -> None:
+        """
+        Finalizes the conversation based on the long-term memory.
+        Finalizing refers to the process of generating the final answer to be returned by diskurs.
+        The function can work in two ways:
+            1. If a "finalizer_name" has been provided, the function will call an agent with that name, to finalize.
+            2. If no "finalizer_name" has been provided, the function will call the "finalize" function on the prompt.
+
+        :param conversation: The current state of the conversation, represented as a `Conversation` object.
+        """
+        ...
+
 
 class ToolExecutor(Protocol):
     """

@@ -133,9 +133,13 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
         return conversation.update()
 
-    def finalize(self, conversation: Conversation) -> dict[str, Any]:
+    async def finalize(self, conversation: Conversation) -> None:
         self.logger.debug(f"Finalize conversation on conductor agent {self.name}")
-        return self.prompt.finalize(conversation.get_agent_longterm_memory(self.name))
+
+        if self.finalizer_name:
+            await self.dispatcher.publish(topic=self.finalizer_name, conversation=conversation)
+        else:
+            conversation.final_result = self.prompt.finalize(conversation.get_agent_longterm_memory(self.name))
 
     def fail(self, conversation: Conversation) -> dict[str, Any]:
         self.logger.debug(f"End conversation with fail on conductor agent {self.name}")
@@ -149,9 +153,8 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         if conversation.get_agent_longterm_memory(self.name) and self.prompt.can_finalize(
             conversation.get_agent_longterm_memory(self.name)
         ):
-            formated_response = self.finalize(conversation=conversation)
+            await self.finalize(conversation=conversation)
             self.n_dispatches = 0
-            conversation.final_result = formated_response
 
         elif self.max_dispatches <= self.n_dispatches:
             formatted_response = self.fail(conversation=conversation)

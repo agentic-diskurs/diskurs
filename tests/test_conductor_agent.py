@@ -5,9 +5,9 @@ from unittest.mock import Mock, ANY, AsyncMock
 import pytest
 
 from diskurs import ImmutableConversation
-from diskurs.prompt import PromptValidationError, DefaultConductorUserPromptArgument
 from diskurs.conductor_agent import ConductorAgent
 from diskurs.entities import ChatMessage, Role, MessageType, LongtermMemory, PromptArgument
+from diskurs.prompt import PromptValidationError, DefaultConductorUserPromptArgument
 from diskurs.protocols import (
     LLMClient,
     ConversationDispatcher,
@@ -57,20 +57,24 @@ def mock_dispatcher():
     return dispatcher
 
 
-@pytest.fixture
-def conductor_agent(mock_prompt, mock_llm_client, mock_dispatcher):
+def create_conductor_agent(mock_dispatcher, mock_llm_client, mock_prompt, finalizer=None):
     agent = ConductorAgent(
         name="conductor",
         prompt=mock_prompt,
         llm_client=mock_llm_client,
         topics=[],
         agent_descriptions={},
-        finalizer_name="finalizer",
+        finalizer_name=finalizer,
         dispatcher=mock_dispatcher,
         max_trials=5,
         max_dispatches=5,
     )
     return agent
+
+
+@pytest.fixture
+def conductor_agent(mock_prompt, mock_llm_client, mock_dispatcher):
+    return create_conductor_agent(mock_dispatcher, mock_llm_client, mock_prompt)
 
 
 def test_update_longterm_memory(conductor_agent):
@@ -179,10 +183,6 @@ async def test_process_conversation_finalize(conductor_agent):
     conductor_agent.generate_validated_response.assert_not_called()
 
 
-def test_process_conversation_finalize_with_agent(conductor_agent):
-    pass
-
-
 @pytest.mark.asyncio
 async def test_max_dispatches(conductor_agent):
     conductor_agent.n_dispatches = 49
@@ -235,3 +235,26 @@ async def test_conductor_agent_fail_on_max_dispatches(conductor_agent):
     await conductor_agent.process_conversation(conversation)
 
     conductor_agent.prompt.fail.assert_called_once()
+
+
+@pytest.fixture
+def conductor_agent_with_finalizer(mock_prompt, mock_llm_client, mock_dispatcher):
+    return create_conductor_agent(mock_dispatcher, mock_llm_client, mock_prompt, finalizer="finalizer")
+
+
+@pytest.mark.asyncio
+async def test_process_conversation_finalize_with_agent_calls_dispatcher(conductor_agent_with_finalizer):
+    conversation = ImmutableConversation(user_prompt_argument=MyUserPromptArgument())
+    longterm_memory = MyLongTermMemory()
+
+    conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
+
+    conductor_agent_with_finalizer.prompt.can_finalize.return_value = True
+    conductor_agent_with_finalizer.prompt.finalize.return_value = {"result": "final result"}
+    conductor_agent_with_finalizer.dispatcher.finalize = Mock()
+
+    conductor_agent_with_finalizer.generate_validated_response = Mock()
+
+    await conductor_agent_with_finalizer.process_conversation(conversation)
+
+    conductor_agent_with_finalizer.dispatcher.publish.assert_called_once_with(topic="finalizer", conversation=ANY)
