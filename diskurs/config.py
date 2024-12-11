@@ -182,6 +182,7 @@ class MultistepAgentConfig(AgentConfig):
     prompt: PromptConfig
     tools: Optional[list[str]] = None
     init_prompt_arguments_with_longterm_memory: Optional[bool] = True
+    init_prompt_arguments_with_previous_agent: Optional[bool] = True
     max_reasoning_steps: Optional[int] = 5
 
 
@@ -195,6 +196,8 @@ class ConductorAgentConfig(AgentConfig):
     llm: str
     prompt: PromptConfig
     max_dispatches: Optional[int] = 50
+    finalizer_name: Optional[str] = None
+    supervisor: Optional[str] = None
 
 
 @dataclass(kw_only=True)
@@ -207,7 +210,9 @@ class HeuristicAgentConfig(AgentConfig):
     prompt: PromptConfig
     tools: Optional[list[str]] = None
     init_prompt_arguments_with_longterm_memory: Optional[bool] = True
+    init_prompt_arguments_with_previous_agent: Optional[bool] = True
     render_prompt: Optional[bool] = True
+    final_properties: Optional[list[str]] = None
 
 
 @dataclass(kw_only=True)

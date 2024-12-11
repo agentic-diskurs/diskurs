@@ -715,6 +715,29 @@ class ConversationParticipant(Protocol):
         ...
 
 
+class ConversationFinalizer(Protocol):
+    """
+    Protocol for finalizing conversations.
+
+    This protocol defines the methods and properties required for an entity to finalize a conversation.
+    Implementations of this protocol are responsible for generating the final response to a conversation.
+
+    :param final_properties: Specify the fields from the prompt argument that should be included in the final response.
+    """
+
+    final_properties: list[str]
+
+    async def finalize_conversation(self, conversation: Conversation) -> None:
+        """
+        Finalizes the conversation by setting the final response property on the conversation.
+        This method is meant to be the last method called in a conversation.
+
+        :param conversation: The conversation to be finalized.
+        :return: A dictionary containing the final response data.
+        """
+        ...
+
+
 class ConversationDispatcher(Protocol):
     """
     Protocol for  dispatching conversations.
@@ -764,7 +787,19 @@ class ConversationDispatcher(Protocol):
         """
         pass
 
-    def run(self, participant: ConversationParticipant, conversation: Conversation) -> dict:
+    async def publish_final(self, topic: str, conversation: Conversation) -> None:
+        """
+        Dispatch a conversation to a finalizing agent
+
+        This method sends the given conversation to a finalizing agent that will
+        create the final answer to the conversation.
+
+        :param topic: The name of the finalizing agent.
+        :param conversation: The conversation to be dispatched.
+        """
+        pass
+
+    async def run(self, participant: ConversationParticipant, conversation: Conversation) -> dict:
         """
         Entry point for starting a conversation with a participant.
 
@@ -775,17 +810,6 @@ class ConversationDispatcher(Protocol):
         :param participant: The `ConversationParticipant` that is involved in the conversation.
         :param conversation: The `Conversation` object representing the current state of the conversation.
         :return: A dictionary containing the final response data.
-        """
-        pass
-
-    def finalize(self, response: dict) -> None:
-        """
-        This method is responsible for ending the conversation by setting the future object.
-
-        It is called when the conversation is finalized, and sets the dictionary response as the result
-        which is eventually returned by the future object.
-
-        :param response: A dictionary containing the final response data for the conversation.
         """
         pass
 

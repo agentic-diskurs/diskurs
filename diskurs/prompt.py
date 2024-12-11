@@ -592,6 +592,16 @@ class ConductorPrompt(
         loaded_module,
         kwargs,
     ) -> dict[str, Callable]:
+        try:
+            # If we use a finalizing agent, there need no finalize function be present, we explicitly check for it in
+            # the corresponding conductor agent, so the finalize function has to be None in that case
+            finalize_function = load_symbol(
+                kwargs.get("finalize_name", FINALIZE_DEFAULT_VALUE_NAME),
+                loaded_module,
+            )
+        except AttributeError:
+            finalize_function = None
+
         return {
             "system_prompt_argument_class": (
                 load_symbol(system_prompt_argument_class, loaded_module)
@@ -607,10 +617,7 @@ class ConductorPrompt(
                 kwargs.get("can_finalize_name", CAN_FINALIZE_DEFAULT_VALUE_NAME),
                 loaded_module,
             ),
-            "finalize": load_symbol(
-                kwargs.get("finalize_name", FINALIZE_DEFAULT_VALUE_NAME),
-                loaded_module,
-            ),
+            "finalize": finalize_function,
             "fail": load_symbol(kwargs.get("fail_name", FAIL_DEFAULT_VALUE_NAME), loaded_module),
             "longterm_memory_class": load_symbol(kwargs.get("longterm_memory_class"), loaded_module),
         }

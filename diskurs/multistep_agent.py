@@ -1,6 +1,6 @@
 from typing import Optional, Callable, Self
 
-from diskurs.agent import BaseAgent
+from diskurs.agent import BaseAgent, is_previous_agent_conductor
 from diskurs.entities import (
     ToolDescription,
     ChatMessage,
@@ -14,8 +14,10 @@ from diskurs.protocols import (
     MultistepPrompt,
     Conversation,
     ToolExecutor,
+    ConversationFinalizer,
 )
 from diskurs.registry import register_agent
+from diskurs.utils import get_fields_as_dict
 
 
 @register_agent("multistep")
@@ -49,26 +51,8 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         llm_client: LLMClient,
         **kwargs,
     ) -> Self:
-        dispatcher = kwargs.get("dispatcher", None)
-        tool_executor = kwargs.get("tool_executor", None)
-        tools = kwargs.get("tools", None)
-        max_reasoning_steps = kwargs.get("max_reasoning_steps", 5)
-        max_trials = kwargs.get("max_trials", 5)
-        topics = kwargs.get("topics", [])
-        init_prompt_arguments_with_longterm_memory = kwargs.get("init_prompt_arguments_with_longterm_memory", True)
 
-        return cls(
-            name=name,
-            prompt=prompt,
-            llm_client=llm_client,
-            dispatcher=dispatcher,
-            tool_executor=tool_executor,
-            tools=tools,
-            max_reasoning_steps=max_reasoning_steps,
-            max_trials=max_trials,
-            topics=topics,
-            init_prompt_arguments_with_longterm_memory=init_prompt_arguments_with_longterm_memory,
-        )
+        return cls(name=name, prompt=prompt, llm_client=llm_client, **kwargs)
 
     def get_conductor_name(self) -> str:
         # TODO: somewhat hacky, but should work for now
@@ -162,7 +146,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
 
         self.logger.debug(f"Invoke called on agent {self.name}")
 
-        previouse_user_prompt_arugment = conversation.user_prompt_argument
+        previous_user_prompt_augment = conversation.user_prompt_argument
 
         conversation = self.prepare_conversation(
             conversation,
@@ -179,8 +163,8 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
                 )
             )
 
-        if not self.is_previous_agent_conductor(conversation) and self.init_prompt_arguments_with_previous_agent:
-            conversation = conversation.update_prompt_argument_with_previous_agent(previouse_user_prompt_arugment)
+        if not is_previous_agent_conductor(conversation) and self.init_prompt_arguments_with_previous_agent:
+            conversation = conversation.update_prompt_argument_with_previous_agent(previous_user_prompt_augment)
 
         for reasoning_step in range(self.max_reasoning_steps):
             self.logger.debug(f"Reasoning step {reasoning_step + 1} for Agent {self.name}")
@@ -199,3 +183,18 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         self.logger.info(f"Process conversation on agent: {self.name}")
         conversation = await self.invoke(conversation)
         await self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)
+
+
+@register_agent("multistep_finalizer")
+class MultistepAgentFinalizer(MultiStepAgent, ConversationFinalizer):
+    def __init__(self, **kwargs):
+        final_properties = kwargs.pop("final_properties")
+
+        super().__init__(**kwargs)
+
+        self.final_properties = final_properties
+
+    async def finalize_conversation(self, conversation: Conversation) -> None:
+        self.logger.info(f"Process conversation on agent: {self.name}")
+        conversation = await self.invoke(conversation)
+        conversation.final_result = get_fields_as_dict(conversation.user_prompt_argument, self.final_properties)

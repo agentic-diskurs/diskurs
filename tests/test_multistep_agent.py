@@ -1,34 +1,13 @@
-from dataclasses import dataclass
 from unittest.mock import AsyncMock
 
 import pytest
 
-from conftest import MyUserPromptArgument
-from diskurs import MultiStepAgent, MultistepPrompt, LLMClient, ImmutableConversation
-from diskurs.entities import ChatMessage, Role, MessageType, PromptArgument, LongtermMemory
+from diskurs import MultiStepAgent, LLMClient, ToolExecutor
+from diskurs.entities import ChatMessage, Role, MessageType
+from diskurs.heuristic_agent import HeuristicAgentFinalizer
+from diskurs.multistep_agent import MultistepAgentFinalizer
 
 CONDUCTOR_NAME = "my_conductor"
-
-
-def create_prompt(user_prompt_argument):
-    prompt = AsyncMock(spec=MultistepPrompt)
-    prompt.create_system_prompt_argument.return_value = AsyncMock()
-    prompt.create_user_prompt_argument.return_value = user_prompt_argument
-    prompt.render_user_template.return_value = ChatMessage(
-        role=Role.USER,
-        name="my_multistep",
-        content="rendered template",
-        type=MessageType.CONVERSATION,
-    )
-    prompt.is_final.return_value = True
-    prompt.user_prompt_argument = user_prompt_argument
-
-    return prompt
-
-
-@pytest.fixture
-def mock_prompt():
-    return create_prompt(MyUserPromptArgument())
 
 
 def create_multistep_agent(mock_prompt):
@@ -50,6 +29,11 @@ def create_multistep_agent(mock_prompt):
 @pytest.fixture
 def multistep_agent(mock_prompt):
     return create_multistep_agent(mock_prompt)
+
+
+@pytest.fixture
+def extended_multistep_agent(mock_extended_prompt):
+    return create_multistep_agent(mock_extended_prompt)
 
 
 @pytest.mark.asyncio
@@ -94,68 +78,16 @@ async def test_invoke_with_agent_chain(multistep_agent, conversation):
     )
 
 
-@dataclass
-class MyExtendedLongtermMemory(LongtermMemory):
-    field2: str = ""
-    field3: str = ""
-
-
-@dataclass
-class MySourceUserPromptArgument(PromptArgument):
-    field3: str = ""
-    field4: str = ""
-
-
-@dataclass
-class MyExtendedUserPromptArgument(PromptArgument):
-    field1: str = "extended user prompt field 1"
-    field2: str = "extended user prompt field 2"
-    field3: str = "extended user prompt field 3"
-    field4: str = "extended user prompt field 4"
-
-
-@pytest.fixture
-def mock_extended_prompt():
-    return create_prompt(MyExtendedUserPromptArgument())
-
-
-@pytest.fixture
-def extended_multistep_agent(mock_extended_prompt):
-    return create_multistep_agent(mock_extended_prompt)
-
-
-@pytest.fixture
-def extended_conversation():
-    conversation = ImmutableConversation(
-        conversation_id="my_conversation_id",
-        user_prompt_argument=MySourceUserPromptArgument(
-            field3="user prompt field 3",
-            field4="user prompt field 4",
-        ),
-        chat=[ChatMessage(role=Role.USER, content="Hello, world!", name="Alice")],
-        longterm_memory={
-            "my_conductor": MyExtendedLongtermMemory(
-                field2="longterm val 2",
-                field3="longterm val 3",
-                user_query="longterm user query",
-            ),
-        },
-        active_agent="my_conductor",
-    )
-    return conversation
-
-
 @pytest.mark.asyncio
 async def test_invoke_with_longterm_memory_and_previous_agent(extended_multistep_agent, extended_conversation):
-    conversation = extended_conversation.append(
+    extended_conversation = extended_conversation.append(
         message=ChatMessage(
             content="I am a multistep agent message",
             role=Role.USER,
             type=MessageType.CONVERSATION,
         )
     )
-    result = await extended_multistep_agent.invoke(conversation)
-    assert isinstance(result.user_prompt_argument, MyExtendedUserPromptArgument)
+    result = await extended_multistep_agent.invoke(extended_conversation)
     assert all(
         [
             result.user_prompt_argument.field1 == "extended user prompt field 1",
@@ -164,3 +96,97 @@ async def test_invoke_with_longterm_memory_and_previous_agent(extended_multistep
             result.user_prompt_argument.field4 == "user prompt field 4",
         ]
     )
+
+
+#################################
+# MultistepAgentFinalizer tests #
+#################################
+#          ,  ,
+#          \\ \\
+#          ) \\ \\    _p_
+#          )^\))\))  /  *\
+#           \_|| || / /^`-'
+#  __       -\ \\--/ /
+# <'  \\___/   ___. )'
+#     `====\ )___/\\
+#          //     `"
+#          \\    /  \
+#          `"
+#
+#################################
+
+
+def create_finalizer_agent(mock_prompt, sample_final_properties):
+    return MultistepAgentFinalizer.create(
+        name="test_finalizer",
+        prompt=mock_prompt,
+        topics=[CONDUCTOR_NAME],
+        llm_client=AsyncMock(spec=LLMClient),
+        tool_executor=AsyncMock(spec=ToolExecutor),
+        final_properties=sample_final_properties,
+    )
+
+
+TWO_FINAL_PROPERTIES = ["field1", "field2"]
+
+
+@pytest.fixture
+def finalizer_agent(mock_prompt):
+    return create_finalizer_agent(mock_prompt, sample_final_properties=TWO_FINAL_PROPERTIES)
+
+
+@pytest.fixture
+def finalizer_agent_one_property(mock_prompt):
+    return create_finalizer_agent(mock_prompt, sample_final_properties=["field1"])
+
+
+class TestHeuristicAgentFinalizer:
+    def test_finalizer_initialization(self, mock_prompt):
+        """Test if the finalizer agent initializes correctly with given properties"""
+        agent = HeuristicAgentFinalizer.create(
+            name="test_finalizer",
+            prompt=mock_prompt,
+            topics=[CONDUCTOR_NAME],
+            final_properties=TWO_FINAL_PROPERTIES,
+        )
+
+        assert agent.name == "test_finalizer"
+        assert agent.final_properties == TWO_FINAL_PROPERTIES
+        assert agent.topics == [CONDUCTOR_NAME]
+
+    @pytest.mark.asyncio
+    async def test_finalize_conversation_all_fields(self, finalizer_agent, finalizer_conversation):
+        finalizer_agent.invoke = AsyncMock(return_value=finalizer_conversation)
+
+        await finalizer_agent.finalize_conversation(finalizer_conversation)
+
+        assert finalizer_conversation.final_result == {
+            "field1": "user prompt field 1",
+            "field2": "user prompt field 2",
+        }
+        finalizer_agent.invoke.assert_awaited_once_with(finalizer_conversation)
+
+    @pytest.mark.asyncio
+    async def test_finalize_conversation_one_property(self, finalizer_agent_one_property, finalizer_conversation):
+        finalizer_agent_one_property.invoke = AsyncMock(return_value=finalizer_conversation)
+
+        await finalizer_agent_one_property.finalize_conversation(finalizer_conversation)
+
+        assert finalizer_conversation.final_result == {"field1": "user prompt field 1"}
+        finalizer_agent_one_property.invoke.assert_awaited_once_with(finalizer_conversation)
+
+    @pytest.mark.asyncio
+    async def test_finalize_conversation_empty_properties(self, mock_prompt, extended_conversation):
+
+        agent = MultistepAgentFinalizer.create(
+            name="test_finalizer",
+            prompt=mock_prompt,
+            topics=[CONDUCTOR_NAME],
+            final_properties=TWO_FINAL_PROPERTIES,
+            llm_client=AsyncMock(spec=LLMClient),
+        )
+
+        agent.invoke = AsyncMock(return_value=extended_conversation)
+
+        await agent.finalize_conversation(extended_conversation)
+        assert extended_conversation.final_result == {}

@@ -22,6 +22,13 @@ PromptType = TypeVar("PromptType", bound=Prompt)
 # TODO: implement conditional rendering i.e. for each agent, only the information relevant to it is shown
 
 
+def is_previous_agent_conductor(conversation):
+    if conversation.is_empty():
+        return False
+    else:
+        return conversation.last_message.type == MessageType.ROUTING
+
+
 class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
     def __init__(
         self,
@@ -154,10 +161,3 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
                 raise ValueError(f"Failed to parse response from LLM model: {parsed_response}")
 
         return self.return_fail_validation_message(response or conversation)
-
-    @staticmethod
-    def is_previous_agent_conductor(conversation):
-        if conversation.is_empty():
-            return False
-        else:
-            return conversation.last_message.type == MessageType.ROUTING

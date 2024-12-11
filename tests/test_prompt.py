@@ -182,6 +182,22 @@ def test_conductor_custom_system_prompt():
     assert rendered_system_prompt.content.startswith("Custom system template")
 
 
+prompt_config_no_finalize = {
+    "location": Path(__file__).parent / "test_files" / "conductor_no_finalize_test_files",
+    "user_prompt_argument_class": "ConductorUserPromptArgument",
+    "system_prompt_argument_class": "ConductorSystemPromptArgument",
+    "longterm_memory_class": "MyConductorLongtermMemory",
+    "can_finalize_name": "can_finalize",
+    "fail_name": "fail",
+}
+
+
+def test_conductor_no_finalize_function():
+    prompt = ConductorPrompt.create(**prompt_config_no_finalize)
+
+    assert prompt._finalize is None
+
+
 def test_parse_user_prompt_partial_update(prompt_instance, prompt_testing_conversation):
     old_user_prompt_argument = MyUserPromptArgument(name="Alice", topic="Wonderland")
     returned_property = """{

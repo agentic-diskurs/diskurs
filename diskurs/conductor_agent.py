@@ -3,7 +3,7 @@ import logging
 from dataclasses import fields
 from typing import Optional, Self, Any
 
-from diskurs.agent import BaseAgent
+from diskurs.agent import BaseAgent, is_previous_agent_conductor
 from diskurs.entities import (
     MessageType,
     LongtermMemory,
@@ -30,11 +30,17 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         llm_client: LLMClient,
         topics: list[str],
         agent_descriptions: dict[str, str],
-        finalizer_name: str,
+        finalizer_name: Optional[str] = None,
+        supervisor: Optional[str] = None,
         dispatcher: Optional[ConversationDispatcher] = None,
         max_trials: int = 5,
         max_dispatches: int = 50,
     ):
+        has_finalize = hasattr(prompt, "_finalize") and getattr(prompt, "_finalize") is not None
+        assert (
+            sum((has_finalize, finalizer_name is not None, supervisor is not None)) == 1
+        ), "Exactly one of prompt._finalize, finalizer_name, or supervisor must be set"
+
         super().__init__(
             name=name,
             prompt=prompt,
@@ -45,6 +51,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         )
         self.agent_descriptions = agent_descriptions
         self.finalizer_name = finalizer_name
+        self.supervisor = supervisor
         self.max_dispatches = max_dispatches
         self.n_dispatches = 0
 
@@ -57,7 +64,8 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         prompt = kwargs.get("prompt")
         llm_client = kwargs.get("llm_client")
         agent_descriptions = kwargs.get("agent_descriptions")
-        finalizer_name = kwargs.get("finalizer_name", "")
+        finalizer_name = kwargs.get("finalizer_name", None)
+        supervisor = kwargs.get("supervisor", None)
         dispatcher = kwargs.get("dispatcher", None)
         max_trials = kwargs.get("max_trials", 5)
         max_dispatches = kwargs.get("max_dispatches", 50)
@@ -70,6 +78,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             dispatcher=dispatcher,
             agent_descriptions=agent_descriptions,
             finalizer_name=finalizer_name,
+            supervisor=supervisor,
             max_trials=max_trials,
             max_dispatches=max_dispatches,
             topics=topics,
@@ -94,7 +103,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
         source = (
             conversation.get_agent_longterm_memory(conversation.last_message.name)
-            if self.is_previous_agent_conductor(conversation)
+            if is_previous_agent_conductor(conversation)
             else conversation.user_prompt_argument
         )
 
@@ -136,7 +145,9 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
     async def finalize(self, conversation: Conversation) -> None:
         self.logger.debug(f"Finalize conversation on conductor agent {self.name}")
 
-        if self.finalizer_name:
+        if self.supervisor:
+            await self.dispatcher.publish(topic=self.supervisor, conversation=conversation)
+        elif self.finalizer_name:
             await self.dispatcher.publish(topic=self.finalizer_name, conversation=conversation)
         else:
             conversation.final_result = self.prompt.finalize(conversation.get_agent_longterm_memory(self.name))

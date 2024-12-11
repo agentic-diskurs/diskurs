@@ -1,8 +1,10 @@
 import importlib.util
 import logging
 import sys
+from dataclasses import asdict, dataclass
 from importlib import resources
 from pathlib import Path
+from typing import TypeVar, Any
 
 import jinja2
 from jinja2 import Template
@@ -46,3 +48,18 @@ def load_template_from_package(package_name: str, template_name: str) -> Templat
 
     template = jinja2.Template(template_content)
     return template
+
+
+T = TypeVar("T", bound=dataclass)
+
+
+def get_fields_as_dict(dataclass_obj: T, fields_to_get: list[str]) -> dict[str, Any]:
+    """
+    Takes a dataclass instance and a list of fields i.e. properties contained in that dataclass and returns a
+    dictionary containing only the fields specified in the fields_to_get
+
+    :param dataclass_obj: the dataclass instance to extract the fields from
+    :param fields_to_get: the list of property names to extract from the dataclass
+    :return: a dictionary containing the subset of fields as specified in fields_to_get
+    """
+    return {k: v for k, v in asdict(dataclass_obj).items() if k in fields_to_get}
