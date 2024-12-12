@@ -167,7 +167,7 @@ class AgentConfig(YamlSerializable, Registrable):
 
     type: str
     name: str
-    topics: list[str]
+    topics: Optional[list[str]] = None
     max_trials: Optional[int] = 5
 
 
