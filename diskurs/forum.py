@@ -221,10 +221,10 @@ class ForumFactory:
     def create_agents(self):
         """Create agent instances based on the configuration."""
         for agent_conf in self.config.agents:
-            additional_args = {
-                "max_trials": agent_conf.max_trials,
-            }
+            additional_args = {}
 
+            if hasattr(agent_conf, "max_trials"):
+                additional_args["max_trials"] = agent_conf.max_trials
             if hasattr(agent_conf, "max_reasoning_steps"):
                 additional_args["max_reasoning_steps"] = agent_conf.max_reasoning_steps
             if hasattr(agent_conf, "prompt"):
