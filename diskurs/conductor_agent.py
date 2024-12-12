@@ -148,7 +148,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         if self.supervisor:
             await self.dispatcher.publish(topic=self.supervisor, conversation=conversation)
         elif self.finalizer_name:
-            await self.dispatcher.publish(topic=self.finalizer_name, conversation=conversation)
+            await self.dispatcher.publish_final(topic=self.finalizer_name, conversation=conversation)
         else:
             conversation.final_result = self.prompt.finalize(conversation.get_agent_longterm_memory(self.name))
 
