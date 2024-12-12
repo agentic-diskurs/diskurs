@@ -2,7 +2,7 @@ from typing import Optional, Self
 
 from diskurs import register_agent, Conversation, ToolExecutor, Agent, PromptArgument
 from diskurs.agent import is_previous_agent_conductor
-from diskurs.entities import MessageType
+from diskurs.entities import MessageType, ToolDescription
 from diskurs.logger_setup import get_logger
 from diskurs.protocols import (
     ConversationParticipant,
@@ -21,6 +21,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
         prompt: HeuristicPrompt,
         topics: Optional[list[str]] = None,
         dispatcher: Optional[ConversationDispatcher] = None,
+        tools: Optional[list[ToolDescription]] = None,
         tool_executor: Optional[ToolExecutor] = None,
         init_prompt_arguments_with_longterm_memory: bool = True,
         init_prompt_arguments_with_previous_agent: bool = True,
@@ -32,6 +33,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
         self.topics = topics or []
         self.dispatcher = dispatcher
         self.tool_executor = tool_executor
+        self.tools = tools or []
         self.init_prompt_arguments_with_longterm_memory = init_prompt_arguments_with_longterm_memory
         self.init_prompt_arguments_with_previous_agent = init_prompt_arguments_with_previous_agent
         self.render_prompt = render_prompt
