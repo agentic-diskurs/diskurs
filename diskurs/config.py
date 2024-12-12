@@ -229,6 +229,7 @@ class HeuristicAgentFinalizerConfig(AgentConfig):
     render_prompt: Optional[bool] = True
     final_properties: Optional[list[str]] = None
 
+
 @dataclass(kw_only=True)
 class LLMConfig(YamlSerializable, Registrable):
     """
