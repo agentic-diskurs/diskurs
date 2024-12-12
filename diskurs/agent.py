@@ -26,7 +26,7 @@ def is_previous_agent_conductor(conversation):
     if conversation.is_empty():
         return False
     else:
-        return conversation.last_message.type == MessageType.ROUTING
+        return conversation.last_message.type == MessageType.CONDUCTOR
 
 
 class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):

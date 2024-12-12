@@ -125,13 +125,13 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
                 agent_descriptions=self.agent_descriptions
             ),
             user_prompt_argument=self.prompt.create_user_prompt_argument(),
-            message_type=MessageType.ROUTING,
+            message_type=MessageType.CONDUCTOR,
         )
 
         # TODO: try to unify with multistep agent
         for reasoning_step in range(self.max_trials):
             self.logger.debug(f"Reasoning step {reasoning_step + 1} for Agent {self.name}")
-            conversation = await self.generate_validated_response(conversation, message_type=MessageType.ROUTING)
+            conversation = await self.generate_validated_response(conversation, message_type=MessageType.CONDUCTOR)
 
             if (
                 self.prompt.is_final(conversation.user_prompt_argument)

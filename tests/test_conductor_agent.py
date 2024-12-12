@@ -243,7 +243,7 @@ async def test_max_dispatches(conductor_cannot_finalize):
 async def test_conductor_agent_valid_next_agent(conductor_cannot_finalize, mock_llm_client):
     conversation = ImmutableConversation()
     llm_response = '{"next_agent": "valid_agent"}'
-    assistant_message = ChatMessage(role=Role.ASSISTANT, content=llm_response, type=MessageType.ROUTING)
+    assistant_message = ChatMessage(role=Role.ASSISTANT, content=llm_response, type=MessageType.CONDUCTOR)
     conversation = conversation.append(assistant_message)
     mock_llm_client.generate.return_value = conversation
 
@@ -261,7 +261,7 @@ async def test_conductor_agent_fail_on_max_dispatches(conductor_cannot_finalize)
 
     conversation = ImmutableConversation()
     conversation = conversation.append(
-        ChatMessage(role=Role.ASSISTANT, content='{"next_agent": "invalid_agent"}', type=MessageType.ROUTING)
+        ChatMessage(role=Role.ASSISTANT, content='{"next_agent": "invalid_agent"}', type=MessageType.CONDUCTOR)
     )
 
     def is_valid(prompt_args):

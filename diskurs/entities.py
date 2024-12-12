@@ -78,7 +78,7 @@ class MessageType(Enum):
     Enum to represent the type of message
     """
 
-    ROUTING = "routing"
+    CONDUCTOR = "conductor"
     CONVERSATION = "conversation"
 
     def __str__(self):

@@ -42,7 +42,7 @@ async def test_invoke_with_conductor_as_previous_agent(multistep_agent, conversa
         message=ChatMessage(
             content="I am a conductor message",
             role=Role.USER,
-            type=MessageType.ROUTING,
+            type=MessageType.CONDUCTOR,
         )
     )
 

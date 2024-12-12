@@ -149,7 +149,7 @@ class Prompt(Protocol):
         self,
         llm_response: str,
         old_user_prompt_argument: PromptArgument,
-        message_type: MessageType = MessageType.ROUTING,
+        message_type: MessageType = MessageType.CONDUCTOR,
     ) -> Union[PromptArgument, ChatMessage]:
         """
         Parses the LLM response into a prompt argument or ChatMessage.

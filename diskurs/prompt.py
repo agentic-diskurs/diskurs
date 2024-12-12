@@ -192,7 +192,7 @@ class PromptParserMixin:
         self,
         llm_response: str,
         old_user_prompt_argument: PromptArgument,
-        message_type: MessageType = MessageType.ROUTING,
+        message_type: MessageType = MessageType.CONDUCTOR,
     ) -> PromptArgument | ChatMessage:
         """
         Parse the text returned from the LLM into a structured prompt argument.
