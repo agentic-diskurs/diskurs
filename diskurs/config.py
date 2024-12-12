@@ -168,7 +168,6 @@ class AgentConfig(YamlSerializable, Registrable):
     type: str
     name: str
     topics: Optional[list[str]] = None
-    max_trials: Optional[int] = 5
 
 
 @dataclass(kw_only=True)
@@ -184,6 +183,7 @@ class MultistepAgentConfig(AgentConfig):
     init_prompt_arguments_with_longterm_memory: Optional[bool] = True
     init_prompt_arguments_with_previous_agent: Optional[bool] = True
     max_reasoning_steps: Optional[int] = 5
+    max_trials: Optional[int] = 5
 
 
 @dataclass(kw_only=True)
@@ -196,6 +196,7 @@ class ConductorAgentConfig(AgentConfig):
     llm: str
     prompt: PromptConfig
     max_dispatches: Optional[int] = 50
+    max_trials: Optional[int] = 5
     finalizer_name: Optional[str] = None
     supervisor: Optional[str] = None
 
