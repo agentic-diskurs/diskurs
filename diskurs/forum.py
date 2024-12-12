@@ -227,6 +227,8 @@ class ForumFactory:
                 additional_args["max_trials"] = agent_conf.max_trials
             if hasattr(agent_conf, "max_reasoning_steps"):
                 additional_args["max_reasoning_steps"] = agent_conf.max_reasoning_steps
+            if hasattr(agent_conf, "final_properties"):
+                additional_args["final_properties"] = agent_conf.final_properties
             if hasattr(agent_conf, "prompt"):
                 prompt_creation_arguments = asdict(agent_conf.prompt)
 
