@@ -1,5 +1,5 @@
 from .config import ToolDependencyConfig, ConversationStoreConfig
-from .dispatcher import SynchronousConversationDispatcher
+from .dispatcher import AsynchronousConversationDispatcher
 from .entities import PromptArgument, LongtermMemory, DiskursInput
 from .forum import create_forum_from_config, ForumFactory
 from .immutable_conversation import ImmutableConversation
@@ -38,7 +38,7 @@ __all__ = [
     "DiskursInput",
     "MultiStepAgent",
     "ConductorAgent",
-    "SynchronousConversationDispatcher",
+    "AsynchronousConversationDispatcher",
     "ToolDependencyConfig",
     "ImmutableConversation",
     "PromptValidationError",

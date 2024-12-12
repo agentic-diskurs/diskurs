@@ -8,13 +8,13 @@ from diskurs.protocols import (
 from diskurs.registry import register_dispatcher
 
 
-@register_dispatcher("synchronous")
-class SynchronousConversationDispatcher(ConversationDispatcher):
+@register_dispatcher("asynchronous")
+class AsynchronousConversationDispatcher(ConversationDispatcher):
     def __init__(self):
         self._topics: dict[str, list[ConversationParticipant | ConversationFinalizer]] = {}
         self.logger = get_logger(f"diskurs.{__name__}")
 
-        self.logger.info(f"Initializing synchronous conversation dispatcher")
+        self.logger.info(f"Initializing asynchronous conversation dispatcher")
 
     def subscribe(self, topic: str, subscriber: ConversationParticipant | ConversationFinalizer) -> None:
         self.logger.debug(f"Subscribing {subscriber.name} to topic {topic}")
