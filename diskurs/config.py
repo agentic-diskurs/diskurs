@@ -213,8 +213,21 @@ class HeuristicAgentConfig(AgentConfig):
     init_prompt_arguments_with_longterm_memory: Optional[bool] = True
     init_prompt_arguments_with_previous_agent: Optional[bool] = True
     render_prompt: Optional[bool] = True
-    final_properties: Optional[list[str]] = None
 
+
+@dataclass(kw_only=True)
+class HeuristicAgentFinalizerConfig(AgentConfig):
+    """
+    Represents an agent configuration.
+    """
+
+    type: str = "heuristic_finalizer"
+    prompt: PromptConfig
+    tools: Optional[list[str]] = None
+    init_prompt_arguments_with_longterm_memory: Optional[bool] = True
+    init_prompt_arguments_with_previous_agent: Optional[bool] = True
+    render_prompt: Optional[bool] = True
+    final_properties: Optional[list[str]] = None
 
 @dataclass(kw_only=True)
 class LLMConfig(YamlSerializable, Registrable):
