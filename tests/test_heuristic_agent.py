@@ -36,16 +36,6 @@ def test_create_method():
     assert agent.render_prompt == render_prompt
 
 
-def test_get_conductor_name():
-    name = "test_agent"
-    prompt = MagicMock()
-    topics = ["conductor1", "topic2"]
-
-    agent = HeuristicAgent(name=name, prompt=prompt, topics=topics)
-
-    assert agent.get_conductor_name() == "conductor1"
-
-
 def test_register_dispatcher():
     name = "test_agent"
     prompt = MagicMock()

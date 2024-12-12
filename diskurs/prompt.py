@@ -190,6 +190,7 @@ class PromptParserMixin:
 
     def parse_user_prompt(
         self,
+        name: str,
         llm_response: str,
         old_user_prompt_argument: PromptArgument,
         message_type: MessageType = MessageType.CONDUCTOR,
@@ -200,6 +201,7 @@ class PromptParserMixin:
         If the text is not valid, raise a PromptValidationError, and generate a user prompt with the error message,
         for the LLM to correct its output.
 
+        :param name: Name of the agent.
         :param llm_response: Response from the LLM.
         :param old_user_prompt_argument: The previous user prompt argument.
         :param message_type: Type of message to be created.
@@ -214,7 +216,7 @@ class PromptParserMixin:
 
             return validated_response
         except PromptValidationError as e:
-            return ChatMessage(role=Role.USER, content=str(e), type=message_type)
+            return ChatMessage(role=Role.USER, name=name, content=str(e), type=message_type)
 
 
 UserPromptArg = TypeVar("UserPromptArg")
@@ -476,7 +478,7 @@ class MultistepPrompt(
         except PromptValidationError as e:
             return ChatMessage(role=Role.USER, name=name, content=str(e), type=message_type)
         except Exception as e:
-            return ChatMessage(role=Role.USER, content=f"An error occurred: {str(e)}")
+            return ChatMessage(role=Role.USER, name=name, content=f"An error occurred: {str(e)}")
 
 
 @register_prompt("conductor_prompt")
@@ -653,7 +655,7 @@ class ConductorPrompt(
         except PromptValidationError as e:
             return ChatMessage(role=Role.USER, name=name, content=str(e), type=message_type)
         except Exception as e:
-            return ChatMessage(role=Role.USER, content=f"An error occurred: {str(e)}")
+            return ChatMessage(role=Role.USER, name=name, content=f"An error occurred: {str(e)}")
 
 
 @register_prompt("heuristic_prompt")

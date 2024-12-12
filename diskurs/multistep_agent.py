@@ -1,6 +1,6 @@
 from typing import Optional, Callable, Self
 
-from diskurs.agent import BaseAgent, is_previous_agent_conductor
+from diskurs.agent import BaseAgent, is_previous_agent_conductor, get_last_conductor_name
 from diskurs.entities import (
     ToolDescription,
     ChatMessage,
@@ -53,10 +53,6 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
     ) -> Self:
 
         return cls(name=name, prompt=prompt, llm_client=llm_client, **kwargs)
-
-    def get_conductor_name(self) -> str:
-        # TODO: somewhat hacky, but should work for now
-        return self.topics[0]
 
     def register_tools(self, tools: list[Callable] | Callable) -> None:
         """
@@ -122,6 +118,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
             else:
 
                 parsed_response = self.prompt.parse_user_prompt(
+                    self.name,
                     llm_response=response.last_message.content,
                     old_user_prompt_argument=response.user_prompt_argument,
                     message_type=message_type,
@@ -155,7 +152,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         )
         if self.init_prompt_arguments_with_longterm_memory:
             conversation = conversation.update_prompt_argument_with_longterm_memory(
-                conductor_name=self.get_conductor_name()
+                conductor_name=get_last_conductor_name(conversation.chat)
             )
             conversation = conversation.update(
                 user_prompt=self.prompt.render_user_template(
@@ -182,7 +179,9 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
     async def process_conversation(self, conversation: Conversation) -> None:
         self.logger.info(f"Process conversation on agent: {self.name}")
         conversation = await self.invoke(conversation)
-        await self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)
+
+        for topic in self.topics:
+            await self.dispatcher.publish(topic=topic, conversation=conversation)
 
 
 @register_agent("multistep_finalizer")

@@ -147,6 +147,7 @@ class Prompt(Protocol):
 
     def parse_user_prompt(
         self,
+        name: str,
         llm_response: str,
         old_user_prompt_argument: PromptArgument,
         message_type: MessageType = MessageType.CONDUCTOR,
@@ -158,6 +159,7 @@ class Prompt(Protocol):
         `PromptArgument` or a `ChatMessage` object. It uses the old user prompt argument and
         the message type to guide the parsing process.
 
+        :param name: Name of the agent.
         :param llm_response: The response string from the language model.
         :param old_user_prompt_argument: The previous user prompt argument to be used as a reference.
         :param message_type: The type of message to be parsed. Defaults to `MessageType.ROUTING`.

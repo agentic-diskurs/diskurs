@@ -1,7 +1,7 @@
 from typing import Optional, Self
 
 from diskurs import register_agent, Conversation, ToolExecutor, Agent, PromptArgument
-from diskurs.agent import is_previous_agent_conductor
+from diskurs.agent import is_previous_agent_conductor, get_last_conductor_name
 from diskurs.entities import MessageType, ToolDescription
 from diskurs.logger_setup import get_logger
 from diskurs.protocols import (
@@ -44,10 +44,6 @@ class HeuristicAgent(Agent, ConversationParticipant):
     def create(cls, name: str, prompt: HeuristicPrompt, **kwargs) -> Self:
         return cls(name=name, prompt=prompt, **kwargs)
 
-    def get_conductor_name(self) -> str:
-        # TODO: somewhat hacky, but should work for now
-        return self.topics[0]
-
     def register_dispatcher(self, dispatcher: ConversationDispatcher) -> None:
         self.dispatcher = dispatcher
 
@@ -68,7 +64,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
         )
         if self.init_prompt_arguments_with_longterm_memory:
             conversation = conversation.update_prompt_argument_with_longterm_memory(
-                conductor_name=self.get_conductor_name()
+                conductor_name=get_last_conductor_name(conversation.chat)
             )
         if self.tool_executor:
             call_tool = self.tool_executor.call_tool
@@ -95,7 +91,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
     async def process_conversation(self, conversation: Conversation) -> None:
         self.logger.info(f"Process conversation on agent: {self.name}")
         conversation = await self.invoke(conversation)
-        await self.dispatcher.publish(topic=self.get_conductor_name(), conversation=conversation)
+        await self.dispatcher.publish(topic=get_last_conductor_name(conversation.chat), conversation=conversation)
 
 
 @register_agent("heuristic_finalizer")
