@@ -292,7 +292,9 @@ async def test_process_conversation_finalize_with_agent_calls_dispatcher(conduct
 
     await conductor_agent_with_finalizer.process_conversation(conversation)
 
-    conductor_agent_with_finalizer.dispatcher.publish.assert_called_once_with(topic=FINALIZER_NAME, conversation=ANY)
+    conductor_agent_with_finalizer.dispatcher.publish_final.assert_called_once_with(
+        topic=FINALIZER_NAME, conversation=ANY
+    )
 
 
 @pytest.mark.asyncio
@@ -308,7 +310,7 @@ async def test_finalize_return_to_supervisor(conductor_agent_with_supervisor, co
 async def test_finalize_call_finalizer(conductor_agent_with_finalizer, conversation):
     await conductor_agent_with_finalizer.finalize(conversation)
 
-    conductor_agent_with_finalizer.dispatcher.publish.assert_called_once_with(
+    conductor_agent_with_finalizer.dispatcher.publish_final.assert_called_once_with(
         topic=FINALIZER_NAME, conversation=conversation
     )
 
