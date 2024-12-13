@@ -1,7 +1,7 @@
 from typing import Optional, Self
 
 from diskurs import register_agent, Conversation, ToolExecutor, Agent, PromptArgument
-from diskurs.agent import is_previous_agent_conductor, get_last_conductor_name
+from diskurs.agent import is_previous_agent_conductor, get_last_conductor_name, has_conductor_been_called
 from diskurs.entities import MessageType, ToolDescription
 from diskurs.logger_setup import get_logger
 from diskurs.protocols import (
@@ -62,7 +62,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
             conversation=conversation,
             user_prompt_argument=self.prompt.create_user_prompt_argument(),
         )
-        if self.init_prompt_arguments_with_longterm_memory:
+        if has_conductor_been_called(conversation) and self.init_prompt_arguments_with_longterm_memory:
             conversation = conversation.update_prompt_argument_with_longterm_memory(
                 conductor_name=get_last_conductor_name(conversation.chat)
             )

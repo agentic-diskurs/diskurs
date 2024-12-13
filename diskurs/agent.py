@@ -36,6 +36,10 @@ def get_last_conductor_name(chat: list[ChatMessage]) -> Optional[str]:
     return None
 
 
+def has_conductor_been_called(conversation):
+    return any(message.type == MessageType.CONDUCTOR for message in conversation.chat)
+
+
 class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
     def __init__(
         self,

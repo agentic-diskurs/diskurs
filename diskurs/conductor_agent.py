@@ -21,6 +21,15 @@ from diskurs.registry import register_agent
 logger = logging.getLogger(__name__)
 
 
+def has_unique_execution_path(
+    prompt: ConductorPrompt, attr_name: str, external_options: list[Optional[str]], error_message: str
+) -> None:
+    has_attr = hasattr(prompt, attr_name) and getattr(prompt, attr_name) is not None
+    external_values = [opt is not None for opt in external_options]
+
+    assert sum([has_attr] + external_values) == 1, error_message
+
+
 @register_agent("conductor")
 class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
     def __init__(
@@ -32,14 +41,24 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         agent_descriptions: dict[str, str],
         finalizer_name: Optional[str] = None,
         supervisor: Optional[str] = None,
+        can_finalize_name: Optional[str] = None,
         dispatcher: Optional[ConversationDispatcher] = None,
         max_trials: int = 5,
         max_dispatches: int = 50,
     ):
-        has_finalize = hasattr(prompt, "_finalize") and getattr(prompt, "_finalize") is not None
-        assert (
-            sum((has_finalize, finalizer_name is not None, supervisor is not None)) == 1
-        ), "Exactly one of prompt._finalize, finalizer_name, or supervisor must be set"
+        has_unique_execution_path(
+            prompt=prompt,
+            attr_name="_finalize",
+            external_options=[finalizer_name, supervisor],
+            error_message="Exactly one of prompt._finalize, finalizer_name, or supervisor must be set",
+        )
+
+        has_unique_execution_path(
+            prompt=prompt,
+            attr_name="_can_finalize",
+            external_options=[can_finalize_name],
+            error_message="Exactly one of prompt._can_finalize or can_finalize_name must be set",
+        )
 
         super().__init__(
             name=name,
@@ -52,6 +71,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         self.agent_descriptions = agent_descriptions
         self.finalizer_name = finalizer_name
         self.supervisor = supervisor
+        self.can_finalize_name = can_finalize_name
         self.max_dispatches = max_dispatches
         self.n_dispatches = 0
 
@@ -142,6 +162,12 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
         return conversation.update()
 
+    async def can_finalize(self, conversation: Conversation) -> bool:
+        if self.can_finalize_name:
+            pass
+        else:
+            return self.prompt.can_finalize(conversation.get_agent_longterm_memory(self.name))
+
     async def finalize(self, conversation: Conversation) -> None:
         self.logger.debug(f"Finalize conversation on conductor agent {self.name}")
 
@@ -161,9 +187,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         self.n_dispatches += 1
         conversation = self.create_or_update_longterm_memory(conversation)
 
-        if conversation.get_agent_longterm_memory(self.name) and self.prompt.can_finalize(
-            conversation.get_agent_longterm_memory(self.name)
-        ):
+        if conversation.get_agent_longterm_memory(self.name) and await self.can_finalize(conversation):
             await self.finalize(conversation=conversation)
             self.n_dispatches = 0
 

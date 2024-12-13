@@ -1,3 +1,4 @@
+from importlib.metadata import version
 from .config import ToolDependencyConfig, ConversationStoreConfig
 from .dispatcher import AsynchronousConversationDispatcher
 from .entities import PromptArgument, LongtermMemory, DiskursInput
@@ -28,9 +29,13 @@ from .registry import (
     register_dispatcher,
     register_prompt,
 )
+
 from .tools import tool
 
+__version__ = version("diskurs")
+
 __all__ = [
+    "__version__",
     "create_forum_from_config",
     "ForumFactory",
     "PromptArgument",

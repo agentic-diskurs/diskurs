@@ -929,6 +929,7 @@ class ConductorAgent(Protocol):
 
     name: str
     prompt: ConductorPrompt
+    can_finalize_agent: Optional[str]
 
     def create_or_update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation:
         """
@@ -941,6 +942,22 @@ class ConductorAgent(Protocol):
         :param conversation: The current state of the conversation, represented as a `Conversation` object.
         :param overwrite: A boolean flag indicating whether to overwrite existing memory fields. Defaults to False.
         :return: An updated `Conversation` object with the new or updated long-term memory.
+        """
+        ...
+
+    async def can_finalize(self, conversation: Conversation) -> bool:
+        """
+        Determines if the conversation can be finalized based on the long-term memory i.e. the conversation history
+        (in the case of an LLM based can_finalize)
+
+        If we are using a function i.e. heuristics, this method evaluates the long-term memory of the conversation
+        to decide whether it can be finalized. It checks if the necessary conditions are met for finalizing the conversation.
+
+        If we are using an LLM i.e. agent based can_finalize, this method evaluates the chat history of the conversation
+        to decide whether it can be finalized. This allows for free-form questions as observed in open chat.
+
+        :param conversation: The current state of the conversation, represented as a `Conversation` object.
+        :return: True if the conversation can be finalized, False otherwise.
         """
         ...
 

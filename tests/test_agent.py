@@ -1,5 +1,7 @@
+from unittest.mock import Mock
+
 from diskurs import ImmutableConversation
-from diskurs.agent import is_previous_agent_conductor, get_last_conductor_name
+from diskurs.agent import is_previous_agent_conductor, get_last_conductor_name, has_conductor_been_called
 from diskurs.entities import ChatMessage, Role, MessageType
 
 
@@ -51,3 +53,38 @@ def test_get_last_conductor_name_multiple_conductors():
         ChatMessage(role=Role.ASSISTANT, type=MessageType.CONDUCTOR, name="conductor1"),
     ]
     assert get_last_conductor_name(chat) == "conductor1"
+
+
+def test_has_conductor_been_called_empty_chat():
+    conversation = Mock()
+    conversation.chat = []
+    assert has_conductor_been_called(conversation) is False
+
+
+def test_has_conductor_been_called_no_conductor():
+    conversation = Mock()
+    conversation.chat = [
+        ChatMessage(role=Role.ASSISTANT, type=MessageType.CONVERSATION, name="agent1"),
+        ChatMessage(role=Role.USER, type=MessageType.CONVERSATION, name="user1"),
+    ]
+    assert has_conductor_been_called(conversation) is False
+
+
+def test_has_conductor_been_called_single_conductor():
+    conversation = Mock()
+    conversation.chat = [
+        ChatMessage(role=Role.ASSISTANT, type=MessageType.CONDUCTOR, name="conductor1"),
+        ChatMessage(role=Role.USER, type=MessageType.CONVERSATION, name="user1"),
+    ]
+    assert has_conductor_been_called(conversation) is True
+
+
+def test_has_conductor_been_called_multiple_conductors():
+    conversation = Mock()
+    conversation.chat = [
+        ChatMessage(role=Role.ASSISTANT, type=MessageType.CONVERSATION, name="agent1"),
+        ChatMessage(role=Role.ASSISTANT, type=MessageType.CONDUCTOR, name="conductor2"),
+        ChatMessage(role=Role.USER, type=MessageType.CONVERSATION, name="user1"),
+        ChatMessage(role=Role.ASSISTANT, type=MessageType.CONDUCTOR, name="conductor1"),
+    ]
+    assert has_conductor_been_called(conversation) is True

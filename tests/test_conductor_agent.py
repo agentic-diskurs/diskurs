@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from typing import Optional
-from unittest.mock import Mock, ANY, AsyncMock
+from unittest.mock import ANY, AsyncMock
 
 import pytest
 
 from diskurs import ImmutableConversation
-from diskurs.conductor_agent import ConductorAgent
+from diskurs.conductor_agent import ConductorAgent, has_unique_execution_path
 from diskurs.entities import ChatMessage, Role, MessageType, LongtermMemory, PromptArgument
 from diskurs.prompt import PromptValidationError, DefaultConductorUserPromptArgument
 from diskurs.protocols import (
@@ -32,9 +32,14 @@ class MyUserPromptArgument(PromptArgument):
     field3: Optional[str] = ""
 
 
-def create_conductor_prompt(has_finalizer: bool = True, can_finalize: bool = True):
+def create_conductor_prompt(
+    has_finalizer: bool = True, can_finalize_return_value: bool = True, has_can_finalize: bool = True
+):
     def finalize(longterm_memory):
         return {"result": "final result"}
+
+    def can_finalize(longterm_memory):
+        return can_finalize_return_value
 
     prompt = Mock(spec=ConductorPrompt)
     prompt.init_longterm_memory.return_value = MyLongTermMemory()
@@ -42,9 +47,12 @@ def create_conductor_prompt(has_finalizer: bool = True, can_finalize: bool = Tru
     prompt.create_user_prompt_argument.return_value = Mock()
 
     finalize_mock = Mock(side_effect=finalize)
+    can_finalize_mock = Mock(side_effect=can_finalize)
+
     prompt.finalize = finalize_mock
-    prompt.can_finalize = Mock(return_value=can_finalize)
+    prompt.can_finalize = can_finalize_mock
     prompt._finalize = finalize if has_finalizer else None
+    prompt._can_finalize = can_finalize if has_can_finalize else None
     prompt.fail.return_value = {}
     return prompt
 
@@ -214,7 +222,7 @@ async def test_process_conversation_finalize(conductor_agent):
 
 @pytest.fixture
 def mock_prompt_cannot_finalize():
-    return create_conductor_prompt(can_finalize=False)
+    return create_conductor_prompt(can_finalize_return_value=False)
 
 
 @pytest.fixture
@@ -321,3 +329,77 @@ async def test_finalize_call_prompt_function(conductor_agent_with_finalizer_func
 
     assert conversation.final_result == {"result": "final result"}
     conductor_agent_with_finalizer_function.dispatcher.publish.assert_not_called()
+
+
+import pytest
+from unittest.mock import Mock
+
+
+def test_has_unique_execution_path_prompt_only():
+    def dummy_finalize(longterm_memory):
+        return {"result": "final result"}
+
+    prompt = Mock()
+    setattr(prompt, "_finalize", dummy_finalize)
+    has_unique_execution_path(
+        prompt=prompt, attr_name="_test_attr", external_options=[None, None], error_message="Test error message"
+    )
+
+
+def test_has_unique_execution_path_agent_only():
+    prompt = Mock()
+    setattr(prompt, "_finalize", None)
+    an_agent_name = "agent1"
+    has_unique_execution_path(
+        prompt=prompt,
+        attr_name="_finalize",
+        external_options=[an_agent_name, None],
+        error_message="Test error message",
+    )
+
+
+def test_has_unique_execution_path_invalid_func_and_external():
+    def dummy_finalize(longterm_memory):
+        return {"result": "final result"}
+
+    prompt = Mock()
+    setattr(prompt, "_finalize", dummy_finalize)
+    an_agent_name = "agent1"
+    with pytest.raises(AssertionError, match="Test error message"):
+        has_unique_execution_path(
+            prompt=prompt,
+            attr_name="_finalize",
+            external_options=[an_agent_name, None],
+            error_message="Test error message",
+        )
+
+
+def test_has_unique_execution_path_invalid_external():
+    prompt = Mock()
+    setattr(prompt, "_finalize", None)
+    an_agent_name = "agent1"
+    a_supervisor_name = "supervisor"
+    with pytest.raises(AssertionError, match="Test error message"):
+        has_unique_execution_path(
+            prompt=prompt,
+            attr_name="_finalize",
+            external_options=[an_agent_name, a_supervisor_name],
+            error_message="Test error message",
+        )
+
+
+@pytest.mark.asyncio
+async def test_process_conversation_calls_can_finalize(conversation, conductor_agent):
+    conductor_agent.process_conversation = Mock()
+
+    conductor_agent.process_conversation(conversation)
+    conductor_agent.process_conversation.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_can_finalize(conversation, conductor_agent):
+    conductor_agent.process_conversation = AsyncMock()
+    conductor_agent.prompt.can_finalize.return_value = True
+
+    await conductor_agent.process_conversation(conversation)
+    conductor_agent.process_conversation.assert_called_once()
