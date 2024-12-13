@@ -92,7 +92,12 @@ def conversation():
             field2="user prompt field 2",
             field3="user prompt field 3",
         ),
-        chat=[ChatMessage(role=Role.USER, content="Hello, world!", name="Alice")],
+        chat=[
+            ChatMessage(role=Role.USER, content="Hello, world!", name="Alice"),
+            ChatMessage(
+                role=Role.USER, content="{'next_agent': 'my_agent'}", name="Alice", type=MessageType.CONDUCTOR
+            ),
+        ],
         longterm_memory={
             "my_conductor": MyLongtermMemory(
                 field1="longterm_val1",

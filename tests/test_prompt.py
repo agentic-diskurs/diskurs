@@ -67,7 +67,11 @@ mock_illegal_llm_response = """{
 
 
 def test_parse_prompt(prompt_instance, prompt_testing_conversation):
-    res = prompt_instance.parse_user_prompt(mock_llm_response, prompt_testing_conversation.user_prompt_argument)
+    res = prompt_instance.parse_user_prompt(
+        name="test_agent",
+        llm_response=mock_llm_response,
+        old_user_prompt_argument=prompt_testing_conversation.user_prompt_argument,
+    )
 
     assert res.name == "John Doe"
     assert res.topic == "Python Programming"
@@ -75,7 +79,9 @@ def test_parse_prompt(prompt_instance, prompt_testing_conversation):
 
 def test_fail_parse_prompt(prompt_instance, prompt_testing_conversation):
     res = prompt_instance.parse_user_prompt(
-        mock_illegal_llm_response, prompt_testing_conversation.user_prompt_argument
+        name="test_agent",
+        llm_response=mock_illegal_llm_response,
+        old_user_prompt_argument=prompt_testing_conversation.user_prompt_argument,
     )
 
     assert (
@@ -207,7 +213,9 @@ def test_parse_user_prompt_partial_update(prompt_instance, prompt_testing_conver
     print(conversation_with_prompt_args.user_prompt_argument)
 
     res = prompt_instance.parse_user_prompt(
-        llm_response=returned_property, old_user_prompt_argument=conversation_with_prompt_args.user_prompt_argument
+        name="test_agent",
+        llm_response=returned_property,
+        old_user_prompt_argument=conversation_with_prompt_args.user_prompt_argument,
     )
 
     assert res.name == "Alice"
@@ -217,7 +225,9 @@ def test_parse_user_prompt_partial_update(prompt_instance, prompt_testing_conver
 
 def test_parse_user_prompt(prompt_instance, prompt_testing_conversation):
     res = prompt_instance.parse_user_prompt(
-        '"{\\"topic\\": \\"Secure Web Gateway\\"}"', prompt_testing_conversation.user_prompt_argument
+        name="test_agent",
+        llm_response='"{\\"topic\\": \\"Secure Web Gateway\\"}"',
+        old_user_prompt_argument=prompt_testing_conversation.user_prompt_argument,
     )
 
     assert isinstance(res, PromptArgument)

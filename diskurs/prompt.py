@@ -51,6 +51,8 @@ class DefaultConductorUserPromptArgument(PromptArgument):
 
 
 def load_symbol(symbol_name, loaded_module):
+    # TODO: for finalize and can_finalize in the conductor prompt: if we use an agent for those functions,
+    #  we should handle the missing case gracefully and not raise and error
     try:
         symbol = getattr(loaded_module, symbol_name)
         return symbol
@@ -497,8 +499,8 @@ class ConductorPrompt(
         user_prompt_argument_class: Type[UserPromptArg],
         json_formatting_template: Optional[Template] = None,
         longterm_memory_class: Type[GenericConductorLongtermMemory] = None,
-        can_finalize: Callable[[GenericConductorLongtermMemory], bool] = None,
-        finalize: Callable[[GenericConductorLongtermMemory], dict[str, Any]] = None,
+        can_finalize: Optional[Callable[[GenericConductorLongtermMemory], bool]] = None,
+        finalize: Optional[Callable[[GenericConductorLongtermMemory], dict[str, Any]]] = None,
         fail: Callable[[GenericConductorLongtermMemory], dict[str, Any]] = None,
         topics: list[str] = None,
     ):

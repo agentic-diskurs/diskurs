@@ -40,9 +40,7 @@ def extended_multistep_agent(mock_extended_prompt):
 async def test_invoke_with_conductor_as_previous_agent(multistep_agent, conversation):
     conversation = conversation.append(
         message=ChatMessage(
-            content="I am a conductor message",
-            role=Role.USER,
-            type=MessageType.CONDUCTOR,
+            content="I am a conductor message", role=Role.USER, type=MessageType.CONDUCTOR, name=CONDUCTOR_NAME
         )
     )
 
@@ -80,6 +78,11 @@ async def test_invoke_with_agent_chain(multistep_agent, conversation):
 
 @pytest.mark.asyncio
 async def test_invoke_with_longterm_memory_and_previous_agent(extended_multistep_agent, extended_conversation):
+    extended_conversation = extended_conversation.append(
+        message=ChatMessage(
+            content="I am a conductor message", role=Role.USER, type=MessageType.CONDUCTOR, name=CONDUCTOR_NAME
+        )
+    )
     extended_conversation = extended_conversation.append(
         message=ChatMessage(
             content="I am a multistep agent message",

@@ -163,6 +163,7 @@ class ImmutableConversation(Conversation):
         longterm_memory: Optional[dict[str, Any]] = None,
         metadata: Optional[dict[str, str]] = None,
         active_agent: Optional[str] = None,
+        conversation_id: Optional[str] = None,
     ) -> "ImmutableConversation":
         return ImmutableConversation(
             system_prompt=(system_prompt or self._system_prompt),
@@ -174,6 +175,7 @@ class ImmutableConversation(Conversation):
             metadata=metadata or self._metadata,
             active_agent=active_agent or self.active_agent,
             final_result=self._final_result,
+            conversation_id=conversation_id or self._conversation_id,
         )
 
     def append(

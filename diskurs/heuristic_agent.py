@@ -74,7 +74,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
         if not is_previous_agent_conductor(conversation) and self.init_prompt_arguments_with_previous_agent:
             conversation = conversation.update_prompt_argument_with_previous_agent(previous_user_prompt_augment)
 
-        conversation = await self.prompt.heuristic_sequence(conversation, call_tool=call_tool)
+        conversation = await self.prompt.heuristic_sequence(conversation=conversation, call_tool=call_tool)
 
         if self.render_prompt:
             conversation = conversation.append(

@@ -562,6 +562,7 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
         longterm_memory: Optional[Dict[str, LongtermMemory]] = None,
         metadata: Optional[Dict[str, str]] = None,
         active_agent: Optional[str] = None,
+        conversation_id=None,
     ) -> "Conversation":
         """
         Returns a new instance of Conversation with updated fields, preserving immutability.
