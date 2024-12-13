@@ -91,7 +91,9 @@ class HeuristicAgent(Agent, ConversationParticipant):
     async def process_conversation(self, conversation: Conversation) -> None:
         self.logger.info(f"Process conversation on agent: {self.name}")
         conversation = await self.invoke(conversation)
-        await self.dispatcher.publish(topic=get_last_conductor_name(conversation.chat), conversation=conversation)
+
+        for topic in self.topics:
+            await self.dispatcher.publish(topic=topic, conversation=conversation)
 
 
 @register_agent("heuristic_finalizer")
