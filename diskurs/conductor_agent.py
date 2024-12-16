@@ -164,7 +164,8 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
     async def can_finalize(self, conversation: Conversation) -> bool:
         if self.can_finalize_name:
-            pass
+            conversation = await self.dispatcher.request_response(self.can_finalize_name, conversation)
+            return conversation.user_prompt_argument.can_finalize
         else:
             return self.prompt.can_finalize(conversation.get_agent_longterm_memory(self.name))
 

@@ -50,6 +50,11 @@ class DefaultConductorUserPromptArgument(PromptArgument):
     next_agent: Optional[str] = None
 
 
+@dataclass
+class DefaultMultistepPredicateUserPromptArgument(PromptArgument):
+    can_finalize: Optional[bool] = None
+
+
 def load_symbol(symbol_name, loaded_module):
     # TODO: for finalize and can_finalize in the conductor prompt: if we use an agent for those functions,
     #  we should handle the missing case gracefully and not raise and error
@@ -363,6 +368,128 @@ class PromptLoaderMixin:
 
 @register_prompt("multistep_prompt")
 class MultistepPrompt(
+    PromptRendererMixin,
+    PromptParserMixin,
+    PromptLoaderMixin,
+    MultistepPromptProtocol,
+):
+    def __init__(
+        self,
+        agent_description: str,
+        system_template: Template,
+        user_template: Template,
+        system_prompt_argument_class: Type[SystemPromptArg],
+        user_prompt_argument_class: Type[UserPromptArg],
+        json_formatting_template: Optional[Template] = None,
+        is_valid: Optional[Callable[[Any], bool]] = None,
+        is_final: Optional[Callable[[Any], bool]] = None,
+    ):
+        super().__init__(
+            system_prompt_argument_class=system_prompt_argument_class,
+            user_prompt_argument_class=user_prompt_argument_class,
+            system_template=system_template,
+            user_template=user_template,
+            json_formatting_template=json_formatting_template,
+            is_valid=is_valid,
+            is_final=is_final,
+        )
+        self.agent_description = agent_description
+
+    @classmethod
+    def create(
+        cls,
+        location: Path,
+        system_prompt_argument_class: str,
+        user_prompt_argument_class: str,
+        agent_description_filename: str = "agent_description.txt",
+        code_filename: str = "prompt.py",
+        user_template_filename: str = "user_template.jinja2",
+        system_template_filename: str = "system_template.jinja2",
+        **kwargs,
+    ) -> Self:
+        """
+        Factory method to create a Prompt object. Loads templates and code dynamically
+        based on the provided directory and filenames.
+
+        :param location: Base path where prompt.py and templates are located.
+        :param system_prompt_argument_class: Name of the class that specifies the placeholders of the system prompt template
+        :param user_prompt_argument_class:  Name of the class that specifies the placeholders of the user prompt template
+        :param agent_description_filename: location of the text file containing the agent's description
+        :param code_filename: Name of the file containing PromptArguments and validation logic.
+        :param user_template_filename: Filename of the user template (Jinja2 format).
+        :param system_template_filename: Filename of the system template (Jinja2 format).
+
+        :return: An instance of the Prompt class.
+        """
+        (
+            agent_description,
+            prompt_functions,
+            system_template,
+            user_template,
+            json_formatting_template,
+        ) = cls.prepare_create(
+            agent_description_filename,
+            code_filename,
+            kwargs,
+            location,
+            system_prompt_argument_class,
+            system_template_filename,
+            user_prompt_argument_class,
+            user_template_filename,
+        )
+
+        return cls(
+            agent_description=agent_description,
+            system_template=system_template,
+            user_template=user_template,
+            json_formatting_template=json_formatting_template,
+            **prompt_functions,
+        )
+
+    @classmethod
+    def load_prompt_functions(
+        cls,
+        system_prompt_argument_class,
+        user_prompt_argument_class,
+        loaded_module,
+        kwargs,
+    ) -> dict[str, Callable]:
+        return {
+            "is_valid": load_symbol(
+                kwargs.get("is_valid_name", IS_VALID_DEFAULT_VALUE_NAME),
+                loaded_module,
+            ),
+            "is_final": load_symbol(
+                kwargs.get("is_final_name", IS_FINAL_DEFAULT_VALUE_NAME),
+                loaded_module,
+            ),
+            "system_prompt_argument_class": load_symbol(system_prompt_argument_class, loaded_module),
+            "user_prompt_argument_class": load_symbol(user_prompt_argument_class, loaded_module),
+        }
+
+    def render_user_template(
+        self,
+        name: str,
+        prompt_args: PromptArgument,
+        message_type: MessageType = MessageType.CONVERSATION,
+    ) -> ChatMessage:
+        try:
+            if self.is_valid(prompt_args):
+                content = self.user_template.render(**asdict(prompt_args))
+                return ChatMessage(
+                    role=Role.USER,
+                    name=name,
+                    content=content,
+                    type=message_type,
+                )
+        except PromptValidationError as e:
+            return ChatMessage(role=Role.USER, name=name, content=str(e), type=message_type)
+        except Exception as e:
+            return ChatMessage(role=Role.USER, name=name, content=f"An error occurred: {str(e)}")
+
+
+@register_prompt("multistep_predicate_prompt")
+class MultistepPredicatePrompt(
     PromptRendererMixin,
     PromptParserMixin,
     PromptLoaderMixin,

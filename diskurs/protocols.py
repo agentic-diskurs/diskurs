@@ -691,6 +691,7 @@ class ConversationParticipant(Protocol):
     conversations within the system.
     """
 
+    name: str
     topics: list[str]
 
     async def process_conversation(self, conversation: Conversation) -> None:
@@ -728,6 +729,7 @@ class ConversationFinalizer(Protocol):
     :param final_properties: Specify the fields from the prompt argument that should be included in the final response.
     """
 
+    name: str
     final_properties: list[str]
 
     async def finalize_conversation(self, conversation: Conversation) -> None:
@@ -737,6 +739,30 @@ class ConversationFinalizer(Protocol):
 
         :param conversation: The conversation to be finalized.
         :return: A dictionary containing the final response data.
+        """
+        ...
+
+
+class ConversationResponder(Protocol):
+    """
+    Protocol for responding to a conversation request.
+
+    This protocol defines the methods required for responding to a conversation request.
+    Implementations of this protocol are responsible for processing the request, generating a response,
+    and returning the response to the requester.
+    """
+
+    name: str
+
+    async def respond(self, conversation: Conversation) -> Conversation:
+        """
+        Responds to a conversation request.
+
+        This method processes the given request and generates a response to be sent back to the requester.
+        It is responsible for handling the request and generating the appropriate response data.
+
+        :param conversation: The request data to be processed.
+        :return: A dictionary containing the response data.
         """
         ...
 
@@ -799,6 +825,19 @@ class ConversationDispatcher(Protocol):
 
         :param topic: The name of the finalizing agent.
         :param conversation: The conversation to be dispatched.
+        """
+        pass
+
+    async def request_response(self, topic: str, conversation: Conversation) -> Conversation:
+        """
+        Method for requesting a direct response from a participant.
+
+        This is used if you need an answer to a question from a participant, e.g. to ask an agent whether we can
+        finalize the conversation.
+
+        :param topic: The `ConversationParticipant` to ask the question.
+        :param conversation: The `Conversation` object representing the current state of the conversation.
+        :return: The updated `Conversation` object with the response from the participant.
         """
         pass
 
@@ -930,7 +969,7 @@ class ConductorAgent(Protocol):
 
     name: str
     prompt: ConductorPrompt
-    can_finalize_agent: Optional[str]
+    can_finalize_name: Optional[str]
 
     def create_or_update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation:
         """

@@ -46,7 +46,7 @@ def create_conductor_prompt(
     prompt.create_system_prompt_argument.return_value = Mock()
     prompt.create_user_prompt_argument.return_value = Mock()
 
-    finalize_mock = Mock(side_effect=finalize)
+    finalize_mock = AsyncMock(side_effect=finalize)
     can_finalize_mock = Mock(side_effect=can_finalize)
 
     prompt.finalize = finalize_mock
@@ -69,8 +69,11 @@ def mock_prompt_no_finalize():
 
 @pytest.fixture
 def mock_llm_client():
+    async def stub_generate_validated_response(conversation, message_type):
+        return conversation.append(ChatMessage(role=Role.ASSISTANT, content='{"next_agent": "agent1"}'))
+
     llm_client = Mock(spec=LLMClient)
-    llm_client.generate.return_value = ChatMessage(role=Role.ASSISTANT, content='{"next_agent": "agent1"}')
+    llm_client.generate = AsyncMock(side_effect=stub_generate_validated_response)
     return llm_client
 
 
@@ -255,12 +258,12 @@ async def test_conductor_agent_valid_next_agent(conductor_cannot_finalize, mock_
     conversation = conversation.append(assistant_message)
     mock_llm_client.generate.return_value = conversation
 
-    parsed_prompt_argument = DefaultConductorUserPromptArgument(next_agent="valid_agent")
+    parsed_prompt_argument = DefaultConductorUserPromptArgument(next_agent="agent1")
     conductor_cannot_finalize.prompt.parse_user_prompt.return_value = parsed_prompt_argument
 
     await conductor_cannot_finalize.process_conversation(conversation)
 
-    conductor_cannot_finalize.dispatcher.publish.assert_called_once_with(topic="valid_agent", conversation=ANY)
+    conductor_cannot_finalize.dispatcher.publish.assert_called_once_with(topic="agent1", conversation=ANY)
 
 
 @pytest.mark.asyncio
@@ -390,16 +393,25 @@ def test_has_unique_execution_path_invalid_external():
 
 @pytest.mark.asyncio
 async def test_process_conversation_calls_can_finalize(conversation, conductor_agent):
-    conductor_agent.process_conversation = Mock()
+    conductor_agent.finalize = AsyncMock()
 
-    conductor_agent.process_conversation(conversation)
-    conductor_agent.process_conversation.assert_called_once()
+    await conductor_agent.process_conversation(conversation)
+    conductor_agent.finalize.assert_called_once()
+
+
+@dataclass
+class DefaultCanFinalizeUserPromptArgument(PromptArgument):
+    can_finalize: Optional[bool] = None
 
 
 @pytest.mark.asyncio
 async def test_can_finalize(conversation, conductor_agent):
-    conductor_agent.process_conversation = AsyncMock()
+    conductor_agent.can_finalize_name = "Finalizer_Agent"
     conductor_agent.prompt.can_finalize.return_value = True
+    conductor_agent.finalize = AsyncMock()
+
+    parsed_prompt_argument = DefaultCanFinalizeUserPromptArgument(can_finalize=True)
+    conductor_agent.prompt.parse_user_prompt.return_value = parsed_prompt_argument
 
     await conductor_agent.process_conversation(conversation)
-    conductor_agent.process_conversation.assert_called_once()
+    conductor_agent.finalize.assert_called_once()

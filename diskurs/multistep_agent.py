@@ -15,6 +15,7 @@ from diskurs.protocols import (
     Conversation,
     ToolExecutor,
     ConversationFinalizer,
+    ConversationResponder,
 )
 from diskurs.registry import register_agent
 from diskurs.utils import get_fields_as_dict
@@ -197,3 +198,14 @@ class MultistepAgentFinalizer(MultiStepAgent, ConversationFinalizer):
         self.logger.info(f"Process conversation on agent: {self.name}")
         conversation = await self.invoke(conversation)
         conversation.final_result = get_fields_as_dict(conversation.user_prompt_argument, self.final_properties)
+
+
+@register_agent("multistep_predicate")
+class MultistepAgentPredicate(MultiStepAgent, ConversationResponder):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    async def respond(self, conversation: Conversation) -> Conversation:
+        self.logger.info(f"Process conversation on agent: {self.name}")
+        conversation = await self.invoke(conversation)
+        return conversation
