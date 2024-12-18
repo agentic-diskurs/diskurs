@@ -177,7 +177,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         elif self.finalizer_name:
             await self.dispatcher.publish_final(topic=self.finalizer_name, conversation=conversation)
         else:
-            conversation.final_result = self.prompt.finalize(conversation.get_agent_longterm_memory(self.name))
+            conversation.final_result = await self.prompt.finalize(conversation.get_agent_longterm_memory(self.name))
 
     def fail(self, conversation: Conversation) -> dict[str, Any]:
         self.logger.debug(f"End conversation with fail on conductor agent {self.name}")

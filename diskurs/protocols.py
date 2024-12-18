@@ -139,6 +139,32 @@ class Prompt(Protocol):
         """
         ...
 
+    def is_final(self, user_prompt_argument: PromptArgument) -> bool:
+        """
+        Determines if the user prompt argument indicates the final state.
+
+        This method checks the provided user prompt argument to determine if it represents
+        the final state in the conversation. It is used to decide whether the conversation
+        can be concluded based on the user's input.
+
+        :param user_prompt_argument: The user prompt argument to be evaluated.
+        :return: True if the user prompt argument indicates the final state, False otherwise.
+        """
+        ...
+
+    def is_valid(self, user_prompt_argument: PromptArgument) -> bool:
+        """
+        Validates the user prompt argument.
+
+        This method checks if the provided user prompt argument meets the required
+        criteria for validity. It ensures that the user prompt argument is correctly
+        structured and contains the necessary information for further processing.
+
+        :param user_prompt_argument: The user prompt argument to be validated.
+        :return: True if the user prompt argument is valid, False otherwise.
+        """
+        ...
+
 
 class MultistepPrompt(Prompt):
     system_prompt_argument: Type[SystemPromptArg]
@@ -167,32 +193,6 @@ class MultistepPrompt(Prompt):
         :param prompt_args: The prompt arguments to be used for rendering the template.
         :param return_json: If True, the rendered template will be returned as a JSON object. Defaults to True.
         :return: A ChatMessage object containing the rendered template.
-        """
-        ...
-
-    def is_final(self, user_prompt_argument: PromptArgument) -> bool:
-        """
-        Determines if the user prompt argument indicates the final state.
-
-        This method checks the provided user prompt argument to determine if it represents
-        the final state in the conversation. It is used to decide whether the conversation
-        can be concluded based on the user's input.
-
-        :param user_prompt_argument: The user prompt argument to be evaluated.
-        :return: True if the user prompt argument indicates the final state, False otherwise.
-        """
-        ...
-
-    def is_valid(self, user_prompt_argument: PromptArgument) -> bool:
-        """
-        Validates the user prompt argument.
-
-        This method checks if the provided user prompt argument meets the required
-        criteria for validity. It ensures that the user prompt argument is correctly
-        structured and contains the necessary information for further processing.
-
-        :param user_prompt_argument: The user prompt argument to be validated.
-        :return: True if the user prompt argument is valid, False otherwise.
         """
         ...
 
@@ -249,7 +249,7 @@ class ConductorPrompt(Prompt):
         """
         ...
 
-    def finalize(self, longterm_memory: LongtermMemory) -> dict[str, Any]:
+    async def finalize(self, longterm_memory: LongtermMemory) -> dict[str, Any]:
         """
         Finalizes the conversation based on the long-term memory.
 

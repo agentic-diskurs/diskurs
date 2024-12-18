@@ -404,6 +404,11 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
         return always_true
 
 
+@dataclass
+class DefaultConductorUserPromptArgument(PromptArgument):
+    next_agent: Optional[str] = None
+
+
 GenericConductorLongtermMemory = TypeVar("GenericConductorLongtermMemory", bound="ConductorLongtermMemory")
 
 
