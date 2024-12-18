@@ -371,6 +371,7 @@ class BasePrompt:
             return ChatMessage(role=Role.USER, name=name, content=f"An error occurred: {str(e)}")
 
 
+@register_prompt("multistep_prompt")
 class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
     def __init__(
         self,
