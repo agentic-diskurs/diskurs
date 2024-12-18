@@ -169,13 +169,13 @@ class ForumFactory:
     def import_modules(self):
         """Dynamically import modules required for registration."""
         for module_path in self.modules_to_import:
-            load_module_from_path(module_path.stem, module_path)
+            load_module_from_path(module_path)
 
     def load_custom_modules(self):
         """Load custom modules specified in the configuration."""
         for custom_module in self.config.custom_modules:
             module_path = (self.base_path / f"{custom_module.replace('.', '/')}.py").resolve()
-            load_module_from_path(module_path.stem, module_path)
+            load_module_from_path(module_path)
 
     def create_tool_executor(self):
         """Create a tool executor instance based on the configuration."""

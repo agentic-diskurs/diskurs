@@ -387,7 +387,7 @@ def pre_load_custom_modules(yaml_data, base_path: Path):
 
     for module_name in custom_modules:
         module_full_path = (base_path / f"{module_name.replace('.', '/')}.py").resolve()
-        load_module_from_path(module_full_path.stem, module_full_path)
+        load_module_from_path(module_full_path)
 
 
 def load_config_from_yaml(config: str | Path, base_path: Optional[Path] = None) -> ForumConfig:

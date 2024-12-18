@@ -1,17 +1,22 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from conftest import are_classes_structurally_similar
-from diskurs import PromptArgument, ImmutableConversation, ToolExecutor
-from diskurs.entities import ChatMessage, Role
-from diskurs.prompt import MultistepPrompt, PromptValidationError, ConductorPrompt, HeuristicPrompt
-from diskurs.prompt import PromptParserMixin
+from diskurs import ImmutableConversation, ToolExecutor
+from diskurs.entities import ChatMessage, Role, PromptArgument
+from diskurs.prompt import (
+    MultistepPrompt,
+    validate_dataclass,
+    PromptValidationError,
+    ConductorPrompt,
+    HeuristicPrompt,
+)
 from test_files.heuristic_agent_test_files.prompt import MyHeuristicPromptArgument
-from tests.test_files.prompt_test_files.prompt import MyUserPromptArgument
+from test_files.prompt_test_files.prompt import MyUserPromptArgument
 
 
 @pytest.fixture
@@ -107,9 +112,7 @@ class ExampleTypedPromptArg(PromptArgument):
 
 def test_validate_dataclass():
     response = {"url": "https://diskurs.dev", "comment": "Do what thou wilt", "username": "Jane"}
-    res_prompt_arg = PromptParserMixin.validate_dataclass(
-        parsed_response=response, user_prompt_argument=ExamplePromptArg
-    )
+    res_prompt_arg = validate_dataclass(parsed_response=response, user_prompt_argument=ExamplePromptArg)
 
     assert (
         res_prompt_arg.url == response["url"]
@@ -124,9 +127,7 @@ def test_validate_dataclass_typed():
         "is_valid": "true",
         "comments": ["Do what thou wilt", "Do what thou wilt"],
     }
-    res_prompt_arg = PromptParserMixin.validate_dataclass(
-        parsed_response=response, user_prompt_argument=ExampleTypedPromptArg
-    )
+    res_prompt_arg = validate_dataclass(parsed_response=response, user_prompt_argument=ExampleTypedPromptArg)
 
     assert (
         res_prompt_arg.url == response["url"]
@@ -141,9 +142,7 @@ def test_validate_dataclass_typed_empty():
         "url": "https://diskurs.dev",
         "comments": ["Do what thou wilt", "Do what thou wilt"],
     }
-    res_prompt_arg = PromptParserMixin.validate_dataclass(
-        parsed_response=response, user_prompt_argument=ExampleTypedPromptArg
-    )
+    res_prompt_arg = validate_dataclass(parsed_response=response, user_prompt_argument=ExampleTypedPromptArg)
 
     assert (
         res_prompt_arg.url == response["url"]
@@ -157,9 +156,7 @@ def test_validate_dataclass_additional_fields():
     response = {"url": "https://www.diskurs.dev", "foo": "just foo"}
 
     with pytest.raises(PromptValidationError) as exc_info:
-        res_prompt_arg = PromptParserMixin.validate_dataclass(
-            parsed_response=response, user_prompt_argument=ExamplePromptArg
-        )
+        res_prompt_arg = validate_dataclass(parsed_response=response, user_prompt_argument=ExamplePromptArg)
     assert (
         str(exc_info.value)
         == "Extra fields provided: foo. Please remove them. Valid fields are: url, comment, username."
@@ -235,6 +232,7 @@ def test_parse_user_prompt(prompt_instance, prompt_testing_conversation):
 
 
 def test_fail():
+
     prompt = ConductorPrompt.create(**prompt_config)
     msg = prompt.fail(prompt.longterm_memory())
     assert msg["error"] == "Failed to finalize"

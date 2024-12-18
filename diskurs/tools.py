@@ -180,7 +180,7 @@ def load_tools(tool_configs: list[ToolConfig], tool_dependencies: list[ToolDepen
     for module_path, function_names in modules_to_functions.items():
         module_name = Path(module_path).stem
         module_path = Path(module_path).resolve()
-        module = load_module_from_path(module_name, module_path)
+        module = load_module_from_path(module_path)
 
         for function_name in function_names:
             if tool_idx[function_name].dependencies or tool_idx[function_name].configs:
@@ -218,7 +218,7 @@ def load_dependencies(dependency_configs: list[ToolDependencyConfig]) -> list[To
     for module_path, dependencies_list in modules_to_classes.items():
         module_name = Path(module_path).stem
         module_path = Path(module_path).resolve()
-        module = load_module_from_path(module_name, module_path)
+        module = load_module_from_path(module_path)
 
         for dependency in dependencies_list:
             class_ = getattr(module, dependency.class_name)

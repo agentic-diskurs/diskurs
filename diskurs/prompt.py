@@ -1,38 +1,27 @@
 import json
-from dataclasses import dataclass, is_dataclass, fields, MISSING, asdict
+import logging
+from dataclasses import dataclass, asdict, is_dataclass, fields, MISSING
 from pathlib import Path
-from typing import Optional, Callable, Any, Type, TypeVar, Self, Union
+from typing import Type, TypeVar, Optional, Callable, Self, Any, Union
 
-from jinja2 import Environment, FileSystemLoader, Template
+from jinja2 import Template, FileSystemLoader, Environment
 
-from diskurs.entities import (
-    PromptArgument,
-    ChatMessage,
-    Role,
-    GenericConductorLongtermMemory,
-    MessageType,
-)
-from diskurs.logger_setup import get_logger
+from diskurs.registry import register_prompt
+from diskurs.entities import MessageType, ChatMessage, Role, PromptArgument
 from diskurs.protocols import (
     MultistepPrompt as MultistepPromptProtocol,
     ConductorPrompt as ConductorPromptProtocol,
     HeuristicPrompt as HeuristicPromptProtocol,
     HeuristicSequence,
-    CallTool,
     Conversation,
+    CallTool,
 )
-from diskurs.registry import register_prompt
-from diskurs.utils import load_module_from_path, load_template_from_package
+from diskurs.utils import load_template_from_package, load_module_from_path
 
-IS_VALID_DEFAULT_VALUE_NAME = "is_valid"
-IS_FINAL_DEFAULT_VALUE_NAME = "is_final"
-CAN_FINALIZE_DEFAULT_VALUE_NAME = "can_finalize"
-FAIL_DEFAULT_VALUE_NAME = "fail"
-FINALIZE_DEFAULT_VALUE_NAME = "finalize"
+logger = logging.getLogger(__name__)
 
-logger = get_logger(f"diskurs.{__name__}")
-
-T = TypeVar("T", bound=dataclass)
+UserPromptArg = TypeVar("UserPromptArg", bound=PromptArgument)
+SystemPromptArg = TypeVar("SystemPromptArg", bound=PromptArgument)
 
 
 class PromptValidationError(Exception):
@@ -40,30 +29,27 @@ class PromptValidationError(Exception):
         super().__init__(message)
 
 
-@dataclass
-class DefaultConductorSystemPromptArgument(PromptArgument):
-    agent_descriptions: dict[str, str]
+def always_true(*args, **kwargs) -> bool:
+    return True
 
 
-@dataclass
-class DefaultConductorUserPromptArgument(PromptArgument):
-    next_agent: Optional[str] = None
+def safe_load_symbol(symbol_name: str, module: Any, default_factory: Optional[Callable] = None, **kwargs) -> Any:
+    """
+    Safely loads a symbol from a module with an optional default factory function.
 
+    param: symbol_name: Name of the symbol to load
+    param: module: Module to load the symbol from
+    param: default_factory: Optional factory function to create a default value if symbol isn't found
+    param: kwargs: Additional arguments passed to the default_factory
 
-@dataclass
-class DefaultMultistepPredicateUserPromptArgument(PromptArgument):
-    can_finalize: Optional[bool] = None
-
-
-def load_symbol(symbol_name, loaded_module):
-    # TODO: for finalize and can_finalize in the conductor prompt: if we use an agent for those functions,
-    #  we should handle the missing case gracefully and not raise and error
+    return: The loaded symbol or the default value
+    """
     try:
-        symbol = getattr(loaded_module, symbol_name)
+        symbol = getattr(module, symbol_name)
         return symbol
     except AttributeError as e:
-        logger.error(f"Missing expected attribute {symbol_name} in {loaded_module.__name__}: {e}")
-        raise AttributeError(f"Required attribute {symbol_name} not found in {loaded_module.__name__}")
+        logger.warning(f"Missing attribute {symbol_name} in {module.__name__}: {e}\nloading defaults")
+        return default_factory(**kwargs) if default_factory else None
 
 
 def load_template(location: Path) -> Template:
@@ -85,115 +71,235 @@ def load_template(location: Path) -> Template:
     return template
 
 
-class PromptParserMixin:
+GenericDataclass = TypeVar("GenericDataclass", bound=dataclass)
+
+
+def validate_json(llm_response: str) -> dict:
     """
-    Mixin to handle parsing and validation of LLM responses into dataclasses.
+    Parse and validate the LLM response as JSON, handling nested JSON strings.
+
+    :param llm_response: The raw text response from the LLM.
+    :return: Parsed dictionary if valid JSON.
+    :raises PromptValidationError: If the response is not valid JSON.
     """
+    logger.debug("Validating LLM response is valid JSON")
+    try:
+        parsed = json.loads(llm_response)
+        # Recursively parse if the result is a string
+        while isinstance(parsed, str):
+            parsed = json.loads(parsed)
+        if isinstance(parsed, dict):
+            return parsed
+        else:
+            logger.debug("Parsed response is not a JSON object.")
+            raise PromptValidationError("Parsed response is not a JSON object.")
+    except json.JSONDecodeError as e:
+        error_message = (
+            f"LLM response is not valid JSON. Error: {e.msg} at line {e.lineno}, column {e.colno}. "
+            "Please ensure the response is valid JSON and follows the correct format."
+        )
+        logger.debug(error_message)
+        raise PromptValidationError(error_message)
+
+
+def validate_dataclass(
+    parsed_response: dict[str, Any],
+    user_prompt_argument: Type[GenericDataclass],
+) -> GenericDataclass:
+    """
+    Validate and convert a dictionary to a dataclass instance with proper type coercion.
+
+    :param parsed_response: Dictionary from parsed JSON/response
+    :param user_prompt_argument: Target dataclass type
+
+    :return: An instance of the target dataclass
+
+    :raises TypeError: If user_prompt_argument is not a dataclass
+    :raises PromptValidationError: If validation or conversion fails
+    """
+    if not is_dataclass(user_prompt_argument):
+        raise TypeError(f"{user_prompt_argument} is not a valid dataclass")
+
+    # Validate field presence
+    dataclass_fields = {f.name: f for f in fields(user_prompt_argument)}
+    required_fields = {
+        f.name for f in dataclass_fields.values() if f.default is MISSING and f.default_factory is MISSING
+    }
+
+    missing_required = required_fields - parsed_response.keys()
+    extra_fields = parsed_response.keys() - dataclass_fields.keys()
+
+    if missing_required or extra_fields:
+        error_parts = []
+        if missing_required:
+            error_parts.append(f"Missing required fields: {', '.join(missing_required)}.")
+        if extra_fields:
+            error_parts.append(f"Extra fields provided: {', '.join(extra_fields)}. Please remove them.")
+
+        valid_fields = ", ".join(dataclass_fields.keys())
+        error_parts.append(f"Valid fields are: {valid_fields}.")
+
+        raise PromptValidationError(" ".join(error_parts))
+
+    # Convert and validate fields
+    converted = {}
+    for field_name, field in dataclass_fields.items():
+        if field_name not in parsed_response:
+            continue
+
+        value = parsed_response[field_name]
+        if value is None:
+            converted[field_name] = None
+            continue
+
+        field_type = field.type
+        # Handle Optional types
+        if hasattr(field_type, "__origin__") and field_type.__origin__ is Union:
+            field_types = field_type.__args__
+            if type(None) in field_types:  # Optional field
+                field_type = next(t for t in field_types if t != type(None))
+
+        try:
+            if field_type == bool and isinstance(value, str):
+                converted[field_name] = value.lower() == "true"
+            elif isinstance(value, list) and hasattr(field_type, "__origin__") and field_type.__origin__ is list:
+                element_type = field_type.__args__[0]
+                converted[field_name] = [element_type(item) for item in value]
+            else:
+                converted[field_name] = field_type(value)
+        except (ValueError, TypeError) as e:
+            raise PromptValidationError(
+                f"Type conversion failed for field '{field_name}': expected {field_type}, got {type(value)}"
+            )
+
+    try:
+        return user_prompt_argument(**converted)
+    except TypeError as e:
+        raise PromptValidationError(f"Error creating {user_prompt_argument.__name__}: {e}")
+
+
+class BasePrompt:
+    def __init__(
+        self,
+        agent_description: str,
+        system_template: Template,
+        user_template: Template,
+        system_prompt_argument_class: Type[SystemPromptArg],
+        user_prompt_argument_class: Type[UserPromptArg],
+        json_formatting_template: Optional[Template] = None,
+        is_valid: Optional[Callable[[Any], bool]] = None,
+        is_final: Optional[Callable[[Any], bool]] = None,
+    ):
+        self.agent_description = agent_description
+        self.system_prompt_argument = system_prompt_argument_class
+        self.user_prompt_argument = user_prompt_argument_class
+        self.system_template = system_template
+        self.user_template = user_template
+        self.json_formatting_template = json_formatting_template
+        self._is_valid = is_valid
+        self._is_final = is_final
 
     @classmethod
-    def validate_dataclass(
-        cls,
-        parsed_response: dict[str, Any],
-        user_prompt_argument: Type[T],
-    ) -> T:
-        """
-        Validate and convert a dictionary to a dataclass instance with proper type coercion.
+    def create_default_is_valid(cls, **kwargs) -> Callable[[UserPromptArg], bool]:
+        raise NotImplementedError
 
-        :param parsed_response: Dictionary from parsed JSON/response
-        :param user_prompt_argument: Target dataclass type
+    @classmethod
+    def create_default_is_final(cls, **kwargs) -> Callable[[UserPromptArg], bool]:
+        raise NotImplementedError
 
-        :return: An instance of the target dataclass
+    @classmethod
+    def safe_load_predicates(cls, is_final_name, is_valid_name, module, **kwargs):
+        is_valid: Callable[[UserPromptArg], bool] = safe_load_symbol(
+            symbol_name=is_valid_name, module=module, default_factory=cls.create_default_is_valid, **kwargs
+        )
+        is_final: Callable[[UserPromptArg], bool] = safe_load_symbol(
+            symbol_name=is_final_name, module=module, default_factory=cls.create_default_is_final, **kwargs
+        )
 
-        :raises TypeError: If user_prompt_argument is not a dataclass
-        :raises PromptValidationError: If validation or conversion fails
-        """
-        if not is_dataclass(user_prompt_argument):
-            raise TypeError(f"{user_prompt_argument} is not a valid dataclass")
+        return is_final, is_valid
 
-        # Validate field presence
-        dataclass_fields = {f.name: f for f in fields(user_prompt_argument)}
-        required_fields = {
-            f.name for f in dataclass_fields.values() if f.default is MISSING and f.default_factory is MISSING
+    @classmethod
+    def load_additional_resources(cls, module: Any, kwargs: dict) -> dict:
+        """Load additional resources specific to subclasses. Override in subclasses if needed."""
+        return {}
+
+    @classmethod
+    def load_templates(
+        cls, location: Path, system_template_filename: str, user_template_filename: str, kwargs: dict
+    ) -> tuple[Template, Template]:
+        """Load templates with default fallback options. Override in subclasses if needed."""
+        system_template = load_template(location / system_template_filename)
+        user_template = load_template(location / user_template_filename)
+        return system_template, user_template
+
+    @classmethod
+    def create(cls, location: Path, **kwargs) -> Self:
+        system_prompt_argument_class: str = kwargs.get("system_prompt_argument_class")
+        user_prompt_argument_class: str = kwargs.get("user_prompt_argument_class")
+        agent_description_filename: str = kwargs.get("agent_description_filename", "agent_description.txt")
+        code_filename: str = kwargs.get("code_filename", "prompt.py")
+        is_valid_name: str = kwargs.get("is_valid_name", "is_valid")
+        is_final_name: str = kwargs.get("is_final_name", "is_final")
+        user_template_filename: str = kwargs.get("user_template_filename", "user_template.jinja2")
+        system_template_filename: str = kwargs.get("system_template_filename", "system_template.jinja2")
+        json_formatting_filename = kwargs.get("json_formatting_filename", "")
+
+        module_path = location / code_filename
+
+        agent_description = ""
+
+        if agent_description_filename:
+            with open(location / agent_description_filename, "r") as f:
+                agent_description = f.read()
+
+        module = load_module_from_path(module_path=module_path)
+
+        system_prompt_argument_class: Type[SystemPromptArg] = safe_load_symbol(
+            symbol_name=system_prompt_argument_class, module=module
+        )
+        user_prompt_argument_class: Type[UserPromptArg] = safe_load_symbol(
+            symbol_name=user_prompt_argument_class, module=module
+        )
+
+        is_final, is_valid = cls.safe_load_predicates(is_final_name, is_valid_name, module)
+
+        system_template, user_template = cls.load_templates(
+            location=location,
+            system_template_filename=system_template_filename,
+            user_template_filename=user_template_filename,
+            kwargs=kwargs,
+        )
+
+        json_render_template: Template = (
+            load_template(location / json_formatting_filename)
+            if json_formatting_filename
+            else load_template_from_package("diskurs.assets", "json_formatting.jinja2")
+        )
+
+        additional_resources = cls.load_additional_resources(module, kwargs)
+
+        base_args = {
+            "agent_description": agent_description,
+            "system_template": system_template,
+            "user_template": user_template,
+            "json_formatting_template": json_render_template,
+            "system_prompt_argument_class": system_prompt_argument_class,
+            "user_prompt_argument_class": user_prompt_argument_class,
+            "is_valid": is_valid,
+            "is_final": is_final,
         }
 
-        missing_required = required_fields - parsed_response.keys()
-        extra_fields = parsed_response.keys() - dataclass_fields.keys()
+        all_args = {**base_args, **additional_resources}
 
-        if missing_required or extra_fields:
-            error_parts = []
-            if missing_required:
-                error_parts.append(f"Missing required fields: {', '.join(missing_required)}.")
-            if extra_fields:
-                error_parts.append(f"Extra fields provided: {', '.join(extra_fields)}. Please remove them.")
+        return cls(**all_args)
 
-            valid_fields = ", ".join(dataclass_fields.keys())
-            error_parts.append(f"Valid fields are: {valid_fields}.")
+    def render_system_template(self, name: str, prompt_args: PromptArgument, return_json: bool = True) -> ChatMessage:
+        content = self.system_template.render(**asdict(prompt_args))
 
-            raise PromptValidationError(" ".join(error_parts))
+        if return_json:
+            content += "\n" + self.render_json_formatting_prompt(asdict(self.user_prompt_argument()))
 
-        # Convert and validate fields
-        converted = {}
-        for field_name, field in dataclass_fields.items():
-            if field_name not in parsed_response:
-                continue
-
-            value = parsed_response[field_name]
-            if value is None:
-                converted[field_name] = None
-                continue
-
-            field_type = field.type
-            # Handle Optional types
-            if hasattr(field_type, "__origin__") and field_type.__origin__ is Union:
-                field_types = field_type.__args__
-                if type(None) in field_types:  # Optional field
-                    field_type = next(t for t in field_types if t != type(None))
-
-            try:
-                if field_type == bool and isinstance(value, str):
-                    converted[field_name] = value.lower() == "true"
-                elif isinstance(value, list) and hasattr(field_type, "__origin__") and field_type.__origin__ is list:
-                    element_type = field_type.__args__[0]
-                    converted[field_name] = [element_type(item) for item in value]
-                else:
-                    converted[field_name] = field_type(value)
-            except (ValueError, TypeError) as e:
-                raise PromptValidationError(
-                    f"Type conversion failed for field '{field_name}': expected {field_type}, got {type(value)}"
-                )
-
-        try:
-            return user_prompt_argument(**converted)
-        except TypeError as e:
-            raise PromptValidationError(f"Error creating {user_prompt_argument.__name__}: {e}")
-
-    @classmethod
-    def validate_json(cls, llm_response: str) -> dict:
-        """
-        Parse and validate the LLM response as JSON, handling nested JSON strings.
-
-        :param llm_response: The raw text response from the LLM.
-        :return: Parsed dictionary if valid JSON.
-        :raises PromptValidationError: If the response is not valid JSON.
-        """
-        logger.debug("Validating LLM response is valid JSON")
-        try:
-            parsed = json.loads(llm_response)
-            # Recursively parse if the result is a string
-            while isinstance(parsed, str):
-                parsed = json.loads(parsed)
-            if isinstance(parsed, dict):
-                return parsed
-            else:
-                logger.debug("Parsed response is not a JSON object.")
-                raise PromptValidationError("Parsed response is not a JSON object.")
-        except json.JSONDecodeError as e:
-            error_message = (
-                f"LLM response is not valid JSON. Error: {e.msg} at line {e.lineno}, column {e.colno}. "
-                "Please ensure the response is valid JSON and follows the correct format."
-            )
-            logger.debug(error_message)
-            raise PromptValidationError(error_message)
+        return ChatMessage(role=Role.SYSTEM, name=name, content=content)
 
     def parse_user_prompt(
         self,
@@ -217,43 +323,13 @@ class PromptParserMixin:
         """
         logger.debug("Parsing llm response into user prompt arguments")
         try:
-            parsed_response = self.validate_json(llm_response)
+            parsed_response = validate_json(llm_response)
             merged_arguments = {**vars(old_user_prompt_argument), **parsed_response}
-            validated_response = self.validate_dataclass(merged_arguments, self.user_prompt_argument)
+            validated_response = validate_dataclass(merged_arguments, self.user_prompt_argument)
 
             return validated_response
         except PromptValidationError as e:
             return ChatMessage(role=Role.USER, name=name, content=str(e), type=message_type)
-
-
-UserPromptArg = TypeVar("UserPromptArg")
-SystemPromptArg = TypeVar("SystemPromptArg")
-
-
-# Mixins providing shared behavior
-class PromptRendererMixin:
-    """
-    Mixin to handle the rendering of system and user templates, as well as validation
-    This class can be reused across prompts.
-    """
-
-    def __init__(
-        self,
-        system_prompt_argument_class: Type[SystemPromptArg],
-        user_prompt_argument_class: Type[UserPromptArg],
-        system_template: Template,
-        user_template: Template,
-        json_formatting_template: Optional[Template] = None,
-        is_valid: Optional[Callable[[UserPromptArg], bool]] = None,
-        is_final: Optional[Callable[[UserPromptArg], bool]] = None,
-    ):
-        self.system_prompt_argument = system_prompt_argument_class
-        self.user_prompt_argument = user_prompt_argument_class
-        self.system_template = system_template
-        self.user_template = user_template
-        self.json_formatting_template = json_formatting_template
-        self._is_valid = is_valid or (lambda x: True)
-        self._is_final = is_final or (lambda x: True)
 
     def is_final(self, user_prompt_argument: PromptArgument) -> bool:
         return self._is_final(user_prompt_argument)
@@ -274,199 +350,6 @@ class PromptRendererMixin:
         rendered_prompt = self.json_formatting_template.render(keys=keys)
         return rendered_prompt
 
-    def render_system_template(self, name: str, prompt_args: PromptArgument, return_json: bool = True) -> ChatMessage:
-        content = self.system_template.render(**asdict(prompt_args))
-
-        if return_json:
-            content += "\n" + self.render_json_formatting_prompt(asdict(self.user_prompt_argument()))
-
-        return ChatMessage(role=Role.SYSTEM, name=name, content=content)
-
-    def render_user_template(
-        self,
-        name: str,
-        prompt_args: PromptArgument,
-        message_type: MessageType = MessageType.CONVERSATION,
-    ) -> ChatMessage:
-        raise NotImplementedError
-
-
-class PromptLoaderMixin:
-    @classmethod
-    def prepare_create(
-        cls,
-        agent_description_filename,
-        code_filename,
-        kwargs,
-        location,
-        system_prompt_argument_class,
-        system_template_filename,
-        user_prompt_argument_class,
-        user_template_filename,
-    ):
-        logger.info(f"Loading templates from: {location}")
-        agent_description, loaded_module, system_template, user_template = cls.load_user_assets(
-            agent_description_filename,
-            code_filename,
-            location,
-            system_template_filename,
-            user_template_filename,
-        )
-
-        if json_formatting_filename := kwargs.get("json_formatting_filename", None):
-            json_render_template = load_template(location / json_formatting_filename)
-        else:
-            json_render_template = load_template_from_package("diskurs.assets", "json_formatting.jinja2")
-
-        prompt_functions = cls.load_prompt_functions(
-            system_prompt_argument_class,
-            user_prompt_argument_class,
-            loaded_module,
-            kwargs,
-        )
-
-        return (
-            agent_description,
-            prompt_functions,
-            system_template,
-            user_template,
-            json_render_template,
-        )
-
-    @classmethod
-    def load_prompt_functions(
-        cls,
-        system_prompt_argument_class,
-        user_prompt_argument_class,
-        loaded_module,
-        kwargs,
-    ) -> dict[str, Callable]:
-        raise NotImplementedError
-
-    @classmethod
-    def load_user_assets(
-        cls,
-        agent_description_filename,
-        code_filename,
-        location,
-        system_template_filename,
-        user_template_filename,
-    ):
-        with open(location / agent_description_filename, "r") as f:
-            agent_description = f.read()
-
-        if not system_template_filename:
-            system_template_filename = (
-                "system_template.jinja2" if (location / "system_template.jinja2").exists() else None
-            )
-        system_template = load_template(location / system_template_filename) if system_template_filename else None
-        user_template = load_template(location / user_template_filename) if user_template_filename else None
-        module_path = location / code_filename
-        loaded_module = load_module_from_path(module_name=module_path.stem, module_path=module_path)
-        return agent_description, loaded_module, system_template, user_template
-
-
-@register_prompt("multistep_prompt")
-class MultistepPrompt(
-    PromptRendererMixin,
-    PromptParserMixin,
-    PromptLoaderMixin,
-    MultistepPromptProtocol,
-):
-    def __init__(
-        self,
-        agent_description: str,
-        system_template: Template,
-        user_template: Template,
-        system_prompt_argument_class: Type[SystemPromptArg],
-        user_prompt_argument_class: Type[UserPromptArg],
-        json_formatting_template: Optional[Template] = None,
-        is_valid: Optional[Callable[[Any], bool]] = None,
-        is_final: Optional[Callable[[Any], bool]] = None,
-    ):
-        super().__init__(
-            system_prompt_argument_class=system_prompt_argument_class,
-            user_prompt_argument_class=user_prompt_argument_class,
-            system_template=system_template,
-            user_template=user_template,
-            json_formatting_template=json_formatting_template,
-            is_valid=is_valid,
-            is_final=is_final,
-        )
-        self.agent_description = agent_description
-
-    @classmethod
-    def create(
-        cls,
-        location: Path,
-        system_prompt_argument_class: str,
-        user_prompt_argument_class: str,
-        agent_description_filename: str = "agent_description.txt",
-        code_filename: str = "prompt.py",
-        user_template_filename: str = "user_template.jinja2",
-        system_template_filename: str = "system_template.jinja2",
-        **kwargs,
-    ) -> Self:
-        """
-        Factory method to create a Prompt object. Loads templates and code dynamically
-        based on the provided directory and filenames.
-
-        :param location: Base path where prompt.py and templates are located.
-        :param system_prompt_argument_class: Name of the class that specifies the placeholders of the system prompt template
-        :param user_prompt_argument_class:  Name of the class that specifies the placeholders of the user prompt template
-        :param agent_description_filename: location of the text file containing the agent's description
-        :param code_filename: Name of the file containing PromptArguments and validation logic.
-        :param user_template_filename: Filename of the user template (Jinja2 format).
-        :param system_template_filename: Filename of the system template (Jinja2 format).
-
-        :return: An instance of the Prompt class.
-        """
-        (
-            agent_description,
-            prompt_functions,
-            system_template,
-            user_template,
-            json_formatting_template,
-        ) = cls.prepare_create(
-            agent_description_filename,
-            code_filename,
-            kwargs,
-            location,
-            system_prompt_argument_class,
-            system_template_filename,
-            user_prompt_argument_class,
-            user_template_filename,
-        )
-
-        return cls(
-            agent_description=agent_description,
-            system_template=system_template,
-            user_template=user_template,
-            json_formatting_template=json_formatting_template,
-            **prompt_functions,
-        )
-
-    @classmethod
-    def load_prompt_functions(
-        cls,
-        system_prompt_argument_class,
-        user_prompt_argument_class,
-        loaded_module,
-        kwargs,
-    ) -> dict[str, Callable]:
-        return {
-            "is_valid": load_symbol(
-                kwargs.get("is_valid_name", IS_VALID_DEFAULT_VALUE_NAME),
-                loaded_module,
-            ),
-            "is_final": load_symbol(
-                kwargs.get("is_final_name", IS_FINAL_DEFAULT_VALUE_NAME),
-                loaded_module,
-            ),
-            "system_prompt_argument_class": load_symbol(system_prompt_argument_class, loaded_module),
-            "user_prompt_argument_class": load_symbol(user_prompt_argument_class, loaded_module),
-        }
-
     def render_user_template(
         self,
         name: str,
@@ -488,13 +371,7 @@ class MultistepPrompt(
             return ChatMessage(role=Role.USER, name=name, content=f"An error occurred: {str(e)}")
 
 
-@register_prompt("multistep_predicate_prompt")
-class MultistepPredicatePrompt(
-    PromptRendererMixin,
-    PromptParserMixin,
-    PromptLoaderMixin,
-    MultistepPromptProtocol,
-):
+class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
     def __init__(
         self,
         agent_description: str,
@@ -506,117 +383,32 @@ class MultistepPredicatePrompt(
         is_valid: Optional[Callable[[Any], bool]] = None,
         is_final: Optional[Callable[[Any], bool]] = None,
     ):
+
         super().__init__(
-            system_prompt_argument_class=system_prompt_argument_class,
-            user_prompt_argument_class=user_prompt_argument_class,
+            agent_description=agent_description,
             system_template=system_template,
             user_template=user_template,
+            system_prompt_argument_class=system_prompt_argument_class,
+            user_prompt_argument_class=user_prompt_argument_class,
             json_formatting_template=json_formatting_template,
             is_valid=is_valid,
             is_final=is_final,
         )
-        self.agent_description = agent_description
 
     @classmethod
-    def create(
-        cls,
-        location: Path,
-        system_prompt_argument_class: str,
-        user_prompt_argument_class: str,
-        agent_description_filename: str = "agent_description.txt",
-        code_filename: str = "prompt.py",
-        user_template_filename: str = "user_template.jinja2",
-        system_template_filename: str = "system_template.jinja2",
-        **kwargs,
-    ) -> Self:
-        """
-        Factory method to create a Prompt object. Loads templates and code dynamically
-        based on the provided directory and filenames.
-
-        :param location: Base path where prompt.py and templates are located.
-        :param system_prompt_argument_class: Name of the class that specifies the placeholders of the system prompt template
-        :param user_prompt_argument_class:  Name of the class that specifies the placeholders of the user prompt template
-        :param agent_description_filename: location of the text file containing the agent's description
-        :param code_filename: Name of the file containing PromptArguments and validation logic.
-        :param user_template_filename: Filename of the user template (Jinja2 format).
-        :param system_template_filename: Filename of the system template (Jinja2 format).
-
-        :return: An instance of the Prompt class.
-        """
-        (
-            agent_description,
-            prompt_functions,
-            system_template,
-            user_template,
-            json_formatting_template,
-        ) = cls.prepare_create(
-            agent_description_filename,
-            code_filename,
-            kwargs,
-            location,
-            system_prompt_argument_class,
-            system_template_filename,
-            user_prompt_argument_class,
-            user_template_filename,
-        )
-
-        return cls(
-            agent_description=agent_description,
-            system_template=system_template,
-            user_template=user_template,
-            json_formatting_template=json_formatting_template,
-            **prompt_functions,
-        )
+    def create_default_is_valid(cls, **kwargs) -> Callable[[UserPromptArg], bool]:
+        return always_true
 
     @classmethod
-    def load_prompt_functions(
-        cls,
-        system_prompt_argument_class,
-        user_prompt_argument_class,
-        loaded_module,
-        kwargs,
-    ) -> dict[str, Callable]:
-        return {
-            "is_valid": load_symbol(
-                kwargs.get("is_valid_name", IS_VALID_DEFAULT_VALUE_NAME),
-                loaded_module,
-            ),
-            "is_final": load_symbol(
-                kwargs.get("is_final_name", IS_FINAL_DEFAULT_VALUE_NAME),
-                loaded_module,
-            ),
-            "system_prompt_argument_class": load_symbol(system_prompt_argument_class, loaded_module),
-            "user_prompt_argument_class": load_symbol(user_prompt_argument_class, loaded_module),
-        }
+    def create_default_is_final(cls, **kwargs) -> Callable[[UserPromptArg], bool]:
+        return always_true
 
-    def render_user_template(
-        self,
-        name: str,
-        prompt_args: PromptArgument,
-        message_type: MessageType = MessageType.CONVERSATION,
-    ) -> ChatMessage:
-        try:
-            if self.is_valid(prompt_args):
-                content = self.user_template.render(**asdict(prompt_args))
-                return ChatMessage(
-                    role=Role.USER,
-                    name=name,
-                    content=content,
-                    type=message_type,
-                )
-        except PromptValidationError as e:
-            return ChatMessage(role=Role.USER, name=name, content=str(e), type=message_type)
-        except Exception as e:
-            return ChatMessage(role=Role.USER, name=name, content=f"An error occurred: {str(e)}")
+
+GenericConductorLongtermMemory = TypeVar("GenericConductorLongtermMemory", bound="ConductorLongtermMemory")
 
 
 @register_prompt("conductor_prompt")
-class ConductorPrompt(
-    PromptRendererMixin,
-    PromptParserMixin,
-    PromptLoaderMixin,
-    ConductorPromptProtocol,
-):
+class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
     def __init__(
         self,
         agent_description: str,
@@ -625,29 +417,32 @@ class ConductorPrompt(
         system_prompt_argument_class: Type[SystemPromptArg],
         user_prompt_argument_class: Type[UserPromptArg],
         json_formatting_template: Optional[Template] = None,
-        longterm_memory_class: Type[GenericConductorLongtermMemory] = None,
-        can_finalize: Optional[Callable[[GenericConductorLongtermMemory], bool]] = None,
-        finalize: Optional[Callable[[GenericConductorLongtermMemory], dict[str, Any]]] = None,
-        fail: Callable[[GenericConductorLongtermMemory], dict[str, Any]] = None,
-        topics: list[str] = None,
+        is_valid: Optional[Callable[[Any], bool]] = None,
+        is_final: Optional[Callable[[Any], bool]] = None,
+        can_finalize: Callable[[GenericConductorLongtermMemory], bool] = None,
+        finalize: Callable[[GenericConductorLongtermMemory], GenericConductorLongtermMemory] = None,
+        fail: Callable[[GenericConductorLongtermMemory], GenericConductorLongtermMemory] = None,
+        longterm_memory: Type[GenericConductorLongtermMemory] = None,
     ):
         super().__init__(
-            system_prompt_argument_class=system_prompt_argument_class,
-            user_prompt_argument_class=user_prompt_argument_class,
+            agent_description=agent_description,
             system_template=system_template,
             user_template=user_template,
-            json_formatting_template=json_formatting_template,  # Pass the JSON template
-            is_valid=self.create_default_is_valid(topics),
-            is_final=self.create_default_is_final(topics),
+            system_prompt_argument_class=system_prompt_argument_class,
+            user_prompt_argument_class=user_prompt_argument_class,
+            json_formatting_template=json_formatting_template,
+            is_valid=is_valid,
+            is_final=is_final,
         )
-        self.agent_description = agent_description
-        self.longterm_memory = longterm_memory_class
+
         self._can_finalize = can_finalize
         self._finalize = finalize
         self._fail = fail
+        self.longterm_memory = longterm_memory
 
     @staticmethod
-    def create_default_is_valid(topics: list[str]) -> Callable[[UserPromptArg], bool]:
+    def create_default_is_valid(**kwargs) -> Callable[[UserPromptArg], bool]:
+        topics: list[str] = kwargs.get("topics", [])
 
         def is_valid(prompt_args: UserPromptArg) -> bool:
             if not prompt_args.next_agent:
@@ -662,7 +457,8 @@ class ConductorPrompt(
         return is_valid
 
     @staticmethod
-    def create_default_is_final(topics: list[str]) -> Callable[[UserPromptArg], bool]:
+    def create_default_is_final(**kwargs) -> Callable[[UserPromptArg], bool]:
+        topics: list[str] = kwargs.get("topics", [])
 
         def is_final(prompt_args: UserPromptArg) -> bool:
             if not prompt_args.next_agent:
@@ -673,84 +469,45 @@ class ConductorPrompt(
         return is_final
 
     @classmethod
-    def create(
-        cls,
-        location: Path,
-        system_prompt_argument_class: str,
-        user_prompt_argument_class: Optional[str] = None,
-        agent_description_filename: Optional[str] = "agent_description.txt",
-        code_filename: str = "prompt.py",
-        user_template_filename: Optional[str] = None,
-        system_template_filename: Optional[str] = None,
-        **kwargs,
-    ) -> "ConductorPrompt":
-        (
-            agent_description,
-            prompt_functions,
-            system_template,
-            user_template,
-            json_formatting_template,
-        ) = cls.prepare_create(
-            agent_description_filename,
-            code_filename,
-            kwargs,
-            location,
-            system_prompt_argument_class,
-            system_template_filename,
-            user_prompt_argument_class,
-            user_template_filename,
+    def load_templates(
+        cls, location: Path, system_template_filename: str, user_template_filename: str, kwargs: dict
+    ) -> tuple[Template, Template]:
+        system_template = (
+            load_template(location / system_template_filename)
+            if system_template_filename
+            else load_template_from_package("diskurs.assets", "conductor_system_template.jinja2")
         )
-
-        system_template = system_template or load_template_from_package(
-            "diskurs.assets", "conductor_system_template.jinja2"
+        user_template = (
+            load_template(location / user_template_filename)
+            if user_template_filename
+            else load_template_from_package("diskurs.assets", "conductor_user_template.jinja2")
         )
-        user_template = user_template or load_template_from_package("diskurs.assets", "conductor_user_template.jinja2")
-
-        return cls(
-            agent_description=agent_description,
-            system_template=system_template,
-            user_template=user_template,
-            json_formatting_template=json_formatting_template,  # Pass the JSON template
-            topics=kwargs.get("topics", None),
-            **prompt_functions,
-        )
+        return system_template, user_template
 
     @classmethod
-    def load_prompt_functions(
-        cls,
-        system_prompt_argument_class,
-        user_prompt_argument_class,
-        loaded_module,
-        kwargs,
-    ) -> dict[str, Callable]:
-        try:
-            # If we use a finalizing agent, there need no finalize function be present, we explicitly check for it in
-            # the corresponding conductor agent, so the finalize function has to be None in that case
-            finalize_function = load_symbol(
-                kwargs.get("finalize_name", FINALIZE_DEFAULT_VALUE_NAME),
-                loaded_module,
-            )
-        except AttributeError:
-            finalize_function = None
+    def load_additional_resources(cls, module: Any, kwargs: dict) -> dict:
+
+        can_finalize: Callable[[UserPromptArg], bool] = safe_load_symbol(
+            symbol_name=kwargs.get("can_finalize_name", "can_finalize"), module=module
+        )
+        finalize: Callable[[UserPromptArg], bool] = safe_load_symbol(
+            symbol_name=kwargs.get("finalize_name", "finalize"), module=module
+        )
+        fail: Callable[[UserPromptArg], bool] = safe_load_symbol(
+            symbol_name=kwargs.get("fail_name", "fail"), module=module
+        )
+
+        assert kwargs.get("longterm_memory_class"), "Longterm memory class not provided"
+
+        longterm_memory_class: Type[GenericConductorLongtermMemory] = safe_load_symbol(
+            symbol_name=kwargs.get("longterm_memory_class"), module=module
+        )
 
         return {
-            "system_prompt_argument_class": (
-                load_symbol(system_prompt_argument_class, loaded_module)
-                if system_prompt_argument_class
-                else DefaultConductorSystemPromptArgument
-            ),
-            "user_prompt_argument_class": (
-                load_symbol(user_prompt_argument_class, loaded_module)
-                if user_prompt_argument_class
-                else DefaultConductorUserPromptArgument
-            ),
-            "can_finalize": load_symbol(
-                kwargs.get("can_finalize_name", CAN_FINALIZE_DEFAULT_VALUE_NAME),
-                loaded_module,
-            ),
-            "finalize": finalize_function,
-            "fail": load_symbol(kwargs.get("fail_name", FAIL_DEFAULT_VALUE_NAME), loaded_module),
-            "longterm_memory_class": load_symbol(kwargs.get("longterm_memory_class"), loaded_module),
+            "can_finalize": can_finalize,
+            "finalize": finalize,
+            "fail": fail,
+            "longterm_memory": longterm_memory_class,
         }
 
     def can_finalize(self, longterm_memory: GenericConductorLongtermMemory) -> bool:
@@ -764,27 +521,6 @@ class ConductorPrompt(
 
     def init_longterm_memory(self, **kwargs) -> GenericConductorLongtermMemory:
         return self.longterm_memory(**kwargs)
-
-    def render_user_template(
-        self,
-        name: str,
-        prompt_args: PromptArgument,
-        message_type: MessageType = MessageType.CONVERSATION,
-    ) -> ChatMessage:
-        # TODO: try to unify this with the render_user_template in MultistepPrompt
-        try:
-            if self.is_valid(prompt_args):
-                content = self.user_template.render()
-                return ChatMessage(
-                    role=Role.USER,
-                    name=name,
-                    content=content,
-                    type=message_type,
-                )
-        except PromptValidationError as e:
-            return ChatMessage(role=Role.USER, name=name, content=str(e), type=message_type)
-        except Exception as e:
-            return ChatMessage(role=Role.USER, name=name, content=f"An error occurred: {str(e)}")
 
 
 @register_prompt("heuristic_prompt")
@@ -802,37 +538,37 @@ class HeuristicPrompt(HeuristicPromptProtocol):
         self._heuristic_sequence = heuristic_sequence
 
     @classmethod
-    def create(
-        cls,
-        location: Path,
-        user_prompt_argument_class: str,
-        agent_description_filename: str = "agent_description.txt",
-        user_template_filename: str = "user_template.jinja2",
-        code_filename: str = "prompt.py",
-        heuristic_sequence_name: str = "heuristic_sequence",
-        **kwargs,
-    ) -> Self:
+    def create(cls, location: Path, **kwargs) -> Self:
+        user_prompt_argument_class: str = kwargs.get("user_prompt_argument_class")
+        agent_description_filename: str = kwargs.get("agent_description_filename", "agent_description.txt")
+        code_filename: str = kwargs.get("code_filename", "prompt.py")
+        user_template_filename: str = kwargs.get("user_template_filename", "user_template.jinja2")
+        heuristic_sequence_name: str = kwargs.get("heuristic_sequence_name", "heuristic_sequence")
+
         module_path = location / code_filename
-        loaded_module = load_module_from_path(module_name=module_path.stem, module_path=module_path)
 
-        user_prompt_argument_class = load_symbol(user_prompt_argument_class, loaded_module)
+        agent_description = ""
 
-        agent_description_path = location / agent_description_filename
-
-        if agent_description_path.exists():
+        if agent_description_filename:
             with open(location / agent_description_filename, "r") as f:
                 agent_description = f.read()
-        else:
-            agent_description = ""
 
-        user_template_path = location / user_template_filename
-        user_template = load_template(user_template_path) if user_template_path.exists() else None
-        heuristic_sequence = load_symbol(heuristic_sequence_name, loaded_module)
+        module = load_module_from_path(module_path=module_path)
+
+        user_prompt_argument_class: Type[UserPromptArg] = safe_load_symbol(
+            symbol_name=user_prompt_argument_class, module=module
+        )
+
+        user_template = load_template(location / user_template_filename)
+
+        heuristic_sequence: HeuristicSequence = safe_load_symbol(symbol_name=heuristic_sequence_name, module=module)
+
+        assert heuristic_sequence, "Heuristic sequence not found"
 
         return cls(
             user_prompt_argument_class=user_prompt_argument_class,
-            user_template=user_template,
             heuristic_sequence=heuristic_sequence,
+            user_template=user_template,
             agent_description=agent_description,
         )
 
@@ -841,7 +577,7 @@ class HeuristicPrompt(HeuristicPromptProtocol):
     ) -> Conversation:
         return await self._heuristic_sequence(conversation, call_tool)
 
-    def create_user_prompt_argument(self, **prompt_args) -> PromptArgument:
+    def create_user_prompt_argument(self, **prompt_args) -> UserPromptArg:
         return self.user_prompt_argument(**prompt_args)
 
     def render_user_template(

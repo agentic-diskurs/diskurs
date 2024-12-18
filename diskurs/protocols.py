@@ -83,21 +83,7 @@ class Prompt(Protocol):
     arguments, rendering templates, and parsing responses from a language model (LLM).
     """
 
-    system_prompt_argument: Type[SystemPromptArg]
     user_prompt_argument: Type[UserPromptArg]
-
-    def create_system_prompt_argument(self, **prompt_args: Any) -> SystemPromptArg:
-        """
-        Creates an instance of the system prompt argument dataclass.
-
-        This method is responsible for generating the system prompt argument
-        based on the provided keyword arguments. The system prompt argument
-        is used to configure the initial state and context for the conversation.
-
-        :param prompt_args: Keyword arguments used to initialize the system prompt argument.
-        :return: An instance of the system prompt argument dataclass.
-        """
-        ...
 
     def create_user_prompt_argument(self, **prompt_args: Any) -> UserPromptArg:
         """
@@ -109,20 +95,6 @@ class Prompt(Protocol):
 
         :param prompt_args: Keyword arguments used to initialize the user prompt argument.
         :return: An instance of the user prompt argument dataclass.
-        """
-        ...
-
-    def render_system_template(self, name: str, prompt_args: PromptArgument, return_json: bool = True) -> ChatMessage:
-        """
-        Renders the system template with the provided prompt arguments.
-
-        This method is responsible for rendering the system template using the given prompt arguments.
-        It can optionally return the rendered template as a JSON object.
-
-        :param name: The name of the template to be rendered.
-        :param prompt_args: The prompt arguments to be used for rendering the template.
-        :param return_json: If True, the rendered template will be returned as a JSON object. Defaults to True.
-        :return: A ChatMessage object containing the rendered template.
         """
         ...
 
@@ -169,6 +141,34 @@ class Prompt(Protocol):
 
 
 class MultistepPrompt(Prompt):
+    system_prompt_argument: Type[SystemPromptArg]
+
+    def create_system_prompt_argument(self, **prompt_args: Any) -> SystemPromptArg:
+        """
+        Creates an instance of the system prompt argument dataclass.
+
+        This method is responsible for generating the system prompt argument
+        based on the provided keyword arguments. The system prompt argument
+        is used to configure the initial state and context for the conversation.
+
+        :param prompt_args: Keyword arguments used to initialize the system prompt argument.
+        :return: An instance of the system prompt argument dataclass.
+        """
+        ...
+
+    def render_system_template(self, name: str, prompt_args: PromptArgument, return_json: bool = True) -> ChatMessage:
+        """
+        Renders the system template with the provided prompt arguments.
+
+        This method is responsible for rendering the system template using the given prompt arguments.
+        It can optionally return the rendered template as a JSON object.
+
+        :param name: The name of the template to be rendered.
+        :param prompt_args: The prompt arguments to be used for rendering the template.
+        :param return_json: If True, the rendered template will be returned as a JSON object. Defaults to True.
+        :return: A ChatMessage object containing the rendered template.
+        """
+        ...
 
     def is_final(self, user_prompt_argument: PromptArgument) -> bool:
         """
@@ -206,7 +206,35 @@ class ConductorPrompt(Prompt):
     determining the final state of the conversation.
     """
 
+    system_prompt_argument: Type[SystemPromptArg]
     longterm_memory: Type[LongtermMemory]
+
+    def create_system_prompt_argument(self, **prompt_args: Any) -> SystemPromptArg:
+        """
+        Creates an instance of the system prompt argument dataclass.
+
+        This method is responsible for generating the system prompt argument
+        based on the provided keyword arguments. The system prompt argument
+        is used to configure the initial state and context for the conversation.
+
+        :param prompt_args: Keyword arguments used to initialize the system prompt argument.
+        :return: An instance of the system prompt argument dataclass.
+        """
+        ...
+
+    def render_system_template(self, name: str, prompt_args: PromptArgument, return_json: bool = True) -> ChatMessage:
+        """
+        Renders the system template with the provided prompt arguments.
+
+        This method is responsible for rendering the system template using the given prompt arguments.
+        It can optionally return the rendered template as a JSON object.
+
+        :param name: The name of the template to be rendered.
+        :param prompt_args: The prompt arguments to be used for rendering the template.
+        :param return_json: If True, the rendered template will be returned as a JSON object. Defaults to True.
+        :return: A ChatMessage object containing the rendered template.
+        """
+        ...
 
     def can_finalize(self, longterm_memory: LongtermMemory) -> bool:
         """
@@ -261,32 +289,6 @@ class ConductorPrompt(Prompt):
         """
         ...
 
-    def is_final(self, user_prompt_argument: PromptArgument) -> bool:
-        """
-        Determines if the user prompt argument indicates the final state.
-
-        This method checks the provided user prompt argument to determine if it represents
-        the final state in the conversation. It is used to decide whether the conversation
-        can be concluded based on the user's input.
-
-        :param user_prompt_argument: The user prompt argument to be evaluated.
-        :return: True if the user prompt argument indicates the final state, False otherwise.
-        """
-        ...
-
-    def is_valid(self, user_prompt_argument: PromptArgument) -> bool:
-        """
-        Validates the user prompt argument.
-
-        This method checks if the provided user prompt argument meets the required
-        criteria for validity. It ensures that the user prompt argument is correctly
-        structured and contains the necessary information for further processing.
-
-        :param user_prompt_argument: The user prompt argument to be validated.
-        :return: True if the user prompt argument is valid, False otherwise.
-        """
-        ...
-
 
 class CallTool(Protocol):
     def __call__(self, function_name: str, arguments: dict[str, Any]) -> Any: ...
@@ -322,7 +324,7 @@ class HeuristicPrompt(Protocol):
         """
         ...
 
-    def create_user_prompt_argument(self, **prompt_args) -> PromptArgument:
+    def create_user_prompt_argument(self, **prompt_args) -> UserPromptArg:
         """
         Creates an instance of the user prompt argument dataclass.
 
@@ -338,7 +340,7 @@ class HeuristicPrompt(Protocol):
     def render_user_template(
         self,
         name: str,
-        prompt_args: PromptArgument,
+        prompt_args: UserPromptArg,
         message_type: MessageType = MessageType.CONVERSATION,
     ) -> ChatMessage:
         """

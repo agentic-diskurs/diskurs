@@ -12,7 +12,8 @@ from jinja2 import Template
 logger = logging.getLogger(__name__)
 
 
-def load_module_from_path(module_name: str, module_path: Path):
+def load_module_from_path(module_path: Path):
+    module_name = module_path.stem
     module_path = module_path.resolve()
     if not module_path.is_file():
         raise FileNotFoundError(f"Module file '{module_path}' not found.")
