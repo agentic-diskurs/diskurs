@@ -869,7 +869,7 @@ class ConversationStore(Protocol):
     """
 
     @classmethod
-    def create(cls, **kwargs) -> Self: ...
+    def create(cls, **kwargs) -> "ConversationStore": ...
 
     def persist(self, conversation: Conversation) -> None:
         """
@@ -883,7 +883,7 @@ class ConversationStore(Protocol):
         """
         ...
 
-    def fetch(self, conversation_id: str) -> Conversation:
+    async def fetch(self, conversation_id: str) -> Conversation:
         """
         Fetches a conversation by its unique identifier.
 
@@ -895,7 +895,7 @@ class ConversationStore(Protocol):
         """
         ...
 
-    def delete(self, conversation_id: str) -> None:
+    async def delete(self, conversation_id: str) -> None:
         """
         Deletes a conversation by its unique identifier.
 
@@ -907,7 +907,7 @@ class ConversationStore(Protocol):
         """
         ...
 
-    def exists(self, conversation_id: str) -> bool:
+    async def exists(self, conversation_id: str) -> bool:
         """
         Checks if a conversation with the given unique identifier exists in the persistent storage.
 

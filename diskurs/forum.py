@@ -74,8 +74,8 @@ class Forum:
         If a conversation store is present, we try to getch an existing conversation from the conversation store
         or creates a new one if it doesn't exist.
         """
-        if self.conversation_store and await asyncify(self.conversation_store.exists)(diskurs_input.conversation_id):
-            return await asyncify(self.conversation_store.fetch)(diskurs_input.conversation_id)
+        if self.conversation_store and await self.conversation_store.exists(diskurs_input.conversation_id):
+            return await self.conversation_store.fetch(diskurs_input.conversation_id)
         else:
             longterm_memory = init_longterm_memories(self.agents)
             conversation = self.conversation_class(

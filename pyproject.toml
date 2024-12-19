@@ -39,9 +39,10 @@ openai = "^1.57.2"
 python-dotenv = "^1.0.1"
 click = "^8.1.7"
 tiktoken = "^0.8.0"
+asyncer = "^0.0.8"
+aiofiles = "^24.1.0"
 
 azure-identity = {version = "^1.19.0", extras = ["azure"]}
-asyncer = "^0.0.8"
 
 [tool.poetry.extras]
 azure = ["azure-identity"]
