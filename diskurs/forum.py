@@ -174,7 +174,7 @@ class ForumFactory:
     def load_custom_modules(self):
         """Load custom modules specified in the configuration."""
         for custom_module in self.config.custom_modules:
-            module_path = (self.base_path / f"{custom_module.replace('.', '/')}.py").resolve()
+            module_path = (self.base_path / custom_module["location"]).resolve()
             load_module_from_path(module_path)
 
     def create_tool_executor(self):
@@ -193,13 +193,17 @@ class ForumFactory:
     def load_and_register_tool_dependencies(self):
         """Load and register tools with the tool executor."""
         if self.config.tool_dependencies:
-            self.tool_dependencies = load_dependencies(self.config.tool_dependencies)
+            self.tool_dependencies = load_dependencies(
+                self.config.tool_dependencies, self.config.custom_modules, self.base_path
+            )
             self.tool_executor.register_dependencies(self.tool_dependencies)
 
     def load_and_register_tools(self):
         """Load and register tools with the tool executor."""
         if self.config.tools:
-            self.tools = load_tools(self.config.tools, self.tool_dependencies)
+            self.tools = load_tools(
+                self.tool_dependencies, self.config.tools, self.config.custom_modules, self.base_path
+            )
             self.tool_executor.register_tools(self.tools)
 
     def create_dispatcher(self):
@@ -230,6 +234,7 @@ class ForumFactory:
             if hasattr(agent_conf, "final_properties"):
                 additional_args["final_properties"] = agent_conf.final_properties
             if hasattr(agent_conf, "prompt"):
+                agent_conf.prompt.location = agent_conf.prompt.location.resolve()
                 prompt_creation_arguments = asdict(agent_conf.prompt)
 
                 if agent_conf.prompt.type == "conductor_prompt":

@@ -274,7 +274,7 @@ class ToolConfig(YamlSerializable):
 
     name: str
     function_name: str
-    module_path: Path
+    module_name: str
     configs: Optional[dict] = None
     dependencies: Optional[list[str]] = None
 
@@ -282,7 +282,7 @@ class ToolConfig(YamlSerializable):
 @dataclass
 class ToolDependencyConfig(YamlSerializable):
     name: str
-    module_path: Path
+    module_name: str
     class_name: str
     parameters: dict[str, Any] = field(default_factory=dict)
 
@@ -310,7 +310,7 @@ class ForumConfig(YamlSerializable):
     agents: list[AgentConfig]
     llms: list[LLMConfig]
     tools: list[ToolConfig] = field(default_factory=list)
-    custom_modules: list[str] = field(default_factory=list)
+    custom_modules: list[dict] = field(default_factory=dict)
     tool_dependencies: list[ToolDependencyConfig] = field(default_factory=list)
     conversation_type: str = "immutable_conversation"
     conversation_store: ConversationStoreConfig = field(
@@ -385,8 +385,8 @@ def pre_load_custom_modules(yaml_data, base_path: Path):
     custom_modules = yaml_data.get("custom_modules", [])
     logger.info(f"Pre-loading custom modules: {custom_modules}")
 
-    for module_name in custom_modules:
-        module_full_path = (base_path / f"{module_name.replace('.', '/')}.py").resolve()
+    for module in custom_modules:
+        module_full_path = (base_path / module["location"]).resolve()
         load_module_from_path(module_full_path)
 
 
@@ -401,7 +401,7 @@ def load_config_from_yaml(config: str | Path, base_path: Optional[Path] = None) 
     """
     if isinstance(config, Path):
         logger.info(f"Loading config from file: {config}")
-        with open(config) as f:
+        with open(base_path / config) as f:
             config_content = f.read()
         if base_path is None:
             base_path = config.parent.resolve()

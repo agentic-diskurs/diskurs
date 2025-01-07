@@ -167,11 +167,20 @@ def create_func_with_closure(func: Callable, config: ToolConfig, dependencies: l
         raise ImportError(f"Could not load '{config.function_name}'" + f"from '{config.module_path.name}': {e}")
 
 
-def load_tools(tool_configs: list[ToolConfig], tool_dependencies: list[ToolDependency]) -> list[Callable]:
+def load_tools(
+    tool_dependencies: list[ToolDependency], tool_configs: list[ToolConfig], custom_modules, base_path
+) -> list[Callable]:
     modules_to_functions = defaultdict(list)
 
     for tool in tool_configs:
-        modules_to_functions[tool.module_path].append(tool.function_name)
+        try:
+            module_path = base_path / next(
+                (module["location"] for module in custom_modules if module["name"] == tool.module_name)
+            )
+        except StopIteration as e:
+            raise FileNotFoundError(f"Could not find module '{tool.module_name}' in custom modules: {e}")
+
+        modules_to_functions[module_path].append(tool.function_name)
 
     tool_idx = {tool_cfg.function_name: tool_cfg for tool_cfg in tool_configs}
 
@@ -208,12 +217,21 @@ def load_tools(tool_configs: list[ToolConfig], tool_dependencies: list[ToolDepen
     return tool_functions
 
 
-def load_dependencies(dependency_configs: list[ToolDependencyConfig]) -> list[ToolDependency]:
+def load_dependencies(
+    dependency_configs: list[ToolDependencyConfig], custom_modules: list[dict], base_path: Path
+) -> list[ToolDependency]:
     dependencies = []
 
     modules_to_classes = defaultdict(list)
     for dependency in dependency_configs:
-        modules_to_classes[dependency.module_path].append(dependency)
+        try:
+            module_path = base_path / next(
+                (module["location"] for module in custom_modules if module["name"] == dependency.module_name)
+            )
+        except StopIteration as e:
+            raise FileNotFoundError(f"Could not find module '{dependency.module_name}' in custom modules: {e}")
+
+        modules_to_classes[module_path].append(dependency)
 
     for module_path, dependencies_list in modules_to_classes.items():
         module_name = Path(module_path).stem

@@ -84,7 +84,7 @@ def test_create_func_with_closure(dependency_config):
 def test_load_tools(tool_configs, dependency_config):
     dependencies = load_dependencies([dependency_config])
 
-    loaded_functions = load_tools(tool_configs, dependencies)
+    loaded_functions = load_tools(dependencies, tool_configs, self.config.custom_modules, self.base_path)
 
     assert len(loaded_functions) == len(tool_configs)
     for func in loaded_functions:
