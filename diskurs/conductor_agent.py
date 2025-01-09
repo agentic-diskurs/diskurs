@@ -85,6 +85,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         llm_client = kwargs.get("llm_client")
         agent_descriptions = kwargs.get("agent_descriptions")
         finalizer_name = kwargs.get("finalizer_name", None)
+        can_finalize_name = kwargs.get("can_finalize_name", None)
         supervisor = kwargs.get("supervisor", None)
         dispatcher = kwargs.get("dispatcher", None)
         max_trials = kwargs.get("max_trials", 5)
@@ -98,6 +99,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             dispatcher=dispatcher,
             agent_descriptions=agent_descriptions,
             finalizer_name=finalizer_name,
+            can_finalize_name=can_finalize_name,
             supervisor=supervisor,
             max_trials=max_trials,
             max_dispatches=max_dispatches,

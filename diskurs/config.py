@@ -143,7 +143,7 @@ class ConductorPromptConfig(PromptConfig):
     user_prompt_argument_class: Optional[str] = None
     system_prompt_argument_class: Optional[str] = None
     longterm_memory_class: str
-    can_finalize_name: str
+    can_finalize_name: Optional[str] = None
     fail_name: str
 
 
@@ -187,6 +187,15 @@ class MultistepAgentConfig(AgentConfig):
 
 
 @dataclass(kw_only=True)
+class MultistepAgentPredicateConfig(MultistepAgentConfig):
+    """
+    Represents an agent configuration.
+    """
+
+    type: str = "multistep_predicate"
+
+
+@dataclass(kw_only=True)
 class ConductorAgentConfig(AgentConfig):
     """
     Represents an agent configuration.
@@ -198,6 +207,7 @@ class ConductorAgentConfig(AgentConfig):
     max_dispatches: Optional[int] = 50
     max_trials: Optional[int] = 5
     finalizer_name: Optional[str] = None
+    can_finalize_name: Optional[str] = None
     supervisor: Optional[str] = None
 
 

@@ -6,7 +6,6 @@ from typing import Type, TypeVar, Optional, Callable, Self, Any, Union
 
 from jinja2 import Template, FileSystemLoader, Environment
 
-from diskurs.registry import register_prompt
 from diskurs.entities import MessageType, ChatMessage, Role, PromptArgument
 from diskurs.protocols import (
     MultistepPrompt as MultistepPromptProtocol,
@@ -16,6 +15,7 @@ from diskurs.protocols import (
     Conversation,
     CallTool,
 )
+from diskurs.registry import register_prompt
 from diskurs.utils import load_template_from_package, load_module_from_path
 
 logger = logging.getLogger(__name__)
@@ -492,21 +492,19 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
 
     @classmethod
     def load_additional_resources(cls, module: Any, kwargs: dict) -> dict:
+        def load_symbol_if_provided(default_name: str, name_key: str) -> Optional[Callable[..., bool]]:
+            symbol_name = kwargs.get(name_key, default_name)
+            return safe_load_symbol(symbol_name, module) if symbol_name else None
 
-        can_finalize: Callable[[UserPromptArg], bool] = safe_load_symbol(
-            symbol_name=kwargs.get("can_finalize_name", "can_finalize"), module=module
-        )
-        finalize: Callable[[UserPromptArg], bool] = safe_load_symbol(
-            symbol_name=kwargs.get("finalize_name", "finalize"), module=module
-        )
-        fail: Callable[[UserPromptArg], bool] = safe_load_symbol(
-            symbol_name=kwargs.get("fail_name", "fail"), module=module
-        )
+        assert "longterm_memory_class" in kwargs, "Longterm memory class not provided"
 
-        assert kwargs.get("longterm_memory_class"), "Longterm memory class not provided"
+        can_finalize = load_symbol_if_provided("can_finalize", "can_finalize_name")
+        finalize = load_symbol_if_provided("finalize", "finalize_name")
+        fail = load_symbol_if_provided("fail", "fail_name")
 
         longterm_memory_class: Type[GenericConductorLongtermMemory] = safe_load_symbol(
-            symbol_name=kwargs.get("longterm_memory_class"), module=module
+            kwargs["longterm_memory_class"],
+            module,
         )
 
         return {
