@@ -129,8 +129,8 @@ class MultistepPromptConfig(PromptConfig):
     """
 
     type: str = "multistep_prompt"
-    is_valid_name: str
-    is_final_name: str
+    is_valid_name: Optional[str] = None
+    is_final_name: Optional[str] = None
 
 
 @dataclass(kw_only=True)
@@ -196,6 +196,16 @@ class MultistepAgentPredicateConfig(MultistepAgentConfig):
 
 
 @dataclass(kw_only=True)
+class MultistepAgentFinalizerConfig(MultistepAgentConfig):
+    """
+    Represents an agent configuration.
+    """
+
+    type: str = "multistep_finalizer"
+    final_properties: Optional[list[str]] = None
+
+
+@dataclass(kw_only=True)
 class ConductorAgentConfig(AgentConfig):
     """
     Represents an agent configuration.
@@ -226,17 +236,12 @@ class HeuristicAgentConfig(AgentConfig):
 
 
 @dataclass(kw_only=True)
-class HeuristicAgentFinalizerConfig(AgentConfig):
+class HeuristicAgentFinalizerConfig(HeuristicAgentConfig):
     """
     Represents an agent configuration.
     """
 
     type: str = "heuristic_finalizer"
-    prompt: PromptConfig
-    tools: Optional[list[str]] = None
-    init_prompt_arguments_with_longterm_memory: Optional[bool] = True
-    init_prompt_arguments_with_previous_agent: Optional[bool] = True
-    render_prompt: Optional[bool] = True
     final_properties: Optional[list[str]] = None
 
 
