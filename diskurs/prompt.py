@@ -209,6 +209,9 @@ class BasePrompt:
 
     @classmethod
     def safe_load_predicates(cls, is_final_name, is_valid_name, module, **kwargs):
+        is_final_name = is_final_name or "is_final"
+        is_valid_name = is_valid_name or "is_valid"
+
         is_valid: Callable[[UserPromptArg], bool] = safe_load_symbol(
             symbol_name=is_valid_name, module=module, default_factory=cls.create_default_is_valid, **kwargs
         )
@@ -261,7 +264,9 @@ class BasePrompt:
             symbol_name=user_prompt_argument_class, module=module
         )
 
-        is_final, is_valid = cls.safe_load_predicates(is_final_name, is_valid_name, module)
+        is_final, is_valid = cls.safe_load_predicates(
+            is_final_name=is_final_name, is_valid_name=is_valid_name, module=module, topics=kwargs.get("topics", [])
+        )
 
         system_template, user_template = cls.load_templates(
             location=location,
