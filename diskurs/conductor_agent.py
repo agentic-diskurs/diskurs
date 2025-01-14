@@ -21,13 +21,15 @@ from diskurs.registry import register_agent
 logger = logging.getLogger(__name__)
 
 
-def has_unique_execution_path(
-    prompt: ConductorPrompt, attr_name: str, external_options: list[Optional[str]], error_message: str
-) -> None:
-    has_attr = hasattr(prompt, attr_name) and getattr(prompt, attr_name) is not None
-    external_values = [opt is not None for opt in external_options]
+def validate_finalization(can_finalize_name, finalizer_name, prompt, supervisor):
+    if not (finalizer_name is None and supervisor is None):
+        assert (finalizer_name is None) != (
+            supervisor is None
+        ), "Either finalizer_name or supervisor must be set, but not both"
+        delattr(prompt, "_finalize")
 
-    assert sum([has_attr] + external_values) == 1, error_message
+    if can_finalize_name:
+        delattr(prompt, "_can_finalize")
 
 
 @register_agent("conductor")
@@ -46,19 +48,8 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         max_trials: int = 5,
         max_dispatches: int = 50,
     ):
-        has_unique_execution_path(
-            prompt=prompt,
-            attr_name="_finalize",
-            external_options=[finalizer_name, supervisor],
-            error_message="Exactly one of prompt._finalize, finalizer_name, or supervisor must be set",
-        )
 
-        has_unique_execution_path(
-            prompt=prompt,
-            attr_name="_can_finalize",
-            external_options=[can_finalize_name],
-            error_message="Exactly one of prompt._can_finalize or can_finalize_name must be set",
-        )
+        validate_finalization(can_finalize_name, finalizer_name, prompt, supervisor=supervisor)
 
         super().__init__(
             name=name,
@@ -108,7 +99,9 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
     @staticmethod
     def update_longterm_memory(
-        source: LongtermMemory | PromptArgument, target: LongtermMemory, overwrite: bool
+        source: LongtermMemory | PromptArgument,
+        target: LongtermMemory,
+        overwrite: bool,
     ) -> LongtermMemory:
         common_fields = {field.name for field in fields(target)}.intersection({field.name for field in fields(source)})
         for field in common_fields:
@@ -138,7 +131,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
         return conversation.update_agent_longterm_memory(agent_name=self.name, longterm_memory=longterm_memory)
 
-    async def invoke(self, conversation: Conversation) -> Conversation:
+    async def invoke(self, conversation: Conversation, message_type=MessageType.CONVERSATION) -> Conversation:
         self.logger.debug(f"Invoke called on conductor agent {self.name}")
 
         conversation = self.prepare_conversation(

@@ -208,8 +208,10 @@ class ImmutableConversation(Conversation):
     def render_chat(self, message_type: MessageType = MessageType.CONVERSATION) -> list[ChatMessage]:
         if message_type == MessageType.CONVERSATION:
             chat = [message for message in self.chat if message.type == message_type]
-        else:
+        elif message_type == MessageType.CONDUCTOR:
             chat = self.chat
+        else:
+            raise ValueError(f"Invalid message type: {message_type}")
 
         return [self.system_prompt] + chat + [self.user_prompt]
 

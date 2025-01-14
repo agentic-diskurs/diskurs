@@ -8,6 +8,7 @@ from jinja2 import Template, FileSystemLoader, Environment
 
 from diskurs.entities import MessageType, ChatMessage, Role, PromptArgument
 from diskurs.protocols import (
+    Prompt as PromptProtocol,
     MultistepPrompt as MultistepPromptProtocol,
     ConductorPrompt as ConductorPromptProtocol,
     HeuristicPrompt as HeuristicPromptProtocol,
@@ -178,7 +179,7 @@ def validate_dataclass(
         raise PromptValidationError(f"Error creating {user_prompt_argument.__name__}: {e}")
 
 
-class BasePrompt:
+class BasePrompt(PromptProtocol):
     def __init__(
         self,
         agent_description: str,

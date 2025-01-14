@@ -1,13 +1,25 @@
 from dataclasses import dataclass
 from typing import Optional
-from unittest.mock import ANY, AsyncMock
+from unittest.mock import ANY, AsyncMock, Mock
 
 import pytest
 
 from diskurs import ImmutableConversation
-from diskurs.conductor_agent import ConductorAgent, has_unique_execution_path
-from diskurs.entities import ChatMessage, Role, MessageType, LongtermMemory, PromptArgument
-from diskurs.prompt import PromptValidationError, DefaultConductorUserPromptArgument
+from diskurs.conductor_agent import (
+    ConductorAgent,
+    validate_finalization,
+)
+from diskurs.entities import (
+    ChatMessage,
+    Role,
+    MessageType,
+    LongtermMemory,
+    PromptArgument,
+)
+from diskurs.prompt import (
+    PromptValidationError,
+    DefaultConductorUserPromptArgument,
+)
 from diskurs.protocols import (
     LLMClient,
     ConversationDispatcher,
@@ -33,7 +45,9 @@ class MyUserPromptArgument(PromptArgument):
 
 
 def create_conductor_prompt(
-    has_finalizer: bool = True, can_finalize_return_value: bool = True, has_can_finalize: bool = True
+    has_finalizer: bool = True,
+    can_finalize_return_value: bool = True,
+    has_can_finalize: bool = True,
 ):
     def finalize(longterm_memory):
         return {"result": "final result"}
@@ -85,7 +99,13 @@ def mock_dispatcher():
     return dispatcher
 
 
-def create_conductor_agent(mock_dispatcher, mock_llm_client, mock_prompt, finalizer=None, supervisor=None):
+def create_conductor_agent(
+    mock_dispatcher,
+    mock_llm_client,
+    mock_prompt,
+    finalizer=None,
+    supervisor=None,
+):
     agent = ConductorAgent(
         name="conductor",
         prompt=mock_prompt,
@@ -108,7 +128,12 @@ def conductor_agent(mock_prompt, mock_llm_client, mock_dispatcher):
 
 @pytest.fixture
 def conductor_agent_with_supervisor(mock_prompt_no_finalize, mock_llm_client, mock_dispatcher):
-    return create_conductor_agent(mock_dispatcher, mock_llm_client, mock_prompt_no_finalize, supervisor="supervisor")
+    return create_conductor_agent(
+        mock_dispatcher,
+        mock_llm_client,
+        mock_prompt_no_finalize,
+        supervisor="supervisor",
+    )
 
 
 @pytest.fixture
@@ -182,7 +207,9 @@ async def test_process_conversation_updates_longterm_memory(conductor_agent):
     longterm_memory = MyLongTermMemory()
 
     with patch.object(
-        ImmutableConversation, "update_agent_longterm_memory", return_value=conversation
+        ImmutableConversation,
+        "update_agent_longterm_memory",
+        return_value=conversation,
     ) as mock_update_longterm:
         # Instead of making get_agent_longterm_memory an AsyncMock, make it a regular Mock
         conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
@@ -219,7 +246,7 @@ async def test_process_conversation_finalize(conductor_agent):
 
     await conductor_agent.process_conversation(conversation)
 
-    assert conversation.final_result == {"result": "final result"}
+    assert await conversation.final_result == {"result": "final result"}
     conductor_agent.generate_validated_response.assert_not_called()
 
 
@@ -242,7 +269,8 @@ async def test_max_dispatches(conductor_cannot_finalize):
     longterm_memory = MyLongTermMemory()
 
     conversation = conversation.update_agent_longterm_memory(
-        agent_name=conductor_cannot_finalize.name, longterm_memory=longterm_memory
+        agent_name=conductor_cannot_finalize.name,
+        longterm_memory=longterm_memory,
     )
 
     await conductor_cannot_finalize.process_conversation(conversation)
@@ -267,12 +295,18 @@ async def test_conductor_agent_valid_next_agent(conductor_cannot_finalize, mock_
 
 
 @pytest.mark.asyncio
-async def test_conductor_agent_fail_on_max_dispatches(conductor_cannot_finalize):
+async def test_conductor_agent_fail_on_max_dispatches(
+    conductor_cannot_finalize,
+):
     conductor_cannot_finalize.n_dispatches = conductor_cannot_finalize.max_dispatches - 1
 
     conversation = ImmutableConversation()
     conversation = conversation.append(
-        ChatMessage(role=Role.ASSISTANT, content='{"next_agent": "invalid_agent"}', type=MessageType.CONDUCTOR)
+        ChatMessage(
+            role=Role.ASSISTANT,
+            content='{"next_agent": "invalid_agent"}',
+            type=MessageType.CONDUCTOR,
+        )
     )
 
     def is_valid(prompt_args):
@@ -289,11 +323,18 @@ async def test_conductor_agent_fail_on_max_dispatches(conductor_cannot_finalize)
 
 @pytest.fixture
 def conductor_agent_with_finalizer(mock_prompt_no_finalize, mock_llm_client, mock_dispatcher):
-    return create_conductor_agent(mock_dispatcher, mock_llm_client, mock_prompt_no_finalize, finalizer=FINALIZER_NAME)
+    return create_conductor_agent(
+        mock_dispatcher,
+        mock_llm_client,
+        mock_prompt_no_finalize,
+        finalizer=FINALIZER_NAME,
+    )
 
 
 @pytest.mark.asyncio
-async def test_process_conversation_finalize_with_agent_calls_dispatcher(conductor_agent_with_finalizer):
+async def test_process_conversation_finalize_with_agent_calls_dispatcher(
+    conductor_agent_with_finalizer,
+):
     conversation = ImmutableConversation(user_prompt_argument=MyUserPromptArgument())
     longterm_memory = MyLongTermMemory()
 
@@ -330,65 +371,8 @@ async def test_finalize_call_finalizer(conductor_agent_with_finalizer, conversat
 async def test_finalize_call_prompt_function(conductor_agent_with_finalizer_function, conversation):
     await conductor_agent_with_finalizer_function.finalize(conversation)
 
-    assert conversation.final_result == {"result": "final result"}
+    assert await conversation.final_result == {"result": "final result"}
     conductor_agent_with_finalizer_function.dispatcher.publish.assert_not_called()
-
-
-import pytest
-from unittest.mock import Mock
-
-
-def test_has_unique_execution_path_prompt_only():
-    def dummy_finalize(longterm_memory):
-        return {"result": "final result"}
-
-    prompt = Mock()
-    setattr(prompt, "_finalize", dummy_finalize)
-    has_unique_execution_path(
-        prompt=prompt, attr_name="_test_attr", external_options=[None, None], error_message="Test error message"
-    )
-
-
-def test_has_unique_execution_path_agent_only():
-    prompt = Mock()
-    setattr(prompt, "_finalize", None)
-    an_agent_name = "agent1"
-    has_unique_execution_path(
-        prompt=prompt,
-        attr_name="_finalize",
-        external_options=[an_agent_name, None],
-        error_message="Test error message",
-    )
-
-
-def test_has_unique_execution_path_invalid_func_and_external():
-    def dummy_finalize(longterm_memory):
-        return {"result": "final result"}
-
-    prompt = Mock()
-    setattr(prompt, "_finalize", dummy_finalize)
-    an_agent_name = "agent1"
-    with pytest.raises(AssertionError, match="Test error message"):
-        has_unique_execution_path(
-            prompt=prompt,
-            attr_name="_finalize",
-            external_options=[an_agent_name, None],
-            error_message="Test error message",
-        )
-
-
-def test_has_unique_execution_path_invalid_external():
-    prompt = Mock()
-    setattr(prompt, "_finalize", None)
-    an_agent_name = "agent1"
-    a_supervisor_name = "supervisor"
-    with pytest.raises(AssertionError, match="Test error message"):
-        has_unique_execution_path(
-            prompt=prompt,
-            attr_name="_finalize",
-            external_options=[an_agent_name, a_supervisor_name],
-            error_message="Test error message",
-        )
 
 
 @pytest.mark.asyncio
@@ -415,3 +399,61 @@ async def test_can_finalize(conversation, conductor_agent):
 
     await conductor_agent.process_conversation(conversation)
     conductor_agent.finalize.assert_called_once()
+
+    def test_validate_finalization_all_none():
+        prompt = Mock()
+        prompt._finalize = lambda x: x
+        prompt._can_finalize = lambda x: True
+
+        # Should not raise or modify prompt
+        validate_finalization(None, None, prompt, None)
+        assert hasattr(prompt, "_finalize")
+        assert hasattr(prompt, "_can_finalize")
+
+    def test_validate_finalization_with_finalizer():
+        prompt = Mock()
+        prompt._finalize = lambda x: x
+        prompt._can_finalize = lambda x: True
+
+        validate_finalization(None, "finalizer", prompt, None)
+        assert not hasattr(prompt, "_finalize")
+        assert hasattr(prompt, "_can_finalize")
+
+    def test_validate_finalization_with_supervisor():
+        prompt = Mock()
+        prompt._finalize = lambda x: x
+        prompt._can_finalize = lambda x: True
+
+        validate_finalization(None, None, prompt, "supervisor")
+        assert not hasattr(prompt, "_finalize")
+        assert hasattr(prompt, "_can_finalize")
+
+    def test_validate_finalization_with_both_raises():
+        prompt = Mock()
+        prompt._finalize = lambda x: x
+
+        with pytest.raises(
+            AssertionError,
+            match="Either finalizer_name or supervisor must be set, but not both",
+        ):
+            validate_finalization(None, "finalizer", prompt, "supervisor")
+
+    def test_validate_finalization_with_can_finalize():
+        prompt = Mock()
+        prompt._finalize = lambda x: x
+        prompt._can_finalize = lambda x: True
+
+        validate_finalization("can_finalize", None, prompt, None)
+        assert hasattr(prompt, "_finalize")
+        assert not hasattr(prompt, "_can_finalize")
+
+    def test_validate_finalization_with_all_raises():
+        prompt = Mock()
+        prompt._finalize = lambda x: x
+        prompt._can_finalize = lambda x: True
+
+        with pytest.raises(
+            AssertionError,
+            match="Either finalizer_name or supervisor must be set, but not both",
+        ):
+            validate_finalization("can_finalize", "finalizer", prompt, "supervisor")

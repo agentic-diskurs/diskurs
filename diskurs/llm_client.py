@@ -130,12 +130,15 @@ class BaseOaiApiLLMClient(LLMClient):
         self,
         conversation: ImmutableConversation,
         tools: Optional[list[ToolDescription]] = None,
+        message_type=MessageType.CONVERSATION,
     ) -> dict[str, Any]:
         """
         Formats the conversation object into a dictionary that can be sent to the LLM model.
         This comprises the user prompt, chat history, and tool descriptions.
         :param conversation: Contains all interactions so far
         :param tools: The descriptions of all tools that the agent can use
+        :param message_type: The message type used to filter the chat history. If MessageType.CONDUCTOR,
+          all messages will be rendered
         :return: A JSON-serializable dictionary containing the conversation data ready for the LLM
         """
         self.logger.debug(f"Formatting conversation for LLM")
@@ -143,7 +146,7 @@ class BaseOaiApiLLMClient(LLMClient):
         formatted_tools = {"tools": [self.format_tool_description_for_llm(tool) for tool in tools]} if tools else {}
 
         messages = []
-        for message in conversation.render_chat():
+        for message in conversation.render_chat(message_type=message_type):
             if isinstance(message, list):
                 # If we executed multiple tools in a single pass, we have to flatten the list
                 # containing the tool call responses
@@ -377,6 +380,7 @@ class BaseOaiApiLLMClient(LLMClient):
         self,
         conversation: ImmutableConversation,
         tools: Optional[ToolDescription] = None,
+        message_type=MessageType.CONVERSATION,
     ) -> ImmutableConversation:
         """
         Generates a response from the LLM model for the given conversation.
@@ -385,9 +389,13 @@ class BaseOaiApiLLMClient(LLMClient):
 
         :param conversation: The conversation object containing the user prompt and chat history.
         :param tools: Description of all the tools that the agent can use
+        :param message_type: The message type used to filter the chat history. If MessageType.CONDUCTOR,
+          all messages will be rendered
         :return: Updated conversation object with the LLM response appended to the chat history.
         """
-        request_body = self.format_conversation_for_llm(conversation, tools)
+        request_body = self.format_conversation_for_llm(
+            conversation=conversation, tools=tools, message_type=message_type
+        )
         fail_counter = 0
 
         while fail_counter < self.max_repeat:

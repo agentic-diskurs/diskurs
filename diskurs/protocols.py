@@ -123,7 +123,7 @@ class Prompt(Protocol):
         llm_response: str,
         old_user_prompt_argument: PromptArgument,
         message_type: MessageType = MessageType.CONDUCTOR,
-    ) -> Union[PromptArgument, ChatMessage]:
+    ) -> PromptArgument | ChatMessage:
         """
         Parses the LLM response into a prompt argument or ChatMessage.
 
@@ -668,7 +668,10 @@ class LLMClient(Protocol):
     def create(cls, **kwargs) -> Self: ...
 
     async def generate(
-        self, conversation: Conversation, tools: Optional[list[ToolDescription]] = None
+        self,
+        conversation: Conversation,
+        tools: Optional[list[ToolDescription]] = None,
+        message_type=MessageType.CONVERSATION,
     ) -> Conversation:
         """
         Generates a response from the language model (LLM) based on the current state of the conversation.
@@ -678,6 +681,8 @@ class LLMClient(Protocol):
 
         :param conversation: The current state of the conversation, represented as a `Conversation` object.
         :param tools: An optional list of `ToolDescription` objects that can be used by the LLM to generate the response.
+        :param message_type: The message type used to filter the chat history. If MessageType.CONDUCTOR,
+          all messages will be rendered
         :return: An updated `Conversation` object with the generated response.
         """
         ...
@@ -945,7 +950,7 @@ class Agent(Protocol):
     @classmethod
     def create(cls, name: str, prompt: Prompt, llm_client: LLMClient, **kwargs): ...
 
-    async def invoke(self, conversation: Conversation) -> Conversation:
+    async def invoke(self, conversation: Conversation, message_type=MessageType.CONVERSATION) -> Conversation:
         """
         Run the agent on a conversation.
 

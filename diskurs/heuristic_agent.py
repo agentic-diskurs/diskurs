@@ -53,7 +53,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
         self.logger.debug(f"Preparing conversation for agent {self.name}")
         return conversation.update(user_prompt_argument=user_prompt_argument, active_agent=self.name)
 
-    async def invoke(self, conversation: Conversation) -> Conversation:
+    async def invoke(self, conversation: Conversation, message_type=MessageType.CONVERSATION) -> Conversation:
         self.logger.debug(f"Invoke called on agent {self.name}")
 
         previous_user_prompt_augment = conversation.user_prompt_argument

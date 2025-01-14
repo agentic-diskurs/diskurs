@@ -69,7 +69,7 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
         self._topics = value
 
     @abstractmethod
-    async def invoke(self, conversation: Conversation | str) -> Conversation:
+    async def invoke(self, conversation: Conversation | str, message_type=MessageType.CONVERSATION) -> Conversation:
         pass
 
     def register_dispatcher(self, dispatcher: ConversationDispatcher) -> None:
@@ -149,7 +149,9 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
         for max_trials in range(self.max_trials):
             self.logger.debug(f"Generating validated response trial {max_trials + 1} for Agent {self.name}")
 
-            response = await self.llm_client.generate(conversation, getattr(self, "tools", None))
+            response = await self.llm_client.generate(
+                conversation=conversation, tools=getattr(self, "tools", None), message_type=message_type
+            )
 
             parsed_response = self.prompt.parse_user_prompt(
                 self.name,

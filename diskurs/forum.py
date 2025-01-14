@@ -256,6 +256,8 @@ class ForumFactory:
                 additional_args["finalizer_name"] = agent_conf.finalizer_name
             if hasattr(agent_conf, "can_finalize_name"):
                 additional_args["can_finalize_name"] = agent_conf.can_finalize_name
+            if hasattr(agent_conf, "supervisor"):
+                additional_args["supervisor"] = agent_conf.supervisor
 
             additional_args["dispatcher"] = self.dispatcher
 
