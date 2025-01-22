@@ -369,6 +369,8 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
     """
 
     final_result: dict[str, Any]
+    conversation_id: Optional[str]
+    conversation_store: Optional["ConversationStore"]
 
     @property
     def chat(self) -> List[ChatMessage]:
@@ -636,12 +638,15 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
         ...
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], agents: list[Any]) -> "Conversation":
+    def from_dict(
+        cls, data: dict[str, Any], agents: list[Any], conversation_store: Optional["ConversationStore"]
+    ) -> "Conversation":
         """
         Creates a Conversation instance from a dictionary.
 
         :param data: The data dictionary.
         :param agents: A list of agent instances.
+        :param conversation_store: The conversation store instance.
         :return: A new instance of Conversation.
         """
         ...
@@ -651,6 +656,16 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
         Converts the Conversation instance to a dictionary.
 
         :return: A dictionary representation of the Conversation.
+        """
+        ...
+
+    async def maybe_persist(self) -> None:
+        """
+        Persists the conversation to the conversation store.
+
+        This method saves the conversation to the conversation store, ensuring that
+        the conversation data is stored and can be retrieved later.
+
         """
         ...
 
@@ -848,7 +863,7 @@ class ConversationDispatcher(Protocol):
         """
         pass
 
-    async def run(self, participant: ConversationParticipant, conversation: Conversation) -> dict:
+    async def run(self, participant: ConversationParticipant, conversation: Conversation) -> Conversation:
         """
         Entry point for starting a conversation with a participant.
 
@@ -873,10 +888,12 @@ class ConversationStore(Protocol):
     ensuring that conversations can be reliably saved and accessed as needed.
     """
 
+    is_persistent: bool
+
     @classmethod
     def create(cls, **kwargs) -> "ConversationStore": ...
 
-    def persist(self, conversation: Conversation) -> None:
+    async def persist(self, conversation: Conversation) -> None:
         """
         Persists the given conversation.
 
@@ -888,7 +905,7 @@ class ConversationStore(Protocol):
         """
         ...
 
-    async def fetch(self, conversation_id: str) -> Conversation:
+    async def fetch(self, conversation_id: str, conversation_store) -> Conversation:
         """
         Fetches a conversation by its unique identifier.
 

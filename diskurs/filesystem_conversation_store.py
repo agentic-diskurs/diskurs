@@ -1,8 +1,8 @@
+import asyncio
 import json
 import os
 from pathlib import Path
 from typing import Self
-import asyncio
 
 import aiofiles
 
@@ -13,24 +13,29 @@ from diskurs.registry import register_conversation_store
 
 @register_conversation_store("filesystem")
 class AsyncFilesystemConversationStore(ConversationStore):
-    def __init__(self, directory: Path, agents: list, conversation_class: Conversation):
-        self.directory: Path = directory
+    def __init__(self, agents: list, conversation_class: Conversation, is_persistent: bool, storage_path: Path):
+        self.is_persistent = is_persistent
         self.agents = agents
         self.conversation_class = conversation_class
+        self.storage_path = storage_path
         self.logger = get_logger(f"diskurs.{__name__}")
 
-        self.logger.info(f"Initializing async conversation store with directory {directory}")
+        self.logger.info(f"Initializing async conversation store in directory {storage_path}")
 
     def _get_file_path(self, conversation_id: str) -> Path:
-        return self.directory / f"{conversation_id}.json"
+        return self.storage_path / f"{conversation_id}.json"
 
     @classmethod
     def create(cls, **kwargs) -> Self:
-        # Directory creation is fast and synchronous, but if you want, you could run it in a thread pool.
-        directory = kwargs.get("directory")
-        if directory:
-            directory.mkdir(parents=True, exist_ok=True)
-        return cls(**kwargs)
+        base_path = kwargs.pop("base_path")
+        directory = kwargs.pop("directory", "conversations")
+
+        storage_path = base_path / directory
+
+        if not storage_path.exists():
+            storage_path.mkdir(parents=True)
+
+        return cls(**{**kwargs, "storage_path": storage_path})
 
     async def persist(self, conversation: Conversation) -> None:
         assert conversation.conversation_id, "Conversation ID must be set before persisting"
@@ -43,7 +48,7 @@ class AsyncFilesystemConversationStore(ConversationStore):
         async with aiofiles.open(file_path, "w") as f:
             await f.write(data)
 
-    async def fetch(self, conversation_id: str) -> Conversation:
+    async def fetch(self, conversation_id: str, conversation_store: ConversationStore) -> Conversation:
         self.logger.info(f"Fetching conversation {conversation_id}")
 
         file_path = self._get_file_path(conversation_id)
@@ -51,7 +56,7 @@ class AsyncFilesystemConversationStore(ConversationStore):
             data_str = await f.read()
 
         data = json.loads(data_str)
-        return self.conversation_class.from_dict(data=data, agents=self.agents)
+        return self.conversation_class.from_dict(data=data, agents=self.agents, conversation_store=conversation_store)
 
     async def delete(self, conversation_id: str) -> None:
         self.logger.info(f"Deleting conversation {conversation_id}")

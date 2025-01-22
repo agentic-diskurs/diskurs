@@ -3,8 +3,6 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import List, Callable, Type, Any
 
-from asyncer import asyncify
-
 from diskurs.config import load_config_from_yaml
 from diskurs.entities import (
     ToolDescription,
@@ -75,13 +73,14 @@ class Forum:
         or creates a new one if it doesn't exist.
         """
         if self.conversation_store and await self.conversation_store.exists(diskurs_input.conversation_id):
-            return await self.conversation_store.fetch(diskurs_input.conversation_id)
+            conversation = await self.conversation_store.fetch(diskurs_input.conversation_id, self.conversation_store)
         else:
             longterm_memory = init_longterm_memories(self.agents)
             conversation = self.conversation_class(
                 metadata=diskurs_input.metadata,
                 conversation_id=diskurs_input.conversation_id,
                 longterm_memory=longterm_memory,
+                conversation_store=self.conversation_store,
             )
         if diskurs_input.user_query:
             conversation = conversation.append(
@@ -101,8 +100,9 @@ class Forum:
 
         conversation = await self.fetch_or_create_conversation(diskurs_input)
 
-        answer = await self.dispatcher.run(participant=self.first_contact, conversation=conversation)
-        return answer
+        conversation = await self.dispatcher.run(participant=self.first_contact, conversation=conversation)
+
+        return conversation.final_result
 
 
 class ForumFactory:

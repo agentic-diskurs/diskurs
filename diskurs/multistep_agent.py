@@ -199,6 +199,9 @@ class MultistepAgentFinalizer(MultiStepAgent, ConversationFinalizer):
     async def finalize_conversation(self, conversation: Conversation) -> None:
         self.logger.info(f"Process conversation on agent: {self.name}")
         conversation = await self.invoke(conversation)
+
+        await conversation.maybe_persist()
+
         conversation.final_result = get_fields_as_dict(conversation.user_prompt_argument, self.final_properties)
 
 

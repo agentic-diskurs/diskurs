@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from dataclasses import dataclass, asdict, is_dataclass, fields, MISSING
 from pathlib import Path
 from typing import Type, TypeVar, Optional, Callable, Self, Any, Union
@@ -75,32 +76,87 @@ def load_template(location: Path) -> Template:
 GenericDataclass = TypeVar("GenericDataclass", bound=dataclass)
 
 
-def validate_json(llm_response: str) -> dict:
-    """
-    Parse and validate the LLM response as JSON, handling nested JSON strings.
+import json
+import re
+from typing import Dict, Optional
 
-    :param llm_response: The raw text response from the LLM.
-    :return: Parsed dictionary if valid JSON.
-    :raises PromptValidationError: If the response is not valid JSON.
+
+def clean_json_string(text: str) -> str:
     """
+    Clean and sanitize a JSON string from common LLM response issues.
+
+    1. Strips code blocks and whitespace
+    2. Fixes quotes and Unicode issues
+    3. Removes trailing commas
+    4. Handles common formatting issues
+    """
+    # Strip code blocks and whitespace
+    text = text.strip()
+    text = re.sub(r"^```(?:json|python)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+
+    # Replace Unicode quotes with standard quotes
+    text = text.replace('"', '"').replace('"', '"')
+    text = text.replace("'", '"')  # Replace single quotes with double quotes
+
+    # Remove trailing commas in objects and arrays
+    text = re.sub(r",(\s*[}\]])", r"\1", text)
+
+    # Remove any non-JSON content before/after the actual JSON
+    text = re.sub(r"^[^{\[]+", "", text)
+    text = re.sub(r"[^}\]]+$", "", text)
+
+    return text.strip()
+
+
+def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1000000) -> Dict:
+    """
+    Parse and validate the LLM response as JSON with enhanced safety checks.
+
+    Args:
+    :param llm_response: Raw text response from the LLM
+    :param max_depth: Maximum recursion depth for nested JSON
+    :param max_size: Maximum size of JSON string in characters
+
+    :returns: Parsed dictionary
+
+    :raises: PromptValidationError: If validation fails
+    """
+    if len(llm_response) > max_size:
+        raise PromptValidationError(f"JSON response exceeds maximum size of {max_size} characters")
+
     logger.debug("Validating LLM response is valid JSON")
-    try:
-        parsed = json.loads(llm_response)
-        # Recursively parse if the result is a string
-        while isinstance(parsed, str):
-            parsed = json.loads(parsed)
-        if isinstance(parsed, dict):
-            return parsed
-        else:
-            logger.debug("Parsed response is not a JSON object.")
-            raise PromptValidationError("Parsed response is not a JSON object.")
-    except json.JSONDecodeError as e:
-        error_message = (
-            f"LLM response is not valid JSON. Error: {e.msg} at line {e.lineno}, column {e.colno}. "
-            "Please ensure the response is valid JSON and follows the correct format."
-        )
-        logger.debug(error_message)
-        raise PromptValidationError(error_message)
+
+    def parse_with_depth(json_str: str, current_depth: int) -> dict:
+        if current_depth > max_depth:
+            raise PromptValidationError("Maximum JSON nesting depth exceeded")
+
+        try:
+            parsed = json.loads(json_str)
+
+            if isinstance(parsed, str):
+                return parse_with_depth(parsed, current_depth + 1)
+            elif isinstance(parsed, dict):
+                return parsed
+            else:
+                raise PromptValidationError(f"Expected JSON object, got {type(parsed).__name__}")
+
+        except json.JSONDecodeError as e:
+            try:
+                cleaned = clean_json_string(json_str)
+                if cleaned != json_str:
+                    return parse_with_depth(cleaned, current_depth)
+            except:
+                pass
+
+            error_message = (
+                f"Invalid JSON: {e.msg} at line {e.lineno}, column {e.colno}. "
+                "Please ensure the response is valid JSON."
+            )
+            logger.debug(error_message)
+            raise PromptValidationError(error_message)
+
+    return parse_with_depth(llm_response, 1)
 
 
 def validate_dataclass(

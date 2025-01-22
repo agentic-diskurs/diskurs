@@ -27,7 +27,9 @@ class YamlSerializable:
     """
 
     @classmethod
-    def load_from_yaml(cls: Type[T], yaml_content: str, base_path: Optional[Path] = None) -> T:
+    def load_from_yaml(
+        cls: Type[T], yaml_content: str, base_path: Optional[Path] = None
+    ) -> T:
         """
         Load a YAML string with camelCase keys and convert it into an instance
         of the dataclass, mapping keys to snake_case.
@@ -37,7 +39,9 @@ class YamlSerializable:
         :return: An instance of the dataclass with values loaded from the YAML.
         """
         data = yaml.safe_load(yaml_content)
-        data = resolve_env_vars(data)  # Replace placeholders with environment variables
+        data = resolve_env_vars(
+            data
+        )  # Replace placeholders with environment variables
         snake_case_data = cls._convert_keys_to_snake_case(data)
         return dataclass_loader(cls, snake_case_data, base_path=base_path)
 
@@ -74,7 +78,10 @@ class YamlSerializable:
         to snake_case.
         """
         if isinstance(d, dict):
-            return {cls._camel_to_snake(k): cls._convert_keys_to_snake_case(v) for k, v in d.items()}
+            return {
+                cls._camel_to_snake(k): cls._convert_keys_to_snake_case(v)
+                for k, v in d.items()
+            }
         elif isinstance(d, list):
             return [cls._convert_keys_to_snake_case(i) for i in d]
         else:
@@ -87,7 +94,10 @@ class YamlSerializable:
         to camelCase.
         """
         if isinstance(d, dict):
-            return {cls._snake_to_camel(k): cls._convert_keys_to_camel_case(v) for k, v in d.items()}
+            return {
+                cls._snake_to_camel(k): cls._convert_keys_to_camel_case(v)
+                for k, v in d.items()
+            }
         elif isinstance(d, list):
             return [cls._convert_keys_to_camel_case(i) for i in d]
         else:
@@ -305,12 +315,13 @@ class ToolDependencyConfig(YamlSerializable):
 @dataclass
 class ConversationStoreConfig(YamlSerializable, Registrable):
     type: str
+    is_persistent: bool = False
 
 
 @dataclass(kw_only=True)
 class FilesystemConversationStoreConfig(ConversationStoreConfig):
     type: str = "filesystem"
-    directory: Path
+    base_path: Optional[Path] = None
 
 
 @dataclass
@@ -329,7 +340,9 @@ class ForumConfig(YamlSerializable):
     tool_dependencies: list[ToolDependencyConfig] = field(default_factory=list)
     conversation_type: str = "immutable_conversation"
     conversation_store: ConversationStoreConfig = field(
-        default_factory=lambda: FilesystemConversationStoreConfig(directory=Path(__file__).parent / "conversations")
+        default_factory=lambda: FilesystemConversationStoreConfig(
+            base_path=Path(__file__).parent / "conversations"
+        )
     )
 
 
@@ -345,8 +358,12 @@ def resolve_env_vars(data):
         for var, default in matches:
             env_value = os.getenv(var, default)
             if env_value is None:
-                raise ValueError(f"Environment variable '{var}' is not set and no default value provided.")
-            data = data.replace(f'${{{var}{":" + default if default else ""}}}', env_value)
+                raise ValueError(
+                    f"Environment variable '{var}' is not set and no default value provided."
+                )
+            data = data.replace(
+                f'${{{var}{":" + default if default else ""}}}', env_value
+            )
         return data
     else:
         return data
@@ -363,28 +380,42 @@ def get_dataclass_subclass(base_class, data):
             else:
                 raise ValueError(f"Unknown {base_class.__name__} type: {key}")
         else:
-            raise ValueError(f"Discriminator '{discriminator}' not found in data for {base_class.__name__}")
+            raise ValueError(
+                f"Discriminator '{discriminator}' not found in data for {base_class.__name__}"
+            )
     else:
         return base_class
 
 
-def dataclass_loader(dataclass_type, data, base_path: Optional[Path] = None):
+def dataclass_loader(dataclass_type, data, base_path=None):
     """Recursively loads YAML data into the appropriate dataclass."""
     if is_dataclass(dataclass_type) and isinstance(data, dict):
         # Get the correct subclass based on data
         dataclass_type = get_dataclass_subclass(dataclass_type, data)
-        field_types = {field.name: field.type for field in dataclass_type.__dataclass_fields__.values()}
-        return dataclass_type(
-            **{
-                key: dataclass_loader(field_types[key], value, base_path=base_path)
-                for key, value in data.items()
-                if key in field_types
-            }
-        )
+        field_types = {
+            field.name: field.type
+            for field in dataclass_type.__dataclass_fields__.values()
+        }
+
+        # Create kwargs dict including both data fields and base_path if needed
+        kwargs = {
+            key: dataclass_loader(field_types[key], value, base_path=base_path)
+            for key, value in data.items()
+            if key in field_types
+        }
+
+        # If the class accepts base_path, include it in kwargs
+        if "base_path" in dataclass_type.__dataclass_fields__:
+            kwargs["base_path"] = base_path
+
+        return dataclass_type(**kwargs)
+
     elif get_origin(dataclass_type) == list and isinstance(data, list):
-        # Handle lists by extracting the type of the list elements
         list_type = get_args(dataclass_type)[0]
-        return [dataclass_loader(list_type, item, base_path=base_path) for item in data]
+        return [
+            dataclass_loader(list_type, item, base_path=base_path)
+            for item in data
+        ]
     elif dataclass_type == Path and isinstance(data, str):
         # Resolve paths relative to the base path
         path = Path(data)
@@ -405,7 +436,9 @@ def pre_load_custom_modules(yaml_data, base_path: Path):
         load_module_from_path(module_full_path)
 
 
-def load_config_from_yaml(config: str | Path, base_path: Optional[Path] = None) -> ForumConfig:
+def load_config_from_yaml(
+    config: str | Path, base_path: Optional[Path] = None
+) -> ForumConfig:
     """
     Loads the complete configuration from YAML content and maps it
     to the ForumConfig dataclass.

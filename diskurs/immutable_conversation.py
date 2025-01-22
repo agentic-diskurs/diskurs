@@ -4,7 +4,7 @@ from typing import TypeVar, Optional, Any
 
 from diskurs import LongtermMemory
 from diskurs.entities import ChatMessage, Role, MessageType, ResultHolder
-from diskurs.protocols import Conversation
+from diskurs.protocols import Conversation, ConversationStore
 from diskurs.registry import register_conversation
 
 GenericPrompt = TypeVar("GenericPrompt", bound="Prompt")
@@ -27,6 +27,7 @@ class ImmutableConversation(Conversation):
         active_agent: str = "",
         conversation_id="",
         final_result: Optional[dict[str, Any]] = None,
+        conversation_store: Optional[ConversationStore] = None,
     ):
         if chat is None:
             self._chat = []
@@ -42,6 +43,7 @@ class ImmutableConversation(Conversation):
         self._active_agent = active_agent
         self._conversation_id = conversation_id
         self._final_result = final_result or ResultHolder()
+        self.conversation_store = conversation_store
 
     @property
     def final_result(self) -> dict[str, Any]:
@@ -139,7 +141,8 @@ class ImmutableConversation(Conversation):
     def update_prompt_argument_with_longterm_memory(self, conductor_name: str) -> "ImmutableConversation":
         longterm_memory = self.get_agent_longterm_memory(conductor_name)
         updated_prompt_argument = self.update_prompt_argument(
-            source_values=longterm_memory, target_values=self.user_prompt_argument
+            source_values=longterm_memory,
+            target_values=self.user_prompt_argument,
         )
 
         return self.update(user_prompt_argument=updated_prompt_argument)
@@ -148,7 +151,8 @@ class ImmutableConversation(Conversation):
         self, previous_agent_prompt_argument: GenericUserPromptArg
     ) -> "ImmutableConversation":
         updated_prompt_argument = self.update_prompt_argument(
-            source_values=previous_agent_prompt_argument, target_values=self.user_prompt_argument
+            source_values=previous_agent_prompt_argument,
+            target_values=self.user_prompt_argument,
         )
 
         return self.update(user_prompt_argument=updated_prompt_argument)
@@ -176,6 +180,7 @@ class ImmutableConversation(Conversation):
             active_agent=active_agent or self.active_agent,
             final_result=self._final_result,
             conversation_id=conversation_id or self._conversation_id,
+            conversation_store=self.conversation_store,
         )
 
     def append(
@@ -238,7 +243,12 @@ class ImmutableConversation(Conversation):
         super().__setattr__(key, value)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], agents: list):
+    def from_dict(
+        cls,
+        data: dict[str, Any],
+        agents: list,
+        conversation_store: Optional[ConversationStore] = None,
+    ) -> "ImmutableConversation":
         active_agent = next(agent for agent in agents if agent.name == data["active_agent"])
 
         system_prompt_argument_class = active_agent.prompt.system_prompt_argument
@@ -270,16 +280,27 @@ class ImmutableConversation(Conversation):
             longterm_memory=longterm_memory,
             metadata=data.get("metadata", {}),
             active_agent=data["active_agent"],
+            conversation_id=data.get("conversation_id", ""),
+            conversation_store=conversation_store,
         )
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "system_prompt": (self.system_prompt.to_dict() if self.system_prompt else None),
-            "user_prompt": self.user_prompt.to_dict() if self.user_prompt else None,
+            "user_prompt": (self.user_prompt.to_dict() if self.user_prompt else None),
             "system_prompt_argument": (self.system_prompt_argument.to_dict() if self.system_prompt_argument else None),
             "user_prompt_argument": (self.user_prompt_argument.to_dict() if self.user_prompt_argument else None),
             "chat": [msg.to_dict() for msg in self.chat],
             "longterm_memory": {k: v.to_dict() for k, v in self._longterm_memory.items()},
             "metadata": self.metadata,
             "active_agent": self.active_agent,
+            "conversation_id": self.conversation_id,
         }
+
+    async def maybe_persist(self) -> None:
+        """
+        Persists the conversation if a persistent conversation store is available.
+        """
+        if self.conversation_store and getattr(self.conversation_store, "is_persistent", True):
+            assert self.conversation_id, "Conversation ID must be set before persisting"
+            await self.conversation_store.persist(self)

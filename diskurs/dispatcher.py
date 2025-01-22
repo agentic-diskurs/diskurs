@@ -56,7 +56,7 @@ class AsynchronousConversationDispatcher(ConversationDispatcher):
         updated_conversation = await self._topics[topic][0].respond(conversation=conversation)
         return updated_conversation
 
-    async def run(self, participant: ConversationParticipant, conversation: Conversation) -> dict:
+    async def run(self, participant: ConversationParticipant, conversation: Conversation) -> Conversation:
         await participant.process_conversation(conversation=conversation)
 
-        return conversation.final_result
+        return conversation
