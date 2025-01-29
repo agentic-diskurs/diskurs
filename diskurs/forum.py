@@ -73,7 +73,7 @@ class Forum:
         or creates a new one if it doesn't exist.
         """
         if self.conversation_store and await self.conversation_store.exists(diskurs_input.conversation_id):
-            conversation = await self.conversation_store.fetch(diskurs_input.conversation_id, self.conversation_store)
+            conversation = await self.conversation_store.fetch(diskurs_input.conversation_id)
         else:
             longterm_memory = init_longterm_memories(self.agents)
             conversation = self.conversation_class(

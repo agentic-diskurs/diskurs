@@ -48,7 +48,7 @@ class AsyncFilesystemConversationStore(ConversationStore):
         async with aiofiles.open(file_path, "w") as f:
             await f.write(data)
 
-    async def fetch(self, conversation_id: str, conversation_store: ConversationStore) -> Conversation:
+    async def fetch(self, conversation_id: str) -> Conversation:
         self.logger.info(f"Fetching conversation {conversation_id}")
 
         file_path = self._get_file_path(conversation_id)
@@ -56,7 +56,7 @@ class AsyncFilesystemConversationStore(ConversationStore):
             data_str = await f.read()
 
         data = json.loads(data_str)
-        return self.conversation_class.from_dict(data=data, agents=self.agents, conversation_store=conversation_store)
+        return self.conversation_class.from_dict(data=data, agents=self.agents, conversation_store=self)
 
     async def delete(self, conversation_id: str) -> None:
         self.logger.info(f"Deleting conversation {conversation_id}")

@@ -905,7 +905,7 @@ class ConversationStore(Protocol):
         """
         ...
 
-    async def fetch(self, conversation_id: str, conversation_store) -> Conversation:
+    async def fetch(self, conversation_id: str) -> Conversation:
         """
         Fetches a conversation by its unique identifier.
 

@@ -57,7 +57,7 @@ async def test_persist_file_created(conversation_store, conversation):
 @pytest.mark.asyncio
 async def test_fetch(conversation_store, conversation):
     await conversation_store.persist(conversation)
-    fetched_conversation = await conversation_store.fetch(conversation.conversation_id, self.conversation_store)
+    fetched_conversation = await conversation_store.fetch(conversation.conversation_id)
 
     assert fetched_conversation.active_agent == conversation.active_agent
     assert fetched_conversation.chat == conversation.chat
@@ -83,13 +83,13 @@ async def test_delete_nonexistent_conversation(conversation_store):
 @pytest.mark.asyncio
 async def test_fetch_nonexistent_conversation(conversation_store):
     with pytest.raises(FileNotFoundError):
-        await conversation_store.fetch("nonexistent_convo", self.conversation_store)
+        await conversation_store.fetch("nonexistent_convo")
 
 
 @pytest.mark.asyncio
 async def test_persist_and_fetch_content_integrity(conversation_store, conversation):
     await conversation_store.persist(conversation)
-    fetched_conversation = await conversation_store.fetch(conversation.conversation_id, self.conversation_store)
+    fetched_conversation = await conversation_store.fetch(conversation.conversation_id)
 
     assert (
         fetched_conversation.to_dict() == conversation.to_dict()
