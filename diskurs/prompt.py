@@ -76,87 +76,135 @@ def load_template(location: Path) -> Template:
 GenericDataclass = TypeVar("GenericDataclass", bound=dataclass)
 
 
-import json
-import re
-from typing import Dict, Optional
-
-
 def clean_json_string(text: str) -> str:
     """
-    Clean and sanitize a JSON string from common LLM response issues.
+    Clean and sanitize a JSON string from common LLM response issues:
 
-    1. Strips code blocks and whitespace
-    2. Fixes quotes and Unicode issues
-    3. Removes trailing commas
-    4. Handles common formatting issues
+    1. Strip code blocks (```json ... ```) and surrounding whitespace.
+    2. Replace curly quotes with straight quotes.
+    3. Escape single quotes found inside double-quoted strings.
+    4. Remove trailing commas in objects/arrays.
+    5. Strip any non-JSON prefix/suffix before the first '{' or '['
+       and after the last '}' or ']'.
     """
-    # Strip code blocks and whitespace
     text = text.strip()
-    text = re.sub(r"^```(?:json|python)?\s*", "", text)
-    text = re.sub(r"\s*```$", "", text)
 
-    # Replace Unicode quotes with standard quotes
-    text = text.replace('"', '"').replace('"', '"')
-    text = text.replace("'", '"')  # Replace single quotes with double quotes
+    # 1) Remove triple-backtick code fences
+    text = re.sub(r"(?s)```(?:json)?(.*?)```", r"\1", text)
 
-    # Remove trailing commas in objects and arrays
+    # 2) Normalize curly quotes to straight quotes
+    #    (Keep them separate in case you want more fine-grained control later)
+    replacements = {
+        "“": '"',
+        "”": '"',  # curly double quotes → straight double quotes
+        "‘": "'",
+        "’": "'",  # curly single quotes → straight single quotes
+    }
+    for orig, repl in replacements.items():
+        text = text.replace(orig, repl)
+
+    # 3) Escape single quotes that occur inside double-quoted strings.
+    #    We'll parse char-by-char: when we are *inside* a double quote,
+    #    then `'` → `\"`.
+    text = _escape_single_quotes_in_double_quoted_strings(text)
+
+    # 4) Remove trailing commas in objects or arrays, e.g. {"key": "val",}
     text = re.sub(r",(\s*[}\]])", r"\1", text)
 
-    # Remove any non-JSON content before/after the actual JSON
-    text = re.sub(r"^[^{\[]+", "", text)
-    text = re.sub(r"[^}\]]+$", "", text)
+    # 5) Strip any extraneous text outside the first JSON brace/bracket
+    text = re.sub(r"^[^{\[]+", "", text)  # remove junk before first { or [
+    text = re.sub(r"[^}\]]+$", "", text)  # remove junk after last } or ]
 
     return text.strip()
 
 
-def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1000000) -> Dict:
+def _escape_single_quotes_in_double_quoted_strings(text: str) -> str:
+    """
+    Within any double-quoted string, replace literal single quotes (') with
+    escaped double quotes (\\"). This prevents broken JSON like:
+
+        "some text: 'hello'"
+
+    from becoming invalid when a naive `' -> "` replacement is done.
+    We'll do this manually to avoid writing a complicated regex.
+    """
+    result = []
+    in_double_quotes = False
+    escaped = False
+
+    for ch in text:
+        if escaped:
+            # just append next char after backslash and keep going
+            result.append(ch)
+            escaped = False
+            continue
+
+        if ch == "\\":
+            # we have a backslash; next character is escaped
+            result.append(ch)
+            escaped = True
+            continue
+
+        if ch == '"':
+            # Toggle in/out of double quotes
+            in_double_quotes = not in_double_quotes
+            result.append(ch)
+            continue
+
+        # If we are inside a double-quoted string and see a bare single quote,
+        # escape it: ' → \"
+        if in_double_quotes and ch == "'":
+            result.append('\\"')
+        else:
+            result.append(ch)
+
+    return "".join(result)
+
+
+def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1_000_000) -> dict:
     """
     Parse and validate the LLM response as JSON with enhanced safety checks.
 
-    Args:
-    :param llm_response: Raw text response from the LLM
-    :param max_depth: Maximum recursion depth for nested JSON
-    :param max_size: Maximum size of JSON string in characters
-
-    :returns: Parsed dictionary
-
-    :raises: PromptValidationError: If validation fails
+    :param llm_response: Raw text response from the LLM.
+    :param max_depth: Maximum recursion depth for nested JSON.
+    :param max_size: Maximum size (in characters) for the JSON string.
+    :returns: A parsed Python dictionary if valid JSON is found.
+    :raises PromptValidationError: If validation or parsing fails.
     """
+
     if len(llm_response) > max_size:
-        raise PromptValidationError(f"JSON response exceeds maximum size of {max_size} characters")
+        raise PromptValidationError(f"JSON response exceeds maximum size of {max_size} characters.")
 
-    logger.debug("Validating LLM response is valid JSON")
+    logger.debug("Validating LLM response is valid JSON.")
 
-    def parse_with_depth(json_str: str, current_depth: int) -> dict:
+    def _parse_with_depth(json_str: str, current_depth: int) -> dict:
         if current_depth > max_depth:
-            raise PromptValidationError("Maximum JSON nesting depth exceeded")
+            raise PromptValidationError("Maximum JSON nesting depth exceeded.")
 
         try:
             parsed = json.loads(json_str)
-
-            if isinstance(parsed, str):
-                return parse_with_depth(parsed, current_depth + 1)
-            elif isinstance(parsed, dict):
+            # If parsed is a dictionary, great!
+            if isinstance(parsed, dict):
                 return parsed
-            else:
-                raise PromptValidationError(f"Expected JSON object, got {type(parsed).__name__}")
-
+            # If parsed is a string, it might be re-encoded JSON - try again
+            if isinstance(parsed, str):
+                return _parse_with_depth(parsed, current_depth + 1)
+            # Otherwise, we require a top-level object
+            raise PromptValidationError(f"Expected a JSON object, got {type(parsed).__name__}.")
         except json.JSONDecodeError as e:
-            try:
-                cleaned = clean_json_string(json_str)
-                if cleaned != json_str:
-                    return parse_with_depth(cleaned, current_depth)
-            except:
-                pass
+            # Try cleaning and re-parsing once
+            cleaned = clean_json_string(json_str)
+            if cleaned and cleaned != json_str:
+                return _parse_with_depth(cleaned, current_depth + 1)
 
-            error_message = (
+            error_msg = (
                 f"Invalid JSON: {e.msg} at line {e.lineno}, column {e.colno}. "
                 "Please ensure the response is valid JSON."
             )
-            logger.debug(error_message)
-            raise PromptValidationError(error_message)
+            logger.debug(error_msg)
+            raise PromptValidationError(error_msg)
 
-    return parse_with_depth(llm_response, 1)
+    return _parse_with_depth(llm_response, 1)
 
 
 def validate_dataclass(

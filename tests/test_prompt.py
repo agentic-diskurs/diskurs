@@ -14,6 +14,7 @@ from diskurs.prompt import (
     PromptValidationError,
     ConductorPrompt,
     HeuristicPrompt,
+    validate_json,
 )
 from test_files.heuristic_agent_test_files.prompt import MyHeuristicPromptArgument
 from test_files.prompt_test_files.prompt import MyUserPromptArgument
@@ -307,3 +308,14 @@ def test_create_loads_agent_description():
     )
 
     assert prompt.agent_description == agent_description
+
+
+json_string = """```json\n{\n    "answer": "Die Übersetzung wie folgt: \'Wartungsfenster: Internetleitungsbetriebssupport. Mit freundlichen Grüßen.\' "\n}\n```"""
+
+
+def test_validate_json():
+    res = validate_json(json_string)
+    assert (
+        res["answer"]
+        == """Die Übersetzung wie folgt: "Wartungsfenster: Internetleitungsbetriebssupport. Mit freundlichen Grüßen." """
+    )
