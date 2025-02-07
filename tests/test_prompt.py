@@ -317,5 +317,18 @@ def test_validate_json():
     res = validate_json(json_string)
     assert (
         res["answer"]
-        == """Die Übersetzung wie folgt: "Wartungsfenster: Internetleitungsbetriebssupport. Mit freundlichen Grüßen." """
+        == """Die Übersetzung wie folgt: 'Wartungsfenster: Internetleitungsbetriebssupport. Mit freundlichen Grüßen.' """
     )
+
+
+json_string_2 = """{"comment": "To add the domain \\".abc.com\\" to the config file, you will first need to edit the .pac file. Here\\"s a step by step guide:\n\n1. Use the command \\"vault edit company $COMPANY squid/pacs/proxy.pac.auto\\" to edit an automatically generated proxy.pac.auto file. Alternatively, if it\\"s a manually written file, use \\"vault edit company $COMPANY squid/pacs/proxy.pac\\".\n\n2. Inside the file, add the following line of code:\n   \\"dnsDomainIs(host, \\".abc.com\\") || host == \\"abc.com\\"\\"\n\n3. Save the changes and close the file.\n\n4. To implement your changes, you\\"ll need to run buildall. This can be done using the command \\"scheduler rollall active and os linux and company $COMPANY and dbprop \\"squid=1\\"\\".\n\nPlease note: If it\\"s a newly set up PAC file, use this command to begin: \\"[VAULT] company/open $ cp /vault/current/sample/squid/pacs/proxy.pac.auto squid/pacs/\\". Remember to replace \\"$COMPANY\\" with your own company details where needed.\n\nIf you face any issues during these steps, do not hesitate to contact us for further assistance. "}"""
+
+
+def test_validate_json_2():
+    res = validate_json(json_string_2)
+    assert isinstance(res, dict)
+    assert "comment" in res
+    assert res["comment"].startswith("To add the domain")
+    assert "\".abc.com\"" in res["comment"]
+    assert "scheduler rollall" in res["comment"]
+    assert "buildall" in res["comment"]
