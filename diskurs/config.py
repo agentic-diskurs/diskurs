@@ -239,6 +239,7 @@ class HeuristicAgentConfig(AgentConfig):
 
     type: str = "heuristic"
     prompt: PromptConfig
+    llm: Optional[str] = None
     tools: Optional[list[str]] = None
     init_prompt_arguments_with_longterm_memory: Optional[bool] = True
     init_prompt_arguments_with_previous_agent: Optional[bool] = True

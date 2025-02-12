@@ -295,7 +295,9 @@ class CallTool(Protocol):
 
 
 class HeuristicSequence(Protocol):
-    async def __call__(self, conversation: "Conversation", call_tool: Optional[CallTool]) -> "Conversation": ...
+    async def __call__(
+        self, conversation: "Conversation", call_tool: Optional[CallTool], llm_client: Optional["LLMClient"] = None
+    ) -> "Conversation": ...
 
 
 class HeuristicPrompt(Protocol):
@@ -309,7 +311,9 @@ class HeuristicPrompt(Protocol):
 
     user_prompt_argument: Type[PromptArgument]
 
-    async def heuristic_sequence(self, conversation: "Conversation", call_tool: CallTool) -> "Conversation":
+    async def heuristic_sequence(
+        self, conversation: "Conversation", call_tool: CallTool, llm_client: Optional["LLMClient"] = None
+    ) -> "Conversation":
         """
         Executes a heuristic sequence on the given conversation.
 
@@ -320,6 +324,7 @@ class HeuristicPrompt(Protocol):
 
         :param conversation: The conversation object to be processed.
         :param call_tool: An optional callable tool that can be used during the heuristic sequence.
+        :param llm_client: The LLM client used for generating responses.
         :return: The updated conversation object after processing the heuristic sequence.
         """
         ...
@@ -679,8 +684,28 @@ class LLMClient(Protocol):
     on the current state of the conversation and optional tools.
     """
 
+    max_tokens: int
+
     @classmethod
     def create(cls, **kwargs) -> Self: ...
+
+    def count_tokens(self, text: str) -> int:
+        """
+        Counts the number of tokens in a text string.
+        :param text: The text string to tokenize.
+        :return: The number of tokens in the text string.
+        """
+        ...
+
+    async def use_as_tool(self, prompt: str, content: str) -> str:
+        """
+        Summarizes content to fit within token limit.
+
+        :param prompt: Prompt to use
+        :param content: Content to summarize
+        :return: Summarized content
+        """
+        ...
 
     async def generate(
         self,

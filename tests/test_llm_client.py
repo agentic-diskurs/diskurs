@@ -139,7 +139,21 @@ def test_truncate_chat_history(llm_client):
     truncated_chat = llm_client.truncate_chat_history(messages=example_messages, n_tokens_tool_descriptions=50)
 
     assert truncated_chat[0] == example_messages[0]
-    assert truncated_chat[1] == example_messages[1]
     assert truncated_chat[-1] == example_messages[-1]
 
     assert len(truncated_chat) < len(example_messages)
+
+
+def test_truncate_chat_history_with_large_second_message(llm_client):
+    large_messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Lorem ipsum " * 1000},  # Large message that exceeds token limit
+        {"role": "assistant", "content": "How can I help?"},
+    ]
+
+    truncated_chat = llm_client.truncate_chat_history(messages=large_messages, n_tokens_tool_descriptions=0)
+
+    # Should keep system prompt and last message
+    assert len(truncated_chat) == 2
+    assert truncated_chat[0] == large_messages[0]
+    assert truncated_chat[-1] == large_messages[-1]

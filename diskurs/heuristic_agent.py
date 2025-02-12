@@ -9,6 +9,7 @@ from diskurs.protocols import (
     HeuristicPrompt,
     ConversationDispatcher,
     ConversationFinalizer,
+    LLMClient,
 )
 from diskurs.utils import get_fields_as_dict
 
@@ -19,6 +20,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
         self,
         name: str,
         prompt: HeuristicPrompt,
+        llm_client: Optional[LLMClient] = None,
         topics: Optional[list[str]] = None,
         dispatcher: Optional[ConversationDispatcher] = None,
         tools: Optional[list[ToolDescription]] = None,
@@ -30,6 +32,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
     ):
         self.name = name
         self.prompt = prompt
+        self.llm_client = llm_client
         self.topics = topics or []
         self.dispatcher = dispatcher
         self.tool_executor = tool_executor
@@ -74,7 +77,9 @@ class HeuristicAgent(Agent, ConversationParticipant):
         if not is_previous_agent_conductor(conversation) and self.init_prompt_arguments_with_previous_agent:
             conversation = conversation.update_prompt_argument_with_previous_agent(previous_user_prompt_augment)
 
-        conversation = await self.prompt.heuristic_sequence(conversation=conversation, call_tool=call_tool)
+        conversation = await self.prompt.heuristic_sequence(
+            conversation=conversation, call_tool=call_tool, llm_client=self.llm_client
+        )
 
         if self.render_prompt:
             conversation = conversation.append(

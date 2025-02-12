@@ -41,7 +41,7 @@ def test_register_dispatcher():
     prompt = MagicMock()
     dispatcher = MagicMock()
 
-    agent = HeuristicAgent(name=name, prompt=prompt)
+    agent = HeuristicAgent(name=name, prompt=prompt, llm_client=None)
     agent.register_dispatcher(dispatcher)
 
     assert agent.dispatcher == dispatcher
@@ -56,7 +56,7 @@ def test_prepare_conversation():
 
     conversation.update.return_value = updated_conversation
 
-    agent = HeuristicAgent(name=name, prompt=prompt)
+    agent = HeuristicAgent(name=name, prompt=prompt, llm_client=None)
     result = agent.prepare_conversation(conversation, user_prompt_argument)
 
     conversation.update.assert_called_once_with(user_prompt_argument=user_prompt_argument, active_agent=name)
@@ -73,8 +73,9 @@ async def test_invoke(conversation):
     agent = HeuristicAgent(
         name="test_agent",
         prompt=prompt,
-        tool_executor=MagicMock(),
+        llm_client=None,
         topics=["conductor_name"],
+        tool_executor=MagicMock(),
         init_prompt_arguments_with_longterm_memory=True,
         render_prompt=True,
     )
@@ -112,6 +113,7 @@ async def test_invoke_no_executor():
     agent = HeuristicAgent(
         name="test_agent",
         prompt=prompt,
+        llm_client=None,
         topics=["conductor_name"],
         init_prompt_arguments_with_longterm_memory=True,
         render_prompt=True,
@@ -143,10 +145,7 @@ async def test_process_conversation(conversation):
     updated_conversation = conversation.update()
 
     agent = HeuristicAgent(
-        name="test_agent",
-        prompt=prompt,
-        dispatcher=dispatcher,
-        topics=["conductor_name"],
+        name="test_agent", prompt=prompt, llm_client=None, topics=["conductor_name"], dispatcher=dispatcher
     )
 
     agent.invoke = AsyncMock(return_value=updated_conversation)

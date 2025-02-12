@@ -16,6 +16,7 @@ from diskurs.protocols import (
     HeuristicSequence,
     Conversation,
     CallTool,
+    LLMClient,
 )
 from diskurs.registry import register_prompt
 from diskurs.utils import load_template_from_package, load_module_from_path
@@ -109,6 +110,7 @@ def escape_newlines_in_json_string(text: str) -> str:
         result.append(ch)
     return "".join(result)
 
+
 def clean_json_string(text: str) -> str:
     """
     Clean and sanitize a JSON string from common LLM response issues.
@@ -155,6 +157,7 @@ def clean_json_string(text: str) -> str:
     text = escape_newlines_in_json_string(text)
 
     return text.strip()
+
 
 def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1_000_000) -> dict:
     """
@@ -683,9 +686,9 @@ class HeuristicPrompt(HeuristicPromptProtocol):
         )
 
     async def heuristic_sequence(
-        self, conversation: Conversation, call_tool: Optional[CallTool] = None
+        self, conversation: Conversation, call_tool: Optional[CallTool], llm_client: LLMClient
     ) -> Conversation:
-        return await self._heuristic_sequence(conversation, call_tool)
+        return await self._heuristic_sequence(conversation=conversation, call_tool=call_tool, llm_client=llm_client)
 
     def create_user_prompt_argument(self, **prompt_args) -> UserPromptArg:
         return self.user_prompt_argument(**prompt_args)

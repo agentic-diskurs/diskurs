@@ -354,9 +354,9 @@ class BaseOaiApiLLMClient(LLMClient):
         :param n_tokens_tool_descriptions: The number of tokens used by the tool descriptions
         :return: The truncated chat history
         """
-        self.logger.warn(f"Max tokens exceeded, truncating chat history")
+        self.logger.warning(f"Max tokens exceeded, truncating chat history")
 
-        chat_start = messages[:2]
+        chat_start = [messages[0]]
         user_prompt = messages[-1]
 
         max_tokens = (
@@ -365,14 +365,14 @@ class BaseOaiApiLLMClient(LLMClient):
             - n_tokens_tool_descriptions
         )
 
-        truncated_chat = messages[2:-1]
+        truncated_chat = messages[1:-1]
 
         for _ in range(len(truncated_chat)):
             truncated_chat = truncated_chat[1:]
 
             if self.count_tokens_in_conversation(truncated_chat) > max_tokens:
                 break
-        self.logger.warn(f"Removed {len(messages) - len(truncated_chat)} messages from chat history")
+        self.logger.warning(f"Removed {len(messages) - len(truncated_chat)} messages from chat history")
 
         return chat_start + truncated_chat + [user_prompt]
 
@@ -423,6 +423,28 @@ class BaseOaiApiLLMClient(LLMClient):
                 )
 
         raise RuntimeError("Failed to generate response after multiple attempts.")
+
+    async def use_as_tool(self, prompt: str, content: str) -> str:
+        """
+        Summarizes content to fit within token limit.
+
+        :param prompt: Prompt to use for summarization
+        :param content: Content to summarize
+        :param fraction: Fraction of the max tokens to use for summarization
+        :return: Summarized content
+        """
+        request_body = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": prompt,
+                },
+                {"role": "user", "content": content},
+            ],
+        }
+        completion = await self.send_request(request_body)
+        return completion.choices[0].message.content
 
 
 @register_llm(name="openai")
