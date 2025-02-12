@@ -345,36 +345,37 @@ class BaseOaiApiLLMClient(LLMClient):
 
     def truncate_chat_history(self, messages, n_tokens_tool_descriptions) -> list[dict]:
         """
-        Truncate the chat history to fit within the maximum token limit. The token limit is calculated as follows:
-        We retain the first two messages i.e. system prompt and initial user prompt and the last message.
-        We then truncate from left, removing messages from the chat history until the total token count is within the
-        limit. We also account for the token count of the tool descriptions.
-
-        :param messages: The list of messages in the conversation
-        :param n_tokens_tool_descriptions: The number of tokens used by the tool descriptions
-        :return: The truncated chat history
+        Truncate the chat history to fit within the maximum token limit while preserving
+        context and essential messages.
         """
         self.logger.warning(f"Max tokens exceeded, truncating chat history")
 
-        chat_start = [messages[0]]
-        user_prompt = messages[-1]
+        # Always keep system message and last message
+        system_message = messages[0]
+        last_message = messages[-1]
 
-        max_tokens = (
-            self.max_tokens
-            - self.count_tokens_in_conversation(chat_start + [user_prompt])
-            - n_tokens_tool_descriptions
-        )
+        # Calculate available tokens for middle messages
+        tokens_for_edges = self.count_tokens_in_conversation([system_message, last_message])
+        available_tokens = self.max_tokens - tokens_for_edges - n_tokens_tool_descriptions
 
-        truncated_chat = messages[1:-1]
+        if available_tokens <= 0:
+            self.logger.warning("Not enough tokens for chat history, keeping only system and last message")
+            return [system_message, last_message]
 
-        for _ in range(len(truncated_chat)):
-            truncated_chat = truncated_chat[1:]
+        # Try to keep as many recent messages as possible
+        middle_messages = messages[1:-1]
+        truncated_messages = []
 
-            if self.count_tokens_in_conversation(truncated_chat) > max_tokens:
+        # Work backwards from most recent
+        for message in reversed(middle_messages):
+            message_tokens = self.count_tokens_in_conversation([message])
+            if available_tokens - message_tokens > 0:
+                truncated_messages.insert(0, message)
+                available_tokens -= message_tokens
+            else:
                 break
-        self.logger.warning(f"Removed {len(messages) - len(truncated_chat)} messages from chat history")
 
-        return chat_start + truncated_chat + [user_prompt]
+        return [system_message] + truncated_messages + [last_message]
 
     async def generate(
         self,
