@@ -11,7 +11,8 @@ CONDUCTOR_NAME = "my_conductor"
 
 
 def create_multistep_agent(mock_prompt):
-    async def async_identity(conversation):
+    # Update async_identity to accept **kwargs for flexibility
+    async def async_identity(conversation, **kwargs):
         return conversation
 
     agent = MultiStepAgent(

@@ -14,14 +14,14 @@ def tool_configs():
     return [
         ToolConfig(
             name="sample_function",
-            module_path=Path("test_files") / "tool_test_files" / "dummy_module.py",
+            module_name="test_files.tool_test_files.dummy_module",  # Changed from module_path
             function_name="sample_function",
             dependencies=["dummy_dependency_name"],
             configs={"param": "value"},
         ),
         ToolConfig(
             name="simple_function",
-            module_path=Path("test_files") / "tool_test_files" / "dummy_module.py",
+            module_name="test_files.tool_test_files.dummy_module",  # Changed from module_path
             function_name="simple_function",
             dependencies=None,
             configs=None,
@@ -33,7 +33,7 @@ def tool_configs():
 def dependency_config():
     my_dep_conf = ToolDependencyConfig(
         name="dummy_dependency_name",
-        module_path=Path(__file__).parent / "test_files" / "tool_test_files" / "dummy_module.py",
+        module_name="test_files.tool_test_files.dummy_module",  # Changed from module_path
         class_name="ExampleDependency",
         parameters={
             "foo": "example_value1",
@@ -43,35 +43,50 @@ def dependency_config():
     return my_dep_conf
 
 
-def test_load_dependencies(dependency_config):
-    dependencies = load_dependencies([dependency_config])
+@pytest.fixture
+def custom_modules():
+    return [
+        {
+            "name": "test_files.tool_test_files.dummy_module",
+            "location": Path("test_files/tool_test_files/dummy_module.py"),
+        }
+    ]
+
+
+def test_load_dependencies(dependency_config, custom_modules):
+    dependencies = load_dependencies(
+        [dependency_config],
+        custom_modules=custom_modules,
+        base_path=Path(__file__).parent  # Add base path parameter
+    )
     assert len(dependencies) == 1
     assert any(dep.name == "dummy_dependency_name" for dep in dependencies)
     assert isinstance(dependencies[0], object)
 
 
-def test_create_func_with_closure(dependency_config):
-
+def test_create_func_with_closure(dependency_config, custom_modules):
     def create_dummy_func(configs, dummy_dependency_name=None):
-
         def dummy_func():
             return {
                 "config_param": configs["param"],
                 "dep_foo": dummy_dependency_name.foo,
                 "dep_bar": dummy_dependency_name.bar,
             }
-
         return dummy_func
 
     config = ToolConfig(
         name="dummy_func",
-        module_path=Path("test_files") / "tool_test_files" / "dummy_module.py",
+        module_name="test_files.tool_test_files.dummy_module",  # Changed from module_path
         function_name="dummy_func",
         dependencies=["dummy_dependency_name"],
         configs={"param": "value"},
     )
 
-    dependencies = load_dependencies([dependency_config])
+    dependencies = load_dependencies(
+        [dependency_config],
+        custom_modules=custom_modules,
+        base_path=Path(__file__).parent
+    )
 
     result_func = create_func_with_closure(create_dummy_func, config, dependencies)
     result = result_func()
@@ -81,10 +96,19 @@ def test_create_func_with_closure(dependency_config):
     assert result["dep_bar"] == dependency_config.parameters["bar"]
 
 
-def test_load_tools(tool_configs, dependency_config):
-    dependencies = load_dependencies([dependency_config])
+def test_load_tools(tool_configs, dependency_config, custom_modules):
+    dependencies = load_dependencies(
+        [dependency_config],
+        custom_modules=custom_modules,
+        base_path=Path(__file__).parent
+    )
 
-    loaded_functions = load_tools(dependencies, tool_configs, self.config.custom_modules, self.base_path)
+    loaded_functions = load_tools(
+        dependencies,
+        tool_configs,
+        custom_modules=custom_modules,
+        base_path=Path(__file__).parent
+    )
 
     assert len(loaded_functions) == len(tool_configs)
     for func in loaded_functions:
@@ -224,7 +248,7 @@ def test_create_func_with_closure_missing_dependency():
 
     config = ToolConfig(
         name="dummy_func",
-        module_path=Path("test_files") / "tool_test_files" / "dummy_module.py",
+        module_name="test_files.tool_test_files.dummy_module",  # Changed from module_path
         function_name="dummy_func",
         dependencies=["dep1"],
         configs={"param": "value"},
@@ -245,7 +269,7 @@ def test_create_func_with_closure_no_dependencies():
 
     config = ToolConfig(
         name="dummy_func",
-        module_path=Path("test_files") / "tool_test_files" / "dummy_module.py",
+        module_name="test_files.tool_test_files.dummy_module",  # Changed from module_path
         function_name="dummy_func",
         dependencies=None,
         configs={"param": "value"},

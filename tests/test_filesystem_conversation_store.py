@@ -29,14 +29,20 @@ async def conversation_store(tmp_path, prompt_arguments, longterm_memories, conv
     setup_agent(agents[1], ltm2, system_pargs, user_pargs, agent_name="my_conductor_2")
 
     store = AsyncFilesystemConversationStore.create(
-        directory=directory, agents=agents, conversation_class=ImmutableConversation
+        base_path=directory,
+        agents=agents,
+        conversation_class=ImmutableConversation,
+        is_persistent=True
     )
 
     yield store
 
-    # Cleanup after tests
-    for file in directory.glob("*.json"):
-        file.unlink()
+    # Updated cleanup to handle nested directory structure
+    conversations_dir = directory / "conversations"
+    if conversations_dir.exists():
+        for file in conversations_dir.glob("*.json"):
+            file.unlink()
+        conversations_dir.rmdir()
     directory.rmdir()
 
 

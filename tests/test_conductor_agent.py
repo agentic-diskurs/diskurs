@@ -280,14 +280,23 @@ async def test_max_dispatches(conductor_cannot_finalize):
 
 @pytest.mark.asyncio
 async def test_conductor_agent_valid_next_agent(conductor_cannot_finalize, mock_llm_client):
-    conversation = ImmutableConversation()
-    llm_response = '{"next_agent": "valid_agent"}'
-    assistant_message = ChatMessage(role=Role.ASSISTANT, content=llm_response, type=MessageType.CONDUCTOR)
-    conversation = conversation.append(assistant_message)
-    mock_llm_client.generate.return_value = conversation
+    # Setup initial conversation with longterm memory
+    conversation = ImmutableConversation(user_prompt_argument=MyUserPromptArgument())
+    longterm_memory = MyLongTermMemory()
+    conversation = conversation.update_agent_longterm_memory(
+        agent_name=conductor_cannot_finalize.name, longterm_memory=longterm_memory
+    )
+
+    async def stub_generate_validated_response(conversation, message_type=None, tools=None):
+        return conversation.append(
+            ChatMessage(role=Role.ASSISTANT, content='{"next_agent": "agent1"}', type=MessageType.CONDUCTOR)
+        )
+
+    mock_llm_client.generate = AsyncMock(side_effect=stub_generate_validated_response)
 
     parsed_prompt_argument = DefaultConductorUserPromptArgument(next_agent="agent1")
     conductor_cannot_finalize.prompt.parse_user_prompt.return_value = parsed_prompt_argument
+    conductor_cannot_finalize.prompt.can_finalize.return_value = False
 
     await conductor_cannot_finalize.process_conversation(conversation)
 

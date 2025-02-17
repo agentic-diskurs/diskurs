@@ -176,10 +176,9 @@ def mock_heuristic_prompt():
     return create_prompt(MyExtendedUserPromptArgument())
 
 
-def create_heuristic_agent(
-    mock_heuristic_prompt,
-):
-    async def async_identity(conversation, call_tool):
+def create_heuristic_agent(mock_heuristic_prompt):
+    # Update the async_identity function to accept **kwargs for flexibility
+    async def async_identity(conversation, call_tool, **kwargs):
         return conversation
 
     agent = HeuristicAgent.create(
