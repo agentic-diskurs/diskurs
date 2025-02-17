@@ -3,11 +3,11 @@ import logging
 import re
 from dataclasses import dataclass, asdict, is_dataclass, fields, MISSING
 from pathlib import Path
-from typing import Type, TypeVar, Optional, Callable, Self, Any, Union
+from typing import Type, TypeVar, Optional, Callable, Self, Any, Union, get_type_hints
 
 from jinja2 import Template, FileSystemLoader, Environment
 
-from diskurs.entities import MessageType, ChatMessage, Role, PromptArgument
+from diskurs.entities import MessageType, ChatMessage, Role, PromptArgument, PromptField
 from diskurs.protocols import (
     Prompt as PromptProtocol,
     MultistepPrompt as MultistepPromptProtocol,
@@ -86,7 +86,7 @@ def escape_newlines_in_json_string(text: str) -> str:
     """
     result = []
     in_string = False  # Are we currently inside a JSON string?
-    escape = False     # Was the previous character a backslash?
+    escape = False  # Was the previous character a backslash?
     for ch in text:
         # Toggle string state if we see an unescaped double quote.
         if ch == '"' and not escape:
@@ -175,9 +175,7 @@ def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1_000_0
                                    or ultimately invalid.
     """
     if len(llm_response) > max_size:
-        raise PromptValidationError(
-            f"JSON response exceeds maximum size of {max_size} characters."
-        )
+        raise PromptValidationError(f"JSON response exceeds maximum size of {max_size} characters.")
 
     def _parse_with_depth(json_str: str, current_depth: int) -> dict:
         if current_depth > max_depth:
@@ -452,12 +450,31 @@ class BasePrompt(PromptProtocol):
     def create_user_prompt_argument(self, **prompt_args: dict) -> UserPromptArg:
         return self.user_prompt_argument(**prompt_args)
 
-    def render_json_formatting_prompt(self, prompt_args: dict) -> str:
+    def render_json_formatting_prompt(self, prompt_args: dict[str, Any]) -> str:
+        """
+        Render the JSON formatting template with included fields.
+
+        This method filters the prompt arguments based on PromptField annotations
+        and renders only the fields that should be included in the prompt.
+
+        :param prompt_args: Dictionary of prompt arguments to be filtered and rendered.
+
+        :returns: The rendered JSON formatting template.
+
+        :raises: ValueError: If json_formatting_template is not set.
+        """
         if self.json_formatting_template is None:
             raise ValueError("json_render_template is not set.")
-        keys = prompt_args.keys()
-        rendered_prompt = self.json_formatting_template.render(keys=keys)
-        return rendered_prompt
+
+        hints = get_type_hints(self.user_prompt_argument, include_extras=True)
+        included_keys = [
+            key
+            for key in prompt_args.keys()
+            if not hasattr(hints.get(key, None), "__metadata__")
+            or any(isinstance(m, PromptField) and m.should_include() for m in hints[key].__metadata__)
+        ]
+
+        return self.json_formatting_template.render(keys=included_keys)
 
     def render_user_template(
         self,

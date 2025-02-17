@@ -1,13 +1,14 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Annotated
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from jinja2 import Template
 
 from conftest import are_classes_structurally_similar
 from diskurs import ImmutableConversation, ToolExecutor
-from diskurs.entities import ChatMessage, Role, PromptArgument
+from diskurs.entities import ChatMessage, Role, PromptArgument, prompt_field
 from diskurs.prompt import (
     MultistepPrompt,
     validate_dataclass,
@@ -15,6 +16,7 @@ from diskurs.prompt import (
     ConductorPrompt,
     HeuristicPrompt,
     validate_json,
+    BasePrompt,
 )
 from test_files.heuristic_agent_test_files.prompt import MyHeuristicPromptArgument
 from test_files.prompt_test_files.prompt import MyUserPromptArgument
@@ -90,11 +92,7 @@ def test_fail_parse_prompt(prompt_instance, prompt_testing_conversation):
         old_user_prompt_argument=prompt_testing_conversation.user_prompt_argument,
     )
 
-    assert (
-        res.content
-        == "LLM response is not valid JSON. Error: Expecting ',' delimiter at line 3, column 3. Please ensure "
-        + "the response is valid JSON and follows the correct format."
-    )
+    assert res.content == "Invalid JSON: Expecting ',' delimiter at line 3, column 3. Please ensure the response is valid JSON."
 
 
 @dataclass
@@ -329,6 +327,104 @@ def test_validate_json_2():
     assert isinstance(res, dict)
     assert "comment" in res
     assert res["comment"].startswith("To add the domain")
-    assert "\".abc.com\"" in res["comment"]
+    assert '".abc.com"' in res["comment"]
     assert "scheduler rollall" in res["comment"]
     assert "buildall" in res["comment"]
+
+
+def test_render_json_formatting_prompt(prompt_instance):
+    # Test with a simple prompt argument
+    prompt_args = {"name": "test", "topic": "example"}
+    result = prompt_instance.render_json_formatting_prompt(prompt_args)
+    assert "name" in result
+    assert "topic" in result
+
+
+def test_render_json_formatting_prompt_with_prompt_fields():
+    @dataclass
+    class TestPromptArg(PromptArgument):
+        visible_field: str = "visible"
+        hidden_field: Annotated[str, prompt_field(include=False)] = "hidden"
+        another_visible: Annotated[str, prompt_field(include=True)] = "visible2"
+
+    # Create a minimal template for testing
+    template = Template(
+        "Fields to include: {% for key in keys %}{{ key }}{% if not loop.last %}, {% endif %}{% endfor %}"
+    )
+
+    prompt = BasePrompt(
+        agent_description="Test Agent",
+        system_template=Template("system"),
+        user_template=Template("user"),
+        system_prompt_argument_class=TestPromptArg,
+        user_prompt_argument_class=TestPromptArg,
+        json_formatting_template=template,
+    )
+
+    result = prompt.render_json_formatting_prompt(
+        {"visible_field": "test", "hidden_field": "should not appear", "another_visible": "should appear"}
+    )
+
+    # Check that visible fields are included
+    assert "visible_field" in result
+    assert "another_visible" in result
+    # Check that hidden field is excluded
+    assert "hidden_field" not in result
+
+
+def test_render_json_formatting_prompt_empty_args():
+    @dataclass
+    class EmptyPromptArg(PromptArgument):
+        pass
+
+    template = Template("Fields: {% for key in keys %}{{ key }}{% if not loop.last %}, {% endif %}{% endfor %}")
+
+    prompt = BasePrompt(
+        agent_description="Test Agent",
+        system_template=Template("system"),
+        user_template=Template("user"),
+        system_prompt_argument_class=EmptyPromptArg,
+        user_prompt_argument_class=EmptyPromptArg,
+        json_formatting_template=template,
+    )
+
+    result = prompt.render_json_formatting_prompt({})
+    assert result == "Fields: "
+
+
+def test_render_json_formatting_prompt_missing_template():
+    prompt = BasePrompt(
+        agent_description="Test Agent",
+        system_template=Template("system"),
+        user_template=Template("user"),
+        system_prompt_argument_class=PromptArgument,
+        user_prompt_argument_class=PromptArgument,
+        json_formatting_template=None,
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        prompt.render_json_formatting_prompt({"test": "value"})
+    assert str(exc_info.value) == "json_render_template is not set."
+
+
+def test_render_json_formatting_prompt_inheritance():
+    @dataclass
+    class BasePromptArg(PromptArgument):
+        base_visible: str = "base"
+        base_hidden: Annotated[str, prompt_field(include=False)] = "hidden"
+
+    @dataclass
+    class ChildPromptArg(BasePromptArg):
+        child_visible: str = "child"
+        child_hidden: Annotated[str, prompt_field(include=False)] = "hidden"
+
+    template = Template("Fields: {% for key in keys %}{{ key }}{% if not loop.last %}, {% endif %}{% endfor %}")
+
+    prompt = BasePrompt(
+        agent_description="Test Agent",
+        system_template=Template("system"),
+        user_template=Template("user"),
+        system_prompt_argument_class=ChildPromptArg,
+        user_prompt_argument_class=ChildPromptArg,
+        json_formatting_template=template,
+    )

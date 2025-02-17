@@ -2,7 +2,8 @@ from dataclasses import dataclass
 
 from conftest import MyLongtermMemory, MyUserPromptArgument, conductor_mock, conductor_mock2, conversation
 from diskurs import ImmutableConversation, PromptArgument
-from diskurs.entities import ChatMessage, Role
+from diskurs.entities import ChatMessage, Role, prompt_field, PromptField
+from typing import Annotated, get_type_hints
 
 
 def test_basic_update():
@@ -164,3 +165,88 @@ def test_conversation_from_dict(conversation, conductor_mock, conductor_mock2):
     assert new_conversation.user_prompt == conversation.user_prompt
     assert new_conversation.system_prompt == conversation.system_prompt
     assert new_conversation.active_agent == conversation.active_agent
+
+
+@dataclass
+class PromptFieldTestDataclass(PromptArgument):
+    # Test different field configurations
+    visible_field: str = "visible"
+    hidden_field: Annotated[str, prompt_field(include=False)] = "hidden"
+    default_visible: Annotated[str, prompt_field()] = "default visible"
+
+
+def test_prompt_field_creation():
+    # Test creating a PromptField directly
+    field = prompt_field(include=True)
+    assert isinstance(field, PromptField)
+    assert field.include is True
+
+    field = prompt_field(include=False)
+    assert isinstance(field, PromptField)
+    assert field.include is False
+
+
+def test_prompt_field_default():
+    # Test default value (include=True)
+    field = prompt_field()
+    assert field.include is True
+    assert field.should_include() is True
+
+
+def test_prompt_field_in_dataclass():
+    # Test prompt fields within a dataclass
+    instance = PromptFieldTestDataclass()
+
+    # Get field metadata using typing.get_type_hints() with include_extras=True
+    hints = get_type_hints(PromptFieldTestDataclass, include_extras=True)
+
+    # Hidden field should have PromptField with include=False
+    hidden_meta = hints["hidden_field"].__metadata__[0]
+    assert isinstance(hidden_meta, PromptField)
+    assert hidden_meta.should_include() is False
+
+    # Default visible field should have PromptField with include=True
+    default_meta = hints["default_visible"].__metadata__[0]
+    assert isinstance(default_meta, PromptField)
+    assert default_meta.should_include() is True
+
+    # Regular field should not have PromptField metadata
+    assert "__metadata__" not in dir(hints["visible_field"])
+
+
+def test_prompt_field_str_representation():
+    field = prompt_field(include=False)
+    assert str(field) == "PromptField(include=False)"
+
+    field = prompt_field(include=True)
+    assert str(field) == "PromptField(include=True)"
+
+
+def test_prompt_field_should_include():
+    # Test the should_include() method directly
+    field = prompt_field(include=True)
+    assert field.should_include() is True
+
+    field = prompt_field(include=False)
+    assert field.should_include() is False
+
+
+def test_prompt_field_in_inheritance():
+    # Test that prompt fields work correctly with inheritance
+    @dataclass
+    class ChildPromptClass(PromptFieldTestDataclass):
+        child_visible: Annotated[str, prompt_field(include=True)] = "child visible"
+        child_hidden: Annotated[str, prompt_field(include=False)] = "child hidden"
+
+    hints = get_type_hints(ChildPromptClass, include_extras=True)
+
+    # Check parent class fields are preserved
+    parent_hidden_meta = hints["hidden_field"].__metadata__[0]
+    assert parent_hidden_meta.should_include() is False
+
+    # Check child class fields
+    child_hidden_meta = hints["child_hidden"].__metadata__[0]
+    assert child_hidden_meta.should_include() is False
+
+    child_visible_meta = hints["child_visible"].__metadata__[0]
+    assert child_visible_meta.should_include() is True

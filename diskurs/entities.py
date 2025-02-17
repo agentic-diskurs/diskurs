@@ -127,6 +127,67 @@ class ChatMessage(JsonSerializable):
             self.tool_calls = [ToolCall.from_dict(tc) for tc in self.tool_calls]
 
 
+class PromptField:
+    """
+    Metadata class for controlling field behavior in prompt generation.
+    This class is designed to be used with typing.Annotated to provide metadata about how fields should be handled during prompt generation.
+
+    :param include: Whether to include this field in prompt generation.Defaults to True.
+
+    Example:
+        >>> @dataclass
+        >>> class MyPrompt(PromptArgument):
+        ...     # Field will be included in prompt
+        ...     visible_field: str = ""
+        ...     # Field will be excluded from prompt
+        ...     internal_field: Annotated[str, PromptField(include=False)] = ""
+    """
+
+    def __init__(self, include: bool = True) -> None:
+        """
+        Initialize a new PromptField instance.
+
+        :param include: Controls whether the field should be included in prompt generation.
+        """
+        self.include = include
+
+    def __repr__(self) -> str:
+        """
+        Return string representation of the PromptField.
+
+        :return: String representation showing inclusion status.
+        """
+        return f"PromptField(include={self.include})"
+
+    def should_include(self) -> bool:
+        """
+        Determine if the field should be included in prompt generation.
+
+        :returns: True if the field should be included, False otherwise.
+        """
+        return self.include
+
+
+def prompt_field(*, include: bool = True) -> Any:
+    """
+    Decorator function to create a PromptField annotation.
+
+    This is a convenience function for creating PromptField annotations.
+
+    :param include: Controls whether the field should be included in prompt generation. Defaults to True.
+
+    :returns: Any: A PromptField instance wrapped in Annotated.
+
+    Example:
+        >>> @dataclass
+        >>> class MyPrompt(PromptArgument):
+        ...     # Using the decorator syntax
+        ...     visible_field: str = ""
+        ...     internal_field: Annotated[str, prompt_field(include=False)] = ""
+    """
+    return PromptField(include=include)
+
+
 @dataclass
 class PromptArgument(JsonSerializable):
     pass
