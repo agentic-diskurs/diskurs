@@ -13,6 +13,7 @@ from diskurs import (
     MultistepPrompt,
 )
 from diskurs.entities import ChatMessage, Role, MessageType
+from diskurs.heuristic_agent import HeuristicAgent
 from diskurs.protocols import ConductorPrompt
 
 
@@ -227,3 +228,30 @@ def finalizer_conversation():
         active_agent="my_conductor",
     )
     return conversation
+
+
+@pytest.fixture
+def heuristic_agent_mock():
+    mock = Mock(spec=HeuristicAgent)
+    mock.name = "heuristic_agent"
+    prompt_mock = Mock()
+    # Ensure prompt doesn't have system_prompt_argument
+    if hasattr(prompt_mock, "system_prompt_argument"):
+        delattr(prompt_mock, "system_prompt_argument")
+    mock.prompt = prompt_mock
+    return mock
+
+
+@pytest.fixture
+def conversation_dict():
+    return {
+        "system_prompt": None,
+        "user_prompt": None,
+        "system_prompt_argument": None,
+        "user_prompt_argument": None,
+        "chat": [],
+        "longterm_memory": {},
+        "metadata": {},
+        "active_agent": "my_conductor",
+        "conversation_id": "",
+    }

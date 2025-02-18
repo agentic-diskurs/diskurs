@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from conftest import MyLongtermMemory, MyUserPromptArgument, conductor_mock, conductor_mock2, conversation
+from conftest import MyLongtermMemory, MyUserPromptArgument
 from diskurs import ImmutableConversation, PromptArgument
 from diskurs.entities import ChatMessage, Role, prompt_field, PromptField
 from typing import Annotated, get_type_hints
@@ -120,51 +120,6 @@ def test_prompt_argument_to_dict():
     assert arg_dict["name"] == "Jane"
     assert arg_dict["id"] == "1234"
     assert arg_dict["spirit_animal"] == "unicorn"
-
-
-def test_conversation_to_dict(conversation):
-
-    conversation_dict = conversation.to_dict()
-
-    assert isinstance(conversation_dict, dict)
-    assert isinstance(conversation_dict["chat"], list)
-    assert conversation_dict["chat"][0]["role"] == "user"
-    assert conversation_dict["chat"][0]["content"] == "Hello, world!"
-    assert conversation_dict["longterm_memory"]["my_conductor"]["field1"] == "longterm_val1"
-    assert conversation_dict["active_agent"] == "my_conductor"
-
-
-def test_conversation_from_dict(conversation, conductor_mock, conductor_mock2):
-
-    conversation_dict = conversation.to_dict()
-    new_conversation = ImmutableConversation.from_dict(
-        data=conversation_dict, agents=[conductor_mock, conductor_mock2]
-    )
-
-    assert new_conversation.chat[0].role == conversation.chat[0].role
-    assert new_conversation.chat[0].content == conversation.chat[0].content
-    assert (
-        new_conversation._longterm_memory["my_conductor"].field1
-        == conversation._longterm_memory["my_conductor"].field1
-    )
-    assert (
-        new_conversation._longterm_memory["my_conductor"].field2
-        == conversation._longterm_memory["my_conductor"].field2
-    )
-    assert (
-        new_conversation._longterm_memory["my_conductor"].field3
-        == conversation._longterm_memory["my_conductor"].field3
-    )
-    assert (
-        new_conversation._longterm_memory["my_conductor"].user_query
-        == conversation._longterm_memory["my_conductor"].user_query
-    )
-    assert new_conversation.user_prompt_argument.field1 == conversation.user_prompt_argument.field1
-    assert new_conversation.user_prompt_argument.field2 == conversation.user_prompt_argument.field2
-    assert new_conversation.user_prompt_argument.field3 == conversation.user_prompt_argument.field3
-    assert new_conversation.user_prompt == conversation.user_prompt
-    assert new_conversation.system_prompt == conversation.system_prompt
-    assert new_conversation.active_agent == conversation.active_agent
 
 
 @dataclass

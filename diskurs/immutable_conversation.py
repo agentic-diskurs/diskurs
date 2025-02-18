@@ -251,10 +251,10 @@ class ImmutableConversation(Conversation):
     ) -> "ImmutableConversation":
         active_agent = next(agent for agent in agents if agent.name == data["active_agent"])
 
-        system_prompt_argument_class = active_agent.prompt.system_prompt_argument
+        system_prompt_argument_class = getattr(active_agent.prompt, 'system_prompt_argument', None)
         system_prompt_argument = (
-            system_prompt_argument_class.from_dict(data["system_prompt_argument"])
-            if data["system_prompt_argument"]
+            system_prompt_argument_class.from_dict(data.get("system_prompt_argument"))
+            if system_prompt_argument_class and data.get("system_prompt_argument")
             else None
         )
         system_prompt = ChatMessage.from_dict(data["system_prompt"]) if data["system_prompt"] else None
