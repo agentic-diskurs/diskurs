@@ -69,19 +69,27 @@ class Forum:
 
     async def fetch_or_create_conversation(self, diskurs_input: DiskursInput) -> Conversation:
         """
-        If a conversation store is present, we try to getch an existing conversation from the conversation store
-        or creates a new one if it doesn't exist.
+        Fetches an existing conversation or creates a new one.
+        If no conversation_id is provided, creates an ephemeral conversation.
+
+        :param diskurs_input: Input containing conversation parameters and user query
+
+        :returns: Conversation: Either a persisted or ephemeral conversation instance
         """
-        if self.conversation_store and await self.conversation_store.exists(diskurs_input.conversation_id):
-            conversation = await self.conversation_store.fetch(diskurs_input.conversation_id)
+        conversation_id = diskurs_input.conversation_id
+        store = self.conversation_store if conversation_id else None
+
+        if store and await store.exists(conversation_id):
+            conversation = await store.fetch(conversation_id)
         else:
             longterm_memory = init_longterm_memories(self.agents)
             conversation = self.conversation_class(
                 metadata=diskurs_input.metadata,
-                conversation_id=diskurs_input.conversation_id,
+                conversation_id=conversation_id,
                 longterm_memory=longterm_memory,
-                conversation_store=self.conversation_store,
+                conversation_store=store,
             )
+
         if diskurs_input.user_query:
             conversation = conversation.append(
                 ChatMessage(
@@ -91,17 +99,12 @@ class Forum:
                     type=MessageType.CONVERSATION,
                 )
             )
+
         return conversation
 
     async def ama(self, diskurs_input: DiskursInput):
-        if not diskurs_input.conversation_id:
-            self.logger.warning("Conversation ID not provided. Using default value 'default'.")
-            diskurs_input.conversation_id = "default"
-
         conversation = await self.fetch_or_create_conversation(diskurs_input)
-
         conversation = await self.dispatcher.run(participant=self.first_contact, conversation=conversation)
-
         return conversation.final_result
 
 

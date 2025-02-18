@@ -299,8 +299,8 @@ class ImmutableConversation(Conversation):
 
     async def maybe_persist(self) -> None:
         """
-        Persists the conversation if a persistent conversation store is available.
+        Persists the conversation if a persistent conversation store is available
+        and a conversation ID is set.
         """
-        if self.conversation_store and getattr(self.conversation_store, "is_persistent", True):
-            assert self.conversation_id, "Conversation ID must be set before persisting"
+        if self.conversation_store and self.conversation_id:
             await self.conversation_store.persist(self)
