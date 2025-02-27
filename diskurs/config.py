@@ -222,6 +222,7 @@ class ConductorAgentConfig(AgentConfig):
     """
 
     type: str = "conductor"
+    llm: Optional[str] = None
     prompt: ConductorPromptConfig = None
     agent_descriptions: dict[str, str] = field(default_factory=dict)
     finalizer_name: Optional[str] = None
