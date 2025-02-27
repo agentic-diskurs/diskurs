@@ -246,7 +246,7 @@ class ForumFactory:
                 prompt_cls = PROMPT_REGISTRY.get(agent_conf.prompt.type)
                 prompt = prompt_cls.create(**prompt_creation_arguments)
                 additional_args["prompt"] = prompt
-            if hasattr(agent_conf, "llm"):
+            if hasattr(agent_conf, "llm") and getattr(agent_conf, "llm", False):
                 additional_args["llm_client"] = self.llm_clients[agent_conf.llm]
             if hasattr(agent_conf, "tools") and agent_conf.tools:
                 additional_args["tools"] = [
@@ -261,6 +261,30 @@ class ForumFactory:
                 additional_args["can_finalize_name"] = agent_conf.can_finalize_name
             if hasattr(agent_conf, "supervisor"):
                 additional_args["supervisor"] = agent_conf.supervisor
+
+            # Add rule loading for conductors
+            if agent_conf.type == "conductor" and hasattr(agent_conf, "rules") and getattr(agent_conf, "rules", False):
+                from diskurs.entities import RoutingRule
+                rules = []
+
+                for rule_conf in agent_conf.rules:
+                    module_path = self.base_path / rule_conf.condition_module
+                    module = load_module_from_path(module_path)
+
+                    condition_fn = getattr(module, rule_conf.condition_name)
+
+                    rules.append(RoutingRule(
+                        name=rule_conf.name,
+                        description=rule_conf.description,
+                        condition=condition_fn,
+                        target_agent=rule_conf.target_agent
+                    ))
+
+                additional_args["rules"] = rules
+
+                # Set fallback behavior
+                if hasattr(agent_conf, "fallback_to_llm"):
+                    additional_args["fallback_to_llm"] = agent_conf.fallback_to_llm
 
             additional_args["dispatcher"] = self.dispatcher
 
