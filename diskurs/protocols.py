@@ -1020,24 +1020,90 @@ class ConductorAgent(Protocol):
     prompt: ConductorPrompt
     can_finalize_name: Optional[str]
 
+    def evaluate_rules(self, conversation: Conversation) -> Optional[str]:
+        """
+        Evaluates all routing rules against the current conversation.
+
+        This method iterates through the configured routing rules and executes their
+        condition functions against the provided conversation. It returns the target
+        agent of the first rule that matches, or None if no rules match.
+
+        Exceptions in rule evaluation are caught and logged to prevent rule failures
+        from crashing the routing process.
+
+        :param conversation: The conversation to evaluate against the rules.
+        :return: The name of the target agent if a rule matches, None otherwise.
+        """
+        ...
+
+    @staticmethod
+    def update_longterm_memory(
+        source: LongtermMemory | PromptArgument,
+        target: LongtermMemory,
+        overwrite: bool,
+    ) -> LongtermMemory:
+        """
+        Updates the target longterm memory with values from the source.
+
+        This method copies fields from the source (either a LongtermMemory or PromptArgument)
+        to the target LongtermMemory. Fields are only updated if they are present in both
+        source and target objects.
+
+        :param source: The source object containing values to copy from (either LongtermMemory or PromptArgument)
+        :param target: The target LongtermMemory object to update
+        :param overwrite: If True, existing values in target will be overwritten;
+                         if False, only empty/None values in target will be updated
+        :return: The updated LongtermMemory instance
+        """
+        ...
+
     def create_or_update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation:
         """
-        Creates or updates the long-term memory for the conductor agent.
+        Creates or updates the longterm memory for this conductor agent in the conversation.
 
-        This method is responsible for either creating a new long-term memory instance
-        or updating an existing one based on the provided conversation. It ensures that
-        the long-term memory is synchronized with the current state of the conversation.
+        This method first retrieves the agent's existing longterm memory from the conversation,
+        or initializes a new one if none exists. It then updates this memory with values from either:
+        1. The longterm memory of the previous agent (if it was a conductor), or
+        2. The conversation's user_prompt_argument
 
-        :param conversation: The current state of the conversation, represented as a `Conversation` object.
-        :param overwrite: A boolean flag indicating whether to overwrite existing memory fields. Defaults to False.
-        :return: An updated `Conversation` object with the new or updated long-term memory.
+        :param conversation: The conversation containing the context for memory updates
+        :param overwrite: If True, existing values in longterm memory will be overwritten;
+                         if False, only empty/None values will be updated
+        :return: Updated conversation with the new/updated longterm memory
+        """
+        ...
+
+    async def invoke(self, conversation: Conversation, message_type=MessageType.CONDUCTOR) -> Conversation:
+        """
+        Processes the conversation and determines the next agent to route to.
+
+        This method first attempts to find a routing destination using rule-based routing.
+        If no rule matches and LLM fallback is enabled, it uses the LLM to determine routing.
+        The selected next agent is then stored in the user_prompt_argument and a JSON
+        representation is appended to the conversation history.
+
+        The method follows this sequence:
+        1. Prepare the conversation with appropriate prompt arguments
+        2. Evaluate routing rules against the conversation
+        3. If no rule matches and fallback is enabled, attempt LLM-based routing
+        4. Update the user_prompt_argument with the chosen next_agent
+        5. Append a structured JSON message to the conversation history
+
+        :param conversation: The conversation to process
+        :param message_type: The message type, defaults to MessageType.CONDUCTOR
+        :return: The updated conversation with routing decision
         """
         ...
 
     async def can_finalize(self, conversation: Conversation) -> bool:
         """
-        Determines if the conversation can be finalized based on the long-term memory i.e. the conversation history
-        (in the case of an LLM based can_finalize)
+        Determines if the conversation is ready to be finalized.
+
+        This method checks if the conversation has reached a state where it can be
+        considered complete. It either:
+        1. Delegates the decision to another agent specified by can_finalize_name,
+           which should return a user_prompt_argument with a can_finalize property, or
+        2. Uses the prompt's own can_finalize method on the longterm memory
 
         If we are using a function i.e. heuristics, this method evaluates the long-term memory of the conversation
         to decide whether it can be finalized. It checks if the necessary conditions are met for finalizing the conversation.
@@ -1045,20 +1111,60 @@ class ConductorAgent(Protocol):
         If we are using an LLM i.e. agent based can_finalize, this method evaluates the chat history of the conversation
         to decide whether it can be finalized. This allows for free-form questions as observed in open chat.
 
-        :param conversation: The current state of the conversation, represented as a `Conversation` object.
-        :return: True if the conversation can be finalized, False otherwise.
+        :param conversation: The conversation to check for finalization
+        :return: True if the conversation can be finalized, False otherwise
         """
         ...
 
     async def finalize(self, conversation: Conversation) -> None:
         """
-        Finalizes the conversation based on the long-term memory.
+        Finalizes the conversation to produce a result.
+
+        This method handles the end of a successful conversation and produces a final
+        result through one of three mechanisms:
+        1. Routing to a supervisor agent that will handle further processing
+        2. Routing to a dedicated finalizer agent that will generate the final result
+        3. Using the prompt's finalize method to generate a result directly
+
         Finalizing refers to the process of generating the final answer to be returned by diskurs.
         The function can work in two ways:
             1. If a "finalizer_name" has been provided, the function will call an agent with that name, to finalize.
             2. If no "finalizer_name" has been provided, the function will call the "finalize" function on the prompt.
 
-        :param conversation: The current state of the conversation, represented as a `Conversation` object.
+        :param conversation: The conversation to finalize
+        """
+        ...
+
+    def fail(self, conversation: Conversation) -> dict[str, Any]:
+        """
+        Handles conversation failure when no valid routing path can be found.
+
+        This method is called when the conversation cannot be successfully routed or
+        when the maximum number of dispatches is reached. It utilizes the prompt's
+        fail method to produce an appropriate error result.
+
+        :param conversation: The conversation that failed to complete successfully
+        :return: A dictionary representing the failure result
+        """
+        ...
+
+    async def process_conversation(self, conversation: Conversation) -> None:
+        """
+        Processes the conversation by determining the next step in the agent workflow.
+
+        This is the main entry point for the agent when receiving a conversation from
+        the dispatcher. The method follows this sequence:
+        1. Update the agent's long-term memory with relevant conversation data
+        2. Check if the conversation can be finalized
+        3. If ready to finalize, call the finalize method
+        4. If max dispatches reached, handle as a failure
+        5. Otherwise, invoke the agent to determine the next routing step
+        6. Publish the updated conversation to the next agent in the workflow
+
+        The agent keeps track of dispatches to prevent infinite loops and will fail
+        gracefully if the maximum number of dispatches is reached.
+
+        :param conversation: The conversation to process
         """
         ...
 

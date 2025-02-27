@@ -222,13 +222,14 @@ class ConductorAgentConfig(AgentConfig):
     """
 
     type: str = "conductor"
-    llm: str
-    prompt: PromptConfig
-    max_dispatches: Optional[int] = 50
-    max_trials: Optional[int] = 5
+    prompt: ConductorPromptConfig = None
+    agent_descriptions: dict[str, str] = field(default_factory=dict)
     finalizer_name: Optional[str] = None
-    can_finalize_name: Optional[str] = None
     supervisor: Optional[str] = None
+    can_finalize_name: Optional[str] = None
+    max_dispatches: int = 50
+    rules: Optional[list["RuleConfig"]] = None  # Add rules field
+    fallback_to_llm: bool = True  # Add fallback field
 
 
 @dataclass(kw_only=True)
@@ -345,6 +346,16 @@ class ForumConfig(YamlSerializable):
             base_path=Path(__file__).parent / "conversations"
         )
     )
+
+
+@dataclass(kw_only=True)
+class RuleConfig(YamlSerializable):
+    """Configuration for a routing rule"""
+    name: str
+    description: str
+    condition_module: str
+    condition_name: str
+    target_agent: str
 
 
 def resolve_env_vars(data):

@@ -1,13 +1,16 @@
 import json
 import logging
-from dataclasses import fields
-from typing import Optional, Self, Any
+from dataclasses import fields, asdict
+from typing import Optional, Self, Any, List
 
 from diskurs.agent import BaseAgent, is_previous_agent_conductor
 from diskurs.entities import (
     MessageType,
     LongtermMemory,
     PromptArgument,
+    RoutingRule,
+    ChatMessage,
+    Role,
 )
 from diskurs.protocols import (
     LLMClient,
@@ -47,6 +50,8 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         dispatcher: Optional[ConversationDispatcher] = None,
         max_trials: int = 5,
         max_dispatches: int = 50,
+        rules: Optional[List[RoutingRule]] = None,
+        fallback_to_llm: bool = True,
     ):
 
         validate_finalization(can_finalize_name, finalizer_name, prompt, supervisor=supervisor)
@@ -66,6 +71,9 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         self.max_dispatches = max_dispatches
         self.n_dispatches = 0
 
+        self.rules = rules or []
+        self.fallback_to_llm = fallback_to_llm
+
     @classmethod
     def create(
         cls,
@@ -83,6 +91,9 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         max_dispatches = kwargs.get("max_dispatches", 50)
         topics = kwargs.get("topics", [])
 
+        rules = kwargs.get("rules", [])
+        fallback_to_llm = kwargs.get("fallback_to_llm", True)
+
         return cls(
             name=name,
             prompt=prompt,
@@ -95,7 +106,24 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             max_trials=max_trials,
             max_dispatches=max_dispatches,
             topics=topics,
+            rules=rules,
+            fallback_to_llm=fallback_to_llm,
         )
+
+    def evaluate_rules(self, conversation: Conversation) -> Optional[str]:
+        if not self.rules:
+            return None
+
+        for rule in self.rules:
+            self.logger.debug(f"Evaluating rule: {rule.name}")
+            try:
+                if rule.condition(conversation):
+                    self.logger.info(f"Rule '{rule.name}' matched, routing to agent: {rule.target_agent}")
+                    return rule.target_agent
+            except Exception as e:
+                self.logger.error(f"Error evaluating rule '{rule.name}': {e}")
+
+        return None
 
     @staticmethod
     def update_longterm_memory(
@@ -131,7 +159,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
         return conversation.update_agent_longterm_memory(agent_name=self.name, longterm_memory=longterm_memory)
 
-    async def invoke(self, conversation: Conversation, message_type=MessageType.CONVERSATION) -> Conversation:
+    async def invoke(self, conversation: Conversation, message_type=MessageType.CONDUCTOR) -> Conversation:
         self.logger.debug(f"Invoke called on conductor agent {self.name}")
 
         conversation = self.prepare_conversation(
@@ -143,19 +171,39 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             message_type=MessageType.CONDUCTOR,
         )
 
-        # TODO: try to unify with multistep agent
-        for reasoning_step in range(self.max_trials):
-            self.logger.debug(f"Reasoning step {reasoning_step + 1} for Agent {self.name}")
-            conversation = await self.generate_validated_response(conversation, message_type=MessageType.CONDUCTOR)
+        next_agent = self.evaluate_rules(conversation)
 
-            if (
-                self.prompt.is_final(conversation.user_prompt_argument)
-                and not conversation.has_pending_tool_response()
-            ):
-                self.logger.debug(f"Final response found for Agent {self.name}")
-                break
+        if next_agent is None and self.fallback_to_llm and self.llm_client:
+            self.logger.debug("No matching rule found, falling back to LLM routing")
 
-        return conversation.update()
+            for reasoning_step in range(self.max_trials):
+                self.logger.debug(f"LLM routing step {reasoning_step + 1}")
+                conversation = await self.generate_validated_response(conversation, message_type=MessageType.CONDUCTOR)
+
+                if (
+                    self.prompt.is_final(conversation.user_prompt_argument)
+                    and not conversation.has_pending_tool_response()
+                ):
+                    self.logger.debug("Final response found in LLM routing")
+                    if hasattr(conversation.user_prompt_argument, "next_agent"):
+                        next_agent = conversation.user_prompt_argument.next_agent
+                    break
+
+        # If we have a next_agent from rules (or LLM fallback), update the user_prompt_argument
+        if next_agent:
+            # Directly update the next_agent field in the prompt argument
+            updated_prompt = conversation.user_prompt_argument
+            updated_prompt.next_agent = next_agent
+            conversation = conversation.update(user_prompt_argument=updated_prompt)
+
+            # Add JSON message to conversation to ensure a consistent chat history
+            prompt_dict = asdict(updated_prompt)
+            content = json.dumps(prompt_dict)
+            conversation = conversation.append(
+                ChatMessage(role=Role.ASSISTANT, content=content, name=self.name, type=MessageType.CONDUCTOR)
+            )
+
+        return conversation
 
     async def can_finalize(self, conversation: Conversation) -> bool:
         if self.can_finalize_name:
@@ -193,5 +241,9 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             conversation.final_result = formatted_response
         else:
             conversation = await self.invoke(conversation)
-            next_agent = json.loads(conversation.last_message.content).get("next_agent")
-            await self.dispatcher.publish(topic=next_agent, conversation=conversation)
+            # Get the next agent from user_prompt_argument and route if available
+            if next_agent := conversation.user_prompt_argument.next_agent:
+                await self.dispatcher.publish(topic=next_agent, conversation=conversation)
+            else:
+                self.logger.error("No next agent specified for routing. This should not happen after invoke().")
+                conversation.final_result = self.fail(conversation)

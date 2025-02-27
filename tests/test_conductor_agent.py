@@ -1,20 +1,18 @@
 from dataclasses import dataclass
-from typing import Optional
-from unittest.mock import ANY, AsyncMock, Mock
+from typing import Optional, List
+from unittest.mock import ANY, AsyncMock, Mock, patch
 
 import pytest
 
-from diskurs import ImmutableConversation
-from diskurs.conductor_agent import (
-    ConductorAgent,
-    validate_finalization,
-)
+from diskurs import ImmutableConversation, Conversation
+from diskurs.conductor_agent import ConductorAgent, validate_finalization
 from diskurs.entities import (
     ChatMessage,
     Role,
     MessageType,
     LongtermMemory,
     PromptArgument,
+    RoutingRule,
 )
 from diskurs.prompt import (
     PromptValidationError,
@@ -29,6 +27,8 @@ from diskurs.protocols import (
 FINALIZER_NAME = "finalizer"
 
 
+# ----- Data Classes for Testing -----
+
 @dataclass
 class MyLongTermMemory(LongtermMemory):
     user_query: Optional[str] = ""
@@ -42,7 +42,43 @@ class MyUserPromptArgument(PromptArgument):
     field1: Optional[str] = ""
     field2: Optional[str] = ""
     field3: Optional[str] = ""
+    next_agent: Optional[str] = ""
 
+
+@dataclass
+class TestUserPromptArgument(PromptArgument):
+    content: str = ""
+    next_agent: str = ""
+
+
+@dataclass
+class DefaultCanFinalizeUserPromptArgument(PromptArgument):
+    can_finalize: Optional[bool] = None
+
+
+# ----- Mock Rules for Rule-Based Routing Tests -----
+
+def rule_always_true(conversation: Conversation) -> bool:
+    return True
+
+
+def rule_always_false(conversation: Conversation) -> bool:
+    return False
+
+
+def rule_raises_exception(conversation: Conversation) -> bool:
+    raise ValueError("Test exception")
+
+
+def rule_content_match(conversation: Conversation) -> bool:
+    """Route based on user message content"""
+    user_messages = [msg for msg in conversation.chat if msg.role == Role.USER]
+    if not user_messages:
+        return False
+    return "keyword" in user_messages[-1].content.lower()
+
+
+# ----- Fixtures for Common Test Configuration -----
 
 def create_conductor_prompt(
     has_finalizer: bool = True,
@@ -68,6 +104,9 @@ def create_conductor_prompt(
     prompt._finalize = finalize if has_finalizer else None
     prompt._can_finalize = can_finalize if has_can_finalize else None
     prompt.fail.return_value = {}
+    prompt.is_final = Mock(return_value=True)
+    prompt.parse_user_prompt = Mock()
+
     return prompt
 
 
@@ -82,9 +121,16 @@ def mock_prompt_no_finalize():
 
 
 @pytest.fixture
+def mock_prompt_cannot_finalize():
+    return create_conductor_prompt(can_finalize_return_value=False)
+
+
+@pytest.fixture
 def mock_llm_client():
-    async def stub_generate_validated_response(conversation, message_type):
-        return conversation.append(ChatMessage(role=Role.ASSISTANT, content='{"next_agent": "agent1"}'))
+    async def stub_generate_validated_response(conversation, message_type=None, tools=None):
+        return conversation.append(
+            ChatMessage(role=Role.ASSISTANT, content='{"next_agent": "agent1"}', type=MessageType.CONDUCTOR)
+        )
 
     llm_client = Mock(spec=LLMClient)
     llm_client.generate = AsyncMock(side_effect=stub_generate_validated_response)
@@ -96,7 +142,52 @@ def mock_dispatcher():
     dispatcher = AsyncMock(spec=ConversationDispatcher)
     dispatcher.publish = AsyncMock()
     dispatcher.finalize = AsyncMock()
+    dispatcher.publish_final = AsyncMock()
     return dispatcher
+
+
+@pytest.fixture
+def mock_rules():
+    return [
+        RoutingRule(
+            name="test_rule_1",
+            description="Rule that always returns true",
+            condition=rule_always_true,
+            target_agent="agent1",
+        ),
+        RoutingRule(
+            name="test_rule_2",
+            description="Rule that always returns false",
+            condition=rule_always_false,
+            target_agent="agent2",
+        ),
+        RoutingRule(
+            name="test_rule_3",
+            description="Rule with content matching",
+            condition=rule_content_match,
+            target_agent="agent3",
+        ),
+        RoutingRule(
+            name="test_rule_error",
+            description="Rule that raises an exception",
+            condition=rule_raises_exception,
+            target_agent="error_agent",
+        ),
+    ]
+
+
+@pytest.fixture
+def mock_conversation():
+    return ImmutableConversation(user_prompt_argument=TestUserPromptArgument()).append(
+        ChatMessage(role=Role.USER, content="test message", name="user")
+    )
+
+
+@pytest.fixture
+def mock_conversation_with_keyword():
+    return ImmutableConversation(user_prompt_argument=TestUserPromptArgument()).append(
+        ChatMessage(role=Role.USER, content="test message with keyword", name="user")
+    )
 
 
 def create_conductor_agent(
@@ -105,18 +196,22 @@ def create_conductor_agent(
     mock_prompt,
     finalizer=None,
     supervisor=None,
+    rules=None,
+    fallback_to_llm=True,
 ):
     agent = ConductorAgent(
         name="conductor",
         prompt=mock_prompt,
         llm_client=mock_llm_client,
-        topics=[],
+        topics=["agent1", "agent2", "agent3"],
         agent_descriptions={},
         finalizer_name=finalizer,
         dispatcher=mock_dispatcher,
         max_trials=5,
         max_dispatches=5,
         supervisor=supervisor,
+        rules=rules,
+        fallback_to_llm=fallback_to_llm,
     )
     return agent
 
@@ -124,6 +219,11 @@ def create_conductor_agent(
 @pytest.fixture
 def conductor_agent(mock_prompt, mock_llm_client, mock_dispatcher):
     return create_conductor_agent(mock_dispatcher, mock_llm_client, mock_prompt)
+
+
+@pytest.fixture
+def conductor_cannot_finalize(mock_prompt_cannot_finalize, mock_llm_client, mock_dispatcher):
+    return create_conductor_agent(mock_dispatcher, mock_llm_client, mock_prompt_cannot_finalize)
 
 
 @pytest.fixture
@@ -137,10 +237,45 @@ def conductor_agent_with_supervisor(mock_prompt_no_finalize, mock_llm_client, mo
 
 
 @pytest.fixture
-def conductor_agent_with_finalizer_function(mock_prompt, mock_llm_client, mock_dispatcher):
+def conductor_agent_with_finalizer(mock_prompt_no_finalize, mock_llm_client, mock_dispatcher):
+    return create_conductor_agent(
+        mock_dispatcher,
+        mock_llm_client,
+        mock_prompt_no_finalize,
+        finalizer=FINALIZER_NAME,
+    )
 
+
+@pytest.fixture
+def conductor_agent_with_finalizer_function(mock_prompt, mock_llm_client, mock_dispatcher):
     return create_conductor_agent(mock_dispatcher, mock_llm_client, mock_prompt)
 
+
+@pytest.fixture
+def conductor_agent_with_rules(mock_prompt, mock_llm_client, mock_dispatcher, mock_rules):
+    """Create a conductor agent with rules"""
+    return create_conductor_agent(
+        mock_dispatcher,
+        mock_llm_client,
+        mock_prompt,
+        rules=mock_rules,
+        fallback_to_llm=True
+    )
+
+
+@pytest.fixture
+def conductor_agent_rules_only(mock_prompt, mock_dispatcher, mock_rules):
+    """Create a rule-only conductor (no LLM fallback)"""
+    return create_conductor_agent(
+        mock_dispatcher,
+        None,  # No LLM client
+        mock_prompt,
+        rules=mock_rules,
+        fallback_to_llm=False
+    )
+
+
+# ----- Tests for Basic Agent Functionality -----
 
 def test_update_longterm_memory(conductor_agent):
     conversation = ImmutableConversation(
@@ -196,9 +331,6 @@ def test_update_longterm_memory_with_overwrite(conductor_agent):
     )
 
 
-from unittest.mock import patch
-
-
 @pytest.mark.asyncio
 async def test_process_conversation_updates_longterm_memory(conductor_agent):
     conversation = ImmutableConversation(
@@ -211,7 +343,6 @@ async def test_process_conversation_updates_longterm_memory(conductor_agent):
         "update_agent_longterm_memory",
         return_value=conversation,
     ) as mock_update_longterm:
-        # Instead of making get_agent_longterm_memory an AsyncMock, make it a regular Mock
         conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
         conductor_agent.prompt.init_longterm_memory.return_value = longterm_memory
         conductor_agent.prompt.can_finalize.return_value = False
@@ -248,16 +379,6 @@ async def test_process_conversation_finalize(conductor_agent):
 
     assert await conversation.final_result == {"result": "final result"}
     conductor_agent.generate_validated_response.assert_not_called()
-
-
-@pytest.fixture
-def mock_prompt_cannot_finalize():
-    return create_conductor_prompt(can_finalize_return_value=False)
-
-
-@pytest.fixture
-def conductor_cannot_finalize(mock_prompt_cannot_finalize, mock_llm_client, mock_dispatcher):
-    return create_conductor_agent(mock_dispatcher, mock_llm_client, mock_prompt_cannot_finalize)
 
 
 @pytest.mark.asyncio
@@ -330,16 +451,6 @@ async def test_conductor_agent_fail_on_max_dispatches(
     conductor_cannot_finalize.prompt.fail.assert_called_once()
 
 
-@pytest.fixture
-def conductor_agent_with_finalizer(mock_prompt_no_finalize, mock_llm_client, mock_dispatcher):
-    return create_conductor_agent(
-        mock_dispatcher,
-        mock_llm_client,
-        mock_prompt_no_finalize,
-        finalizer=FINALIZER_NAME,
-    )
-
-
 @pytest.mark.asyncio
 async def test_process_conversation_finalize_with_agent_calls_dispatcher(
     conductor_agent_with_finalizer,
@@ -359,46 +470,41 @@ async def test_process_conversation_finalize_with_agent_calls_dispatcher(
 
 
 @pytest.mark.asyncio
-async def test_finalize_return_to_supervisor(conductor_agent_with_supervisor, conversation):
-    await conductor_agent_with_supervisor.finalize(conversation)
+async def test_finalize_return_to_supervisor(conductor_agent_with_supervisor, mock_conversation):
+    await conductor_agent_with_supervisor.finalize(mock_conversation)
 
     conductor_agent_with_supervisor.dispatcher.publish.assert_called_once_with(
-        topic="supervisor", conversation=conversation
+        topic="supervisor", conversation=mock_conversation
     )
 
 
 @pytest.mark.asyncio
-async def test_finalize_call_finalizer(conductor_agent_with_finalizer, conversation):
-    await conductor_agent_with_finalizer.finalize(conversation)
+async def test_finalize_call_finalizer(conductor_agent_with_finalizer, mock_conversation):
+    await conductor_agent_with_finalizer.finalize(mock_conversation)
 
     conductor_agent_with_finalizer.dispatcher.publish_final.assert_called_once_with(
-        topic=FINALIZER_NAME, conversation=conversation
+        topic=FINALIZER_NAME, conversation=mock_conversation
     )
 
 
 @pytest.mark.asyncio
-async def test_finalize_call_prompt_function(conductor_agent_with_finalizer_function, conversation):
-    await conductor_agent_with_finalizer_function.finalize(conversation)
+async def test_finalize_call_prompt_function(conductor_agent_with_finalizer_function, mock_conversation):
+    await conductor_agent_with_finalizer_function.finalize(mock_conversation)
 
-    assert await conversation.final_result == {"result": "final result"}
+    assert await mock_conversation.final_result == {"result": "final result"}
     conductor_agent_with_finalizer_function.dispatcher.publish.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_process_conversation_calls_can_finalize(conversation, conductor_agent):
+async def test_process_conversation_calls_can_finalize(mock_conversation, conductor_agent):
     conductor_agent.finalize = AsyncMock()
 
-    await conductor_agent.process_conversation(conversation)
+    await conductor_agent.process_conversation(mock_conversation)
     conductor_agent.finalize.assert_called_once()
 
 
-@dataclass
-class DefaultCanFinalizeUserPromptArgument(PromptArgument):
-    can_finalize: Optional[bool] = None
-
-
 @pytest.mark.asyncio
-async def test_can_finalize(conversation, conductor_agent):
+async def test_can_finalize(mock_conversation, conductor_agent):
     conductor_agent.can_finalize_name = "Finalizer_Agent"
     conductor_agent.prompt.can_finalize.return_value = True
     conductor_agent.finalize = AsyncMock()
@@ -406,63 +512,239 @@ async def test_can_finalize(conversation, conductor_agent):
     parsed_prompt_argument = DefaultCanFinalizeUserPromptArgument(can_finalize=True)
     conductor_agent.prompt.parse_user_prompt.return_value = parsed_prompt_argument
 
-    await conductor_agent.process_conversation(conversation)
+    await conductor_agent.process_conversation(mock_conversation)
     conductor_agent.finalize.assert_called_once()
 
-    def test_validate_finalization_all_none():
-        prompt = Mock()
-        prompt._finalize = lambda x: x
-        prompt._can_finalize = lambda x: True
 
-        # Should not raise or modify prompt
-        validate_finalization(None, None, prompt, None)
-        assert hasattr(prompt, "_finalize")
-        assert hasattr(prompt, "_can_finalize")
+# ----- Tests for Rule-Based Routing -----
 
-    def test_validate_finalization_with_finalizer():
-        prompt = Mock()
-        prompt._finalize = lambda x: x
-        prompt._can_finalize = lambda x: True
+def test_evaluate_rules_first_match(conductor_agent_with_rules, mock_conversation):
+    # Should return the first rule's target agent since it always returns True
+    next_agent = conductor_agent_with_rules.evaluate_rules(mock_conversation)
+    assert next_agent == "agent1"
 
-        validate_finalization(None, "finalizer", prompt, None)
-        assert not hasattr(prompt, "_finalize")
-        assert hasattr(prompt, "_can_finalize")
 
-    def test_validate_finalization_with_supervisor():
-        prompt = Mock()
-        prompt._finalize = lambda x: x
-        prompt._can_finalize = lambda x: True
+def test_evaluate_rules_content_match(conductor_agent_with_rules, mock_conversation_with_keyword):
+    # Make the first rule return false, so it falls through to the content match rule
+    conductor_agent_with_rules.rules[0].condition = rule_always_false
+    conductor_agent_with_rules.rules[1].condition = rule_content_match
 
-        validate_finalization(None, None, prompt, "supervisor")
-        assert not hasattr(prompt, "_finalize")
-        assert hasattr(prompt, "_can_finalize")
+    next_agent = conductor_agent_with_rules.evaluate_rules(mock_conversation_with_keyword)
+    assert next_agent == "agent2"  # The second rule's target agent
 
-    def test_validate_finalization_with_both_raises():
-        prompt = Mock()
-        prompt._finalize = lambda x: x
 
-        with pytest.raises(
-            AssertionError,
-            match="Either finalizer_name or supervisor must be set, but not both",
-        ):
-            validate_finalization(None, "finalizer", prompt, "supervisor")
+def test_evaluate_rules_no_match(conductor_agent_with_rules, mock_conversation):
+    # Make all rules return false
+    for rule in conductor_agent_with_rules.rules:
+        rule.condition = rule_always_false
 
-    def test_validate_finalization_with_can_finalize():
-        prompt = Mock()
-        prompt._finalize = lambda x: x
-        prompt._can_finalize = lambda x: True
+    next_agent = conductor_agent_with_rules.evaluate_rules(mock_conversation)
+    assert next_agent is None  # No rule matched
 
-        validate_finalization("can_finalize", None, prompt, None)
-        assert hasattr(prompt, "_finalize")
-        assert not hasattr(prompt, "_can_finalize")
 
-    def test_validate_finalization_with_all_raises():
-        prompt = Mock()
-        prompt._finalize = lambda x: x
-        prompt._can_finalize = lambda x: True
+def test_evaluate_rules_handles_exceptions(conductor_agent_with_rules, mock_conversation):
+    # Make all rules throw exceptions
+    for rule in conductor_agent_with_rules.rules:
+        rule.condition = rule_raises_exception
 
-        with pytest.raises(
-            AssertionError,
-            match="Either finalizer_name or supervisor must be set, but not both",
-        ):
-            validate_finalization("can_finalize", "finalizer", prompt, "supervisor")
+    # Should return None and not raise exceptions
+    next_agent = conductor_agent_with_rules.evaluate_rules(mock_conversation)
+    assert next_agent is None
+
+
+@pytest.mark.asyncio
+async def test_invoke_with_rule_match(conductor_agent_with_rules, mock_conversation):
+    # Set up the agent to use rule-based routing
+    conductor_agent_with_rules.prepare_conversation = Mock(return_value=mock_conversation)
+
+    # Set up the prompt to properly create a user_prompt_argument with next_agent
+    def mock_create_user_prompt_arg(**kwargs):
+        if "next_agent" in kwargs:
+            return TestUserPromptArgument(next_agent=kwargs["next_agent"])
+        return TestUserPromptArgument()
+
+    conductor_agent_with_rules.prompt.create_user_prompt_argument = Mock(side_effect=mock_create_user_prompt_arg)
+
+    # Call invoke
+    result = await conductor_agent_with_rules.invoke(mock_conversation, MessageType.CONDUCTOR)
+
+    # Verify a rule was evaluated and next_agent is set
+    assert hasattr(result.user_prompt_argument, "next_agent")
+    assert result.user_prompt_argument.next_agent == "agent1"
+
+
+@pytest.mark.asyncio
+async def test_invoke_fallback_to_llm(conductor_agent_with_rules, mock_conversation):
+    # Make all rules return false
+    for rule in conductor_agent_with_rules.rules:
+        rule.condition = rule_always_false
+
+    conductor_agent_with_rules.prepare_conversation = Mock(return_value=mock_conversation)
+
+    # Set up LLM to return a response with next_agent
+    async def mock_llm_generate(conversation, message_type=None, tools=None):
+        return conversation.append(
+            ChatMessage(role=Role.ASSISTANT, content='{"next_agent": "llm_agent"}', type=MessageType.CONDUCTOR)
+        )
+
+    conductor_agent_with_rules.llm_client.generate = AsyncMock(side_effect=mock_llm_generate)
+
+    # Mock the prompt parsing to return a valid prompt argument
+    conductor_agent_with_rules.prompt.parse_user_prompt.return_value = DefaultConductorUserPromptArgument(
+        next_agent="llm_agent"
+    )
+    conductor_agent_with_rules.prompt.is_final.return_value = True
+
+    # Call invoke
+    result = await conductor_agent_with_rules.invoke(mock_conversation, MessageType.CONDUCTOR)
+
+    # Verify LLM was used and next_agent is set correctly
+    conductor_agent_with_rules.llm_client.generate.assert_called_once()
+    assert result.user_prompt_argument.next_agent == "llm_agent"
+
+
+@pytest.mark.asyncio
+async def test_process_conversation_with_rules(conductor_agent_with_rules, mock_conversation):
+    """Test that process_conversation correctly handles rule-based routing"""
+    # Setup the agent to use rule-based routing
+    conductor_agent_with_rules.create_or_update_longterm_memory = Mock(return_value=mock_conversation)
+    conductor_agent_with_rules.can_finalize = AsyncMock(return_value=False)
+
+    # Mock the invoke method to return a conversation with next_agent set in both:
+    # 1. user_prompt_argument
+    # 2. A properly formatted JSON message
+    async def mock_invoke(conversation, message_type=None):
+        updated = conversation.update(
+            user_prompt_argument=TestUserPromptArgument(next_agent="agent1")
+        )
+        # Add a JSON message that can be parsed
+        return updated.append(
+            ChatMessage(
+                role=Role.ASSISTANT,
+                content='{"next_agent": "agent1"}',
+                name="test_agent",
+                type=MessageType.CONDUCTOR
+            )
+        )
+
+    conductor_agent_with_rules.invoke = AsyncMock(side_effect=mock_invoke)
+
+    # Call process_conversation
+    await conductor_agent_with_rules.process_conversation(mock_conversation)
+
+    # Verify the dispatcher was called with the right agent
+    conductor_agent_with_rules.dispatcher.publish.assert_called_once()
+    args, kwargs = conductor_agent_with_rules.dispatcher.publish.call_args
+    assert kwargs.get('topic') == 'agent1' or args[0] == 'agent1'
+
+
+@pytest.mark.asyncio
+async def test_rule_only_conductor_no_llm_fallback(conductor_agent_rules_only, mock_conversation):
+    """Test that a rule-only conductor doesn't try to use LLM when fallback is disabled"""
+    # Make all rules return false
+    for rule in conductor_agent_rules_only.rules:
+        rule.condition = rule_always_false
+
+    # Clear any existing next_agent value
+    clean_conversation = mock_conversation.update(
+        user_prompt_argument=TestUserPromptArgument(next_agent=None)
+    )
+    conductor_agent_rules_only.prepare_conversation = Mock(return_value=clean_conversation)
+
+    # Also mock prompt.create_user_prompt_argument to ensure it returns a clean object
+    conductor_agent_rules_only.prompt.create_user_prompt_argument = Mock(
+        return_value=TestUserPromptArgument(next_agent=None)
+    )
+
+    # Call invoke
+    result = await conductor_agent_rules_only.invoke(clean_conversation, MessageType.CONDUCTOR)
+
+    # Next agent should be None since no rules matched and fallback is off
+    assert not hasattr(result.user_prompt_argument, "next_agent") or result.user_prompt_argument.next_agent is None
+
+
+@pytest.mark.asyncio
+async def test_rule_based_routing_with_update(conductor_agent_with_rules, mock_conversation):
+    """Test that rule-based routing correctly updates the user prompt argument"""
+    # Setup
+    conductor_agent_with_rules.prepare_conversation = Mock(return_value=mock_conversation)
+
+    # Create a prompt argument with existing values to preserve
+    user_prompt_arg = DefaultConductorUserPromptArgument(next_agent=None)
+    mock_conversation = mock_conversation.update(user_prompt_argument=user_prompt_arg)
+
+    # Create a new user prompt argument to return
+    updated_prompt_arg = DefaultConductorUserPromptArgument(next_agent="agent1")
+    conductor_agent_with_rules.prompt.create_user_prompt_argument.return_value = updated_prompt_arg
+
+    # Call invoke
+    result = await conductor_agent_with_rules.invoke(mock_conversation, MessageType.CONDUCTOR)
+
+    # Verify the user prompt argument was updated with next_agent
+    assert result.user_prompt_argument.next_agent == "agent1"
+
+
+# ----- Tests for Configuration and Validation -----
+
+def test_validate_finalization_all_none():
+    prompt = Mock()
+    prompt._finalize = lambda x: x
+    prompt._can_finalize = lambda x: True
+
+    # Should not raise or modify prompt
+    validate_finalization(None, None, prompt, None)
+    assert hasattr(prompt, "_finalize")
+    assert hasattr(prompt, "_can_finalize")
+
+
+def test_validate_finalization_with_finalizer():
+    prompt = Mock()
+    prompt._finalize = lambda x: x
+    prompt._can_finalize = lambda x: True
+
+    validate_finalization(None, "finalizer", prompt, None)
+    assert not hasattr(prompt, "_finalize")
+    assert hasattr(prompt, "_can_finalize")
+
+
+def test_validate_finalization_with_supervisor():
+    prompt = Mock()
+    prompt._finalize = lambda x: x
+    prompt._can_finalize = lambda x: True
+
+    validate_finalization(None, None, prompt, "supervisor")
+    assert not hasattr(prompt, "_finalize")
+    assert hasattr(prompt, "_can_finalize")
+
+
+def test_validate_finalization_with_both_raises():
+    prompt = Mock()
+    prompt._finalize = lambda x: x
+
+    with pytest.raises(
+        AssertionError,
+        match="Either finalizer_name or supervisor must be set, but not both",
+    ):
+        validate_finalization(None, "finalizer", prompt, "supervisor")
+
+
+def test_validate_finalization_with_can_finalize():
+    prompt = Mock()
+    prompt._finalize = lambda x: x
+    prompt._can_finalize = lambda x: True
+
+    validate_finalization("can_finalize", None, prompt, None)
+    assert hasattr(prompt, "_finalize")
+    assert not hasattr(prompt, "_can_finalize")
+
+
+def test_validate_finalization_with_all_raises():
+    prompt = Mock()
+    prompt._finalize = lambda x: x
+    prompt._can_finalize = lambda x: True
+
+    with pytest.raises(
+        AssertionError,
+        match="Either finalizer_name or supervisor must be set, but not both",
+    ):
+        validate_finalization("can_finalize", "finalizer", prompt, "supervisor")

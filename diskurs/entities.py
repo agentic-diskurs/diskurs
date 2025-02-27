@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass, fields, is_dataclass, field
 from enum import Enum
 from typing import Any, get_args, get_origin, Annotated
@@ -227,3 +228,12 @@ class ToolDescription:
 @dataclass
 class ResultHolder(JsonSerializable):
     result: Optional[dict[str, Any]] = None
+
+
+@dataclass
+class RoutingRule(JsonSerializable):
+    """A rule used for deterministic routing decisions"""
+    name: str
+    description: str
+    condition: Callable[[Conversation], bool]
+    target_agent: str
