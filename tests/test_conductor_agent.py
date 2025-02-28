@@ -748,3 +748,65 @@ def test_validate_finalization_with_all_raises():
         match="Either finalizer_name or supervisor must be set, but not both",
     ):
         validate_finalization("can_finalize", "finalizer", prompt, "supervisor")
+
+@pytest.mark.asyncio
+async def test_invoke_rule_match_one_message(conductor_agent_with_rules, mock_conversation):
+    """Test that invoke appends only one message when a rule matches."""
+    conductor_agent_with_rules.prepare_conversation = Mock(return_value=mock_conversation)
+
+    # Set up the prompt to properly create a user_prompt_argument with next_agent
+    def mock_create_user_prompt_arg(**kwargs):
+        if "next_agent" in kwargs:
+            return TestUserPromptArgument(next_agent=kwargs["next_agent"])
+        return TestUserPromptArgument()
+
+    conductor_agent_with_rules.prompt.create_user_prompt_argument = Mock(side_effect=mock_create_user_prompt_arg)
+
+    initial_message_count = len(mock_conversation.chat)
+    result = await conductor_agent_with_rules.invoke(mock_conversation, MessageType.CONDUCTOR)
+
+    # Assert that only one message was appended
+    assert len(result.chat) == initial_message_count + 1
+
+
+@pytest.mark.asyncio
+async def test_invoke_no_rule_match_one_message(conductor_agent_with_rules, mock_conversation):
+    """Test that invoke appends only one message when no rule matches and LLM is used."""
+    # Make all rules return false
+    for rule in conductor_agent_with_rules.rules:
+        rule.condition = rule_always_false
+
+    conductor_agent_with_rules.prepare_conversation = Mock(return_value=mock_conversation)
+
+    # Mock generate_validated_response to return a modified conversation
+    async def mock_generate_validated_response(conversation, message_type=None):
+        return conversation.append(
+            ChatMessage(role=Role.ASSISTANT, content="LLM response", name="llm", type=MessageType.CONDUCTOR)
+        )
+
+    conductor_agent_with_rules.generate_validated_response = AsyncMock(side_effect=mock_generate_validated_response)
+
+    initial_message_count = len(mock_conversation.chat)
+    result = await conductor_agent_with_rules.invoke(mock_conversation, MessageType.CONDUCTOR)
+
+    # Assert that generate_validated_response was called
+    conductor_agent_with_rules.generate_validated_response.assert_called_once()
+
+    # Assert that only one message was appended
+    assert len(result.chat) == initial_message_count + 1
+
+
+@pytest.mark.asyncio
+async def test_invoke_no_rule_no_llm_no_message(conductor_agent_rules_only, mock_conversation):
+    """Test that invoke appends no message when no rule matches and no LLM is available."""
+    # Make all rules return false
+    for rule in conductor_agent_rules_only.rules:
+        rule.condition = rule_always_false
+
+    conductor_agent_rules_only.prepare_conversation = Mock(return_value=mock_conversation)
+
+    initial_message_count = len(mock_conversation.chat)
+    result = await conductor_agent_rules_only.invoke(mock_conversation, MessageType.CONDUCTOR)
+
+    # Assert that no message was appended
+    assert len(result.chat) == initial_message_count

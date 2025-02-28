@@ -4,13 +4,7 @@ from pathlib import Path
 from typing import List, Callable, Type, Any
 
 from diskurs.config import load_config_from_yaml
-from diskurs.entities import (
-    ToolDescription,
-    DiskursInput,
-    ChatMessage,
-    Role,
-    MessageType,
-)
+from diskurs.entities import ToolDescription, DiskursInput, ChatMessage, Role, MessageType, RoutingRule
 from diskurs.logger_setup import get_logger
 from diskurs.protocols import (
     Agent,
@@ -262,23 +256,24 @@ class ForumFactory:
             if hasattr(agent_conf, "supervisor"):
                 additional_args["supervisor"] = agent_conf.supervisor
 
-            # Add rule loading for conductors
             if agent_conf.type == "conductor" and hasattr(agent_conf, "rules") and getattr(agent_conf, "rules", False):
-                from diskurs.entities import RoutingRule
-                rules = []
 
+                rules = []
                 for rule_conf in agent_conf.rules:
-                    module_path = self.base_path / rule_conf.condition_module
+                    rule_location = rule_conf["location"]
+                    module_path = self.base_path / rule_location / "rules.py"
                     module = load_module_from_path(module_path)
 
-                    condition_fn = getattr(module, rule_conf.condition_name)
+                    condition_fn = getattr(module, rule_conf["condition_name"])
 
-                    rules.append(RoutingRule(
-                        name=rule_conf.name,
-                        description=rule_conf.description,
-                        condition=condition_fn,
-                        target_agent=rule_conf.target_agent
-                    ))
+                    rules.append(
+                        RoutingRule(
+                            name=rule_conf["name"],
+                            description=rule_conf["description"],
+                            condition=condition_fn,
+                            target_agent=rule_conf["target_agent"],
+                        )
+                    )
 
                 additional_args["rules"] = rules
 

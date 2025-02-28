@@ -1,0 +1,86 @@
+first_contact: "Test_Conductor_Agent"
+dispatcherType: "asynchronous"
+toolExecutorType: "default"
+conversationType: "immutable"
+
+# Simplified LLMs section
+llms:
+  - name: "test-llm"
+    type: "mock"
+    model_name: "test-model"
+    modelMaxTokens: 4096
+
+# Simple conversation store for testing
+conversationStore:
+  type: "memory"
+
+agents:
+  - name: "Test_Conductor_Agent"
+    type: "conductor"
+    llm: "test-llm"
+    prompt:
+      type: "conductor_prompt"
+      location: "conductor_test_files/test_conductor"
+      userPromptArgumentClass: "TestUserPromptArgument"
+      systemPromptArgumentClass: "TestSystemPromptArgument"
+      longtermMemoryClass: "TestLongtermMemory"
+      failName: "fail"
+    topics:
+      - "Target_Agent_One"
+      - "Target_Agent_Two"
+    rules:
+      - name: "test_rule_true"
+        description: "A rule that always returns true"
+        location: "test_files/conductor_test_files"
+        conditionName: "test_rule_condition"
+        targetAgent: "Target_Agent_One"
+      - name: "test_rule_false"
+        description: "A rule that always returns false"
+        location: "test_files/conductor_test_files"
+        conditionName: "test_rule_condition_false"
+        targetAgent: "Target_Agent_Two"
+      - name: "metadata_check_rule"
+        description: "A rule that checks for a specific metadata field"
+        location: "test_files/conductor_test_files"
+        conditionName: "check_metadata_field"
+        targetAgent: "Metadata_Agent"
+    fallbackToLlm: true
+
+  - name: "Target_Agent_One"
+    type: "multistep"
+    llm: "test-llm"
+    prompt:
+      type: "multistep_prompt"
+      location: "prompt_test_files"
+      systemPromptArgumentClass: "MySystemPromptArgument"
+      userPromptArgumentClass: "MyUserPromptArgument"
+      isValidName: "is_valid"
+      isFinalName: "is_final"
+    topics:
+      - "Test_Conductor_Agent"
+
+  - name: "Target_Agent_Two"
+    type: "multistep"
+    llm: "test-llm"
+    prompt:
+      type: "multistep_prompt"
+      location: "prompt_test_files"
+      systemPromptArgumentClass: "MySystemPromptArgument"
+      userPromptArgumentClass: "MyUserPromptArgument"
+      isValidName: "is_valid"
+      isFinalName: "is_final"
+    topics:
+      - "Test_Conductor_Agent"
+
+  - name: "Metadata_Agent"
+    type: "multistep"
+    llm: "test-llm"
+    prompt:
+      type: "multistep_prompt"
+      location: "prompt_test_files"
+      systemPromptArgumentClass: "MySystemPromptArgument"
+      userPromptArgumentClass: "MyUserPromptArgument"
+      isValidName: "is_valid"
+      isFinalName: "is_final"
+    topics:
+      - "Test_Conductor_Agent"

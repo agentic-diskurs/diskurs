@@ -171,26 +171,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             message_type=MessageType.CONDUCTOR,
         )
 
-        next_agent = self.evaluate_rules(conversation)
-
-        if next_agent is None and self.fallback_to_llm and self.llm_client:
-            self.logger.debug("No matching rule found, falling back to LLM routing")
-
-            for reasoning_step in range(self.max_trials):
-                self.logger.debug(f"LLM routing step {reasoning_step + 1}")
-                conversation = await self.generate_validated_response(conversation, message_type=MessageType.CONDUCTOR)
-
-                if (
-                    self.prompt.is_final(conversation.user_prompt_argument)
-                    and not conversation.has_pending_tool_response()
-                ):
-                    self.logger.debug("Final response found in LLM routing")
-                    if hasattr(conversation.user_prompt_argument, "next_agent"):
-                        next_agent = conversation.user_prompt_argument.next_agent
-                    break
-
-        # If we have a next_agent from rules (or LLM fallback), update the user_prompt_argument
-        if next_agent:
+        if next_agent := self.evaluate_rules(conversation):
             # Directly update the next_agent field in the prompt argument
             updated_prompt = conversation.user_prompt_argument
             updated_prompt.next_agent = next_agent
@@ -202,6 +183,23 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             conversation = conversation.append(
                 ChatMessage(role=Role.ASSISTANT, content=content, name=self.name, type=MessageType.CONDUCTOR)
             )
+
+        elif self.fallback_to_llm and self.llm_client:
+            self.logger.debug("No matching rule found, falling back to LLM routing")
+
+            for reasoning_step in range(self.max_trials):
+                self.logger.debug(f"LLM routing step {reasoning_step + 1}")
+                conversation = await self.generate_validated_response(conversation, message_type=MessageType.CONDUCTOR)
+
+                if (
+                    self.prompt.is_final(conversation.user_prompt_argument)
+                    and not conversation.has_pending_tool_response()
+                    and hasattr(conversation.user_prompt_argument, "next_agent")
+                ):
+                    self.logger.debug("Final response found in LLM routing")
+                    break
+        else:
+            self.logger.error("No matching rule found and no LLM client available")
 
         return conversation
 

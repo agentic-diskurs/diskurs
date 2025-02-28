@@ -1116,58 +1116,6 @@ class ConductorAgent(Protocol):
         """
         ...
 
-    async def finalize(self, conversation: Conversation) -> None:
-        """
-        Finalizes the conversation to produce a result.
-
-        This method handles the end of a successful conversation and produces a final
-        result through one of three mechanisms:
-        1. Routing to a supervisor agent that will handle further processing
-        2. Routing to a dedicated finalizer agent that will generate the final result
-        3. Using the prompt's finalize method to generate a result directly
-
-        Finalizing refers to the process of generating the final answer to be returned by diskurs.
-        The function can work in two ways:
-            1. If a "finalizer_name" has been provided, the function will call an agent with that name, to finalize.
-            2. If no "finalizer_name" has been provided, the function will call the "finalize" function on the prompt.
-
-        :param conversation: The conversation to finalize
-        """
-        ...
-
-    def fail(self, conversation: Conversation) -> dict[str, Any]:
-        """
-        Handles conversation failure when no valid routing path can be found.
-
-        This method is called when the conversation cannot be successfully routed or
-        when the maximum number of dispatches is reached. It utilizes the prompt's
-        fail method to produce an appropriate error result.
-
-        :param conversation: The conversation that failed to complete successfully
-        :return: A dictionary representing the failure result
-        """
-        ...
-
-    async def process_conversation(self, conversation: Conversation) -> None:
-        """
-        Processes the conversation by determining the next step in the agent workflow.
-
-        This is the main entry point for the agent when receiving a conversation from
-        the dispatcher. The method follows this sequence:
-        1. Update the agent's long-term memory with relevant conversation data
-        2. Check if the conversation can be finalized
-        3. If ready to finalize, call the finalize method
-        4. If max dispatches reached, handle as a failure
-        5. Otherwise, invoke the agent to determine the next routing step
-        6. Publish the updated conversation to the next agent in the workflow
-
-        The agent keeps track of dispatches to prevent infinite loops and will fail
-        gracefully if the maximum number of dispatches is reached.
-
-        :param conversation: The conversation to process
-        """
-        ...
-
 
 class ToolExecutor(Protocol):
     """

@@ -5,6 +5,7 @@ from .entities import PromptArgument, LongtermMemory, DiskursInput, PromptField,
 from .forum import create_forum_from_config, ForumFactory, Forum
 from .immutable_conversation import ImmutableConversation
 from .multistep_agent import MultiStepAgent
+from .conductor_agent import ConductorAgent
 from .prompt import PromptValidationError
 from .protocols import (
     ConversationStore,
@@ -18,7 +19,6 @@ from .protocols import (
     ConversationDispatcher,
     CallTool,
     ToolExecutor,
-    ConductorAgent,
     ToolDependency,
 )
 from .registry import (
