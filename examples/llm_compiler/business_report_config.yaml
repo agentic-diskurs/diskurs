@@ -1,0 +1,67 @@
+firstContact: "conductor"
+toolExecutorType: "default"
+dispatcherType: "asynchronous"
+customModules:
+  - location: "tools/data_analysis_tools.py"
+    name: "data_analysis_tools"
+
+llms:
+  - name: "gpt-4-base"
+    type: "azure"
+    api_version: "2024-08-01-preview"
+    model_name: "gpt-4-0613"
+    endpoint: "${AZURE_AI_ENDPOINT}"
+    use_entra_id: true
+    modelMaxTokens: 8192
+
+conversation:
+  type: immutable_conversation
+
+conversationStore:
+  type: filesystem
+  isPersistent: true
+  directory: conversations
+
+agents:
+  - type: llm_compiler
+    name: compiler
+    llm: "gpt-4-base"
+    prompt:
+      type: llm_compiler_prompt
+    tools:
+      - analyze_sales_data
+      - analyze_employee_performance
+      - generate_budget_projection
+      - generate_strategic_recommendations
+    maxReasoningSteps: 5
+    maxTrials: 3
+    topics:
+      - conductor
+
+  - type: conductor
+    name: conductor
+    llm: "gpt-4-base"
+    topics:
+      - compiler
+    agentDescriptions:
+      compiler: "Breaks down complex tasks into steps with function calls and executes them in parallel when possible"
+    prompt:
+      type: conductor_prompt
+      location: conductor
+      longtermMemoryClass: LongTermMemory
+      canFinalizeName: can_finalize
+      failName: fail
+
+tools:
+  - name: analyze_sales_data
+    functionName: analyze_sales_data
+    moduleName: data_analysis_tools
+  - name: analyze_employee_performance
+    functionName: analyze_employee_performance
+    moduleName: data_analysis_tools
+  - name: generate_budget_projection
+    functionName: generate_budget_projection
+    moduleName: data_analysis_tools
+  - name: generate_strategic_recommendations
+    functionName: generate_strategic_recommendations
+    moduleName: data_analysis_tools

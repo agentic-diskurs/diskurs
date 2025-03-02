@@ -1129,7 +1129,7 @@ class ToolExecutor(Protocol):
     tools: dict[str, Callable]
     dependencies: dict[str, "ToolDependency"]
 
-    def register_tools(self, tool_list: List[Callable] | Callable) -> None:
+    def register_tools(self, tools: List[Callable] | Callable) -> None:
         """
         Registers one or more tools with the executor.
 
@@ -1137,7 +1137,7 @@ class ToolExecutor(Protocol):
         that can be executed by the executor. Each tool is a callable that can
         be invoked with specific arguments.
 
-        :param tool_list: A single callable or a list of callables representing the tools to be registered.
+        :param tools: A single callable or a list of callables representing the tools to be registered.
         """
         ...
 

@@ -1,6 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from diskurs.entities import PromptArgument
+from diskurs.entities import JsonSerializable, PromptArgument
 from diskurs.prompt import PromptValidationError
 
 
@@ -32,3 +32,16 @@ def is_valid(arg: MyUserPromptArgument) -> bool:
 def is_final(arg: MyUserPromptArgument) -> bool:
     if len(arg.answer) > 10:
         return True
+
+
+@dataclass
+class Step(JsonSerializable):
+    """Represents a single step in an execution plan."""
+
+    topic: str = ""
+
+
+@dataclass
+class MyUserPromptWithArrayArgument(PromptArgument):
+    name: str = ""
+    steps: list[Step] = field(default_factory=list)

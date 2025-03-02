@@ -45,6 +45,7 @@ aiofiles = "^24.1.0"
 azure-identity = {version = "^1.19.0", extras = ["azure"]}
 
 inquirer = "^3.4.0"
+networkx = "^3.4.2"
 [tool.poetry.extras]
 azure = ["azure-identity"]
 
