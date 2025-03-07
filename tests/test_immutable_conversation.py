@@ -1,4 +1,5 @@
 import enum
+import json
 from dataclasses import dataclass
 
 import pytest
@@ -6,6 +7,13 @@ import pytest
 from conftest import EnumPromptArgument, EnumLongtermMemory, ChatType, Priority
 from diskurs import ImmutableConversation
 from diskurs.entities import Role, ChatMessage, MessageType, PromptArgument
+
+
+# Add this enum at module level so it can be imported during deserialization
+class Status(enum.Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    PENDING = "pending"
 
 
 def test_conversation_to_dict(conversation):
@@ -199,3 +207,147 @@ class TestImmutableConversationWithEnums:
 
         restored = SpecialPrompt.from_dict(data)
         assert restored.special == SpecialEnum.EMPTY
+
+    def test_metadata_with_enums(self):
+        """Test storing enum values in metadata and serializing/deserializing them"""
+        from tests.test_files.test_entities import ChatType
+
+        # Create a conversation with enum in metadata
+        conversation = ImmutableConversation(
+            system_prompt=ChatMessage(role=Role.SYSTEM, content="System prompt"),
+            user_prompt=ChatMessage(role=Role.USER, content="User message"),
+            metadata={"chat_type": ChatType.CHAT, "regular_value": "normal string"},
+            active_agent="test_agent",
+        )
+
+        # Serialize the conversation
+        data = conversation.to_dict()
+
+        assert json.dumps(data), "Metadata with enums should be JSON serializable"
+
+        # Check that the enum is correctly serialized
+        assert isinstance(data["metadata"]["chat_type"], dict)
+        assert data["metadata"]["chat_type"]["__enum__"] is True
+        assert data["metadata"]["chat_type"]["module"] == "tests.test_files.test_entities"
+        assert data["metadata"]["chat_type"]["class"] == "ChatType"
+        assert data["metadata"]["chat_type"]["value"] == "CHAT"
+
+        # Check that regular values remain untouched
+        assert data["metadata"]["regular_value"] == "normal string"
+
+        # Create a mock agent for deserialization
+        class MockAgent:
+            def __init__(self, name):
+                self.name = name
+                self.prompt = type(
+                    "Prompt",
+                    (),
+                    {
+                        "user_prompt_argument": None,
+                        "system_prompt_argument": None,
+                        "longterm_memory": None,
+                    },
+                )
+
+        mock_agent = MockAgent("test_agent")
+
+        # Deserialize the conversation
+        restored = ImmutableConversation.from_dict(data=data, agents=[mock_agent])
+
+        # Check that the enum was correctly deserialized
+        assert restored.metadata["chat_type"] == ChatType.CHAT
+        assert restored.metadata["regular_value"] == "normal string"
+
+    def test_metadata_with_multiple_enums(self):
+        """Test storing multiple different enum values in metadata"""
+        from tests.test_files.test_entities import ChatType
+
+        # Create a conversation with multiple enums in metadata
+        conversation = ImmutableConversation(
+            system_prompt=ChatMessage(role=Role.SYSTEM, content="System prompt"),
+            user_prompt=ChatMessage(role=Role.USER, content="User message"),
+            metadata={
+                "chat_type": ChatType.KEYWORD,
+                "status": Status.PENDING,
+                "message_type": MessageType.CONVERSATION,
+            },
+            active_agent="test_agent",
+        )
+
+        # Serialize the conversation
+        data = conversation.to_dict()
+
+        assert json.dumps(data), "Metadata with enums should be JSON serializable"
+
+        # Check that all enums are correctly serialized
+        assert data["metadata"]["chat_type"]["value"] == "KEYWORD"
+        assert data["metadata"]["status"]["class"] == "Status"
+        assert data["metadata"]["status"]["value"] == "PENDING"
+        assert data["metadata"]["message_type"]["value"] == "CONVERSATION"
+
+        # Create a mock agent for deserialization
+        class MockAgent:
+            def __init__(self, name):
+                self.name = name
+                self.prompt = type(
+                    "Prompt",
+                    (),
+                    {
+                        "user_prompt_argument": None,
+                        "system_prompt_argument": None,
+                        "longterm_memory": None,
+                    },
+                )
+
+        mock_agent = MockAgent("test_agent")
+
+        # Deserialize the conversation
+        restored = ImmutableConversation.from_dict(data=data, agents=[mock_agent])
+
+        # Check that the enums were correctly deserialized
+        assert restored.metadata["chat_type"] == ChatType.KEYWORD
+        assert restored.metadata["status"] == Status.PENDING
+        assert restored.metadata["message_type"] == MessageType.CONVERSATION
+
+    def test_metadata_with_enum_error_handling(self):
+        """Test error handling when deserializing enums in metadata"""
+        # Create a conversation dict with a non-existent enum class
+        conversation_dict = {
+            "system_prompt": None,
+            "user_prompt": None,
+            "system_prompt_argument": None,
+            "user_prompt_argument": None,
+            "chat": [],
+            "longterm_memory": {},
+            "metadata": {
+                "non_existent_enum": {
+                    "__enum__": True,
+                    "module": "non.existent.module",
+                    "class": "NonExistentEnum",
+                    "value": "SOME_VALUE",
+                }
+            },
+            "active_agent": "test_agent",
+        }
+
+        # Create a mock agent for deserialization
+        class MockAgent:
+            def __init__(self, name):
+                self.name = name
+                self.prompt = type(
+                    "Prompt",
+                    (),
+                    {
+                        "user_prompt_argument": None,
+                        "system_prompt_argument": None,
+                        "longterm_memory": None,
+                    },
+                )
+
+        mock_agent = MockAgent("test_agent")
+
+        # Deserialize the conversation - this should not raise an exception
+        restored = ImmutableConversation.from_dict(data=conversation_dict, agents=[mock_agent])
+
+        # The original serialized form should be preserved
+        assert restored.metadata["non_existent_enum"] == conversation_dict["metadata"]["non_existent_enum"]

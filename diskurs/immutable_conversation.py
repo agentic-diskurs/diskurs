@@ -1,4 +1,6 @@
 import copy
+import enum
+import importlib
 from dataclasses import fields, replace
 from typing import TypeVar, Optional, Any
 
@@ -23,7 +25,7 @@ class ImmutableConversation(Conversation):
         user_prompt_argument: Optional[GenericUserPromptArg] = None,
         chat=None,
         longterm_memory: Optional[dict[str, "LongtermMemory"]] = None,
-        metadata: Optional[dict[str, str]] = None,
+        metadata: Optional[dict[str, str | enum.Enum]] = None,
         active_agent: str = "",
         conversation_id="",
         final_result: Optional[dict[str, Any]] = None,
@@ -106,7 +108,7 @@ class ImmutableConversation(Conversation):
         return copy.deepcopy(self._user_prompt_argument)
 
     @property
-    def metadata(self) -> dict[str, str]:
+    def metadata(self) -> dict[str, str | enum.Enum]:
         return copy.deepcopy(self._metadata)
 
     @property
@@ -165,7 +167,7 @@ class ImmutableConversation(Conversation):
         system_prompt: Optional[ChatMessage] = None,
         user_prompt: Optional[ChatMessage | list[ChatMessage]] = None,
         longterm_memory: Optional[dict[str, Any]] = None,
-        metadata: Optional[dict[str, str]] = None,
+        metadata: Optional[dict[str, str | enum.Enum]] = None,
         active_agent: Optional[str] = None,
         conversation_id: Optional[str] = None,
     ) -> "ImmutableConversation":
@@ -251,7 +253,7 @@ class ImmutableConversation(Conversation):
     ) -> "ImmutableConversation":
         active_agent = next(agent for agent in agents if agent.name == data["active_agent"])
 
-        system_prompt_argument_class = getattr(active_agent.prompt, 'system_prompt_argument', None)
+        system_prompt_argument_class = getattr(active_agent.prompt, "system_prompt_argument", None)
         system_prompt_argument = (
             system_prompt_argument_class.from_dict(data.get("system_prompt_argument"))
             if system_prompt_argument_class and data.get("system_prompt_argument")
@@ -271,6 +273,20 @@ class ImmutableConversation(Conversation):
         }
         longterm_memory = {k: ltm_cls_map[k].from_dict(v) for k, v in data.get("longterm_memory", {}).items()}
 
+        # Process metadata to deserialize enums
+        metadata = data.get("metadata", {})
+        for k, v in list(metadata.items()):
+            if isinstance(v, dict) and v.get("__enum__") is True:
+                try:
+                    # Import the enum class dynamically
+                    module = importlib.import_module(v["module"])
+                    enum_class = getattr(module, v["class"])
+                    # Get the enum value by name
+                    metadata[k] = getattr(enum_class, v["value"])
+                except (ImportError, AttributeError) as e:
+                    # If the enum class or value can't be found, keep the serialized representation
+                    pass
+
         return cls(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
@@ -278,13 +294,29 @@ class ImmutableConversation(Conversation):
             user_prompt_argument=user_prompt_argument,
             chat=[ChatMessage.from_dict(msg) for msg in data.get("chat", [])],
             longterm_memory=longterm_memory,
-            metadata=data.get("metadata", {}),
+            metadata=metadata,
             active_agent=data["active_agent"],
             conversation_id=data.get("conversation_id", ""),
             conversation_store=conversation_store,
         )
 
     def to_dict(self) -> dict[str, Any]:
+        # Helper to handle enum serialization
+        def process_metadata(md):
+            processed = {}
+            for k, v in md.items():
+                if isinstance(v, enum.Enum):
+                    # Store enum as tuple: (enum class name, enum value name)
+                    processed[k] = {
+                        "__enum__": True,
+                        "module": v.__class__.__module__,
+                        "class": v.__class__.__name__,
+                        "value": v.name,
+                    }
+                else:
+                    processed[k] = v
+            return processed
+
         return {
             "system_prompt": (self.system_prompt.to_dict() if self.system_prompt else None),
             "user_prompt": (self.user_prompt.to_dict() if self.user_prompt else None),
@@ -292,7 +324,7 @@ class ImmutableConversation(Conversation):
             "user_prompt_argument": (self.user_prompt_argument.to_dict() if self.user_prompt_argument else None),
             "chat": [msg.to_dict() for msg in self.chat],
             "longterm_memory": {k: v.to_dict() for k, v in self._longterm_memory.items()},
-            "metadata": self.metadata,
+            "metadata": process_metadata(self.metadata),
             "active_agent": self.active_agent,
             "conversation_id": self.conversation_id,
         }
