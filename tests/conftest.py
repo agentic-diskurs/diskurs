@@ -1,6 +1,7 @@
+import enum
 import inspect
 from dataclasses import dataclass
-from typing import Type
+from typing import Type, Optional
 from unittest.mock import Mock, AsyncMock
 
 import pytest
@@ -255,3 +256,36 @@ def conversation_dict():
         "active_agent": "my_conductor",
         "conversation_id": "",
     }
+
+
+class ChatType(enum.Enum):
+    """Test enum to verify serialization behavior"""
+
+    DIRECT = "direct"
+    GROUP = "group"
+    CHANNEL = "channel"
+
+
+class Priority(enum.Enum):
+    """Test numeric enum"""
+
+    LOW = 0
+    MEDIUM = 1
+    HIGH = 2
+
+
+@dataclass
+class EnumPromptArgument(PromptArgument):
+    """Test prompt argument with various enum fields"""
+
+    chat_type: ChatType = ChatType.DIRECT
+    priority: Priority = Priority.MEDIUM
+    message_type: Optional[MessageType] = None
+
+
+@dataclass
+class EnumLongtermMemory(LongtermMemory):
+    """Test longterm memory with enum fields"""
+
+    user_query: str = ""
+    preferred_chat_type: ChatType = ChatType.DIRECT

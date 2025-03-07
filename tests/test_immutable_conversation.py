@@ -1,4 +1,11 @@
+import enum
+from dataclasses import dataclass
+
+import pytest
+
+from conftest import EnumPromptArgument, EnumLongtermMemory, ChatType, Priority
 from diskurs import ImmutableConversation
+from diskurs.entities import Role, ChatMessage, MessageType, PromptArgument
 
 
 def test_conversation_to_dict(conversation):
@@ -52,13 +59,11 @@ def test_conversation_from_dict_with_heuristic_agent(heuristic_agent_mock, conve
     conversation_dict["active_agent"] = "heuristic_agent"
     conversation_dict["system_prompt_argument"] = None
 
-    new_conversation = ImmutableConversation.from_dict(
-        data=conversation_dict,
-        agents=[heuristic_agent_mock]
-    )
+    new_conversation = ImmutableConversation.from_dict(data=conversation_dict, agents=[heuristic_agent_mock])
 
     assert new_conversation.system_prompt_argument is None
     assert new_conversation.active_agent == "heuristic_agent"
+
 
 def test_conversation_from_dict_missing_system_prompt_argument(conductor_mock):
     """Test that from_dict handles missing system_prompt_argument in data dict."""
@@ -71,15 +76,13 @@ def test_conversation_from_dict_missing_system_prompt_argument(conductor_mock):
         "longterm_memory": {},
         "metadata": {},
         "active_agent": "my_conductor",
-        "conversation_id": ""
+        "conversation_id": "",
     }
 
-    new_conversation = ImmutableConversation.from_dict(
-        data=conversation_dict,
-        agents=[conductor_mock]
-    )
+    new_conversation = ImmutableConversation.from_dict(data=conversation_dict, agents=[conductor_mock])
 
     assert new_conversation.system_prompt_argument is None
+
 
 def test_conversation_from_dict_none_values(conductor_mock):
     """Test that from_dict properly handles None values for all optional fields."""
@@ -91,13 +94,10 @@ def test_conversation_from_dict_none_values(conductor_mock):
         "chat": [],
         "longterm_memory": {},
         "metadata": {},
-        "active_agent": "my_conductor"
+        "active_agent": "my_conductor",
     }
 
-    new_conversation = ImmutableConversation.from_dict(
-        data=conversation_dict,
-        agents=[conductor_mock]
-    )
+    new_conversation = ImmutableConversation.from_dict(data=conversation_dict, agents=[conductor_mock])
 
     assert new_conversation.system_prompt is None
     assert new_conversation.user_prompt is None
@@ -105,3 +105,97 @@ def test_conversation_from_dict_none_values(conductor_mock):
     assert new_conversation.user_prompt_argument is None
     assert new_conversation.chat == []
     assert new_conversation.metadata == {}
+
+
+class TestImmutableConversationWithEnums:
+    """Tests for enum handling in ImmutableConversation"""
+
+    @pytest.fixture
+    def enum_conversation(self):
+        """Create a test conversation with enum values"""
+        # Create conversation with enum-based prompt arguments and longterm memory
+        ltm = EnumLongtermMemory(user_query="Test query", preferred_chat_type=ChatType.GROUP)
+        user_prompt_arg = EnumPromptArgument(
+            chat_type=ChatType.CHANNEL, priority=Priority.HIGH, message_type=MessageType.CONDUCTOR
+        )
+
+        conversation = ImmutableConversation(
+            user_prompt_argument=user_prompt_arg,
+            system_prompt=ChatMessage(role=Role.SYSTEM, content="System prompt"),
+            user_prompt=ChatMessage(role=Role.USER, content="User message"),
+            active_agent="test_agent",
+        )
+
+        # Add longterm memory
+        conversation = conversation.update_agent_longterm_memory(agent_name="test_conductor", longterm_memory=ltm)
+
+        return conversation
+
+    def test_conversation_serialization_with_enums(self, enum_conversation):
+        """Test serializing a conversation with enum values"""
+        data = enum_conversation.to_dict()
+
+        # Check enum values are serialized correctly
+        assert data["user_prompt_argument"]["chat_type"] == "channel"
+        assert data["user_prompt_argument"]["priority"] == 2
+        assert data["user_prompt_argument"]["message_type"] == "conductor"
+        assert data["longterm_memory"]["test_conductor"]["preferred_chat_type"] == "group"
+
+    def test_conversation_round_trip(self, enum_conversation, monkeypatch):
+        """Test round-trip serialization and deserialization"""
+        data = enum_conversation.to_dict()
+
+        # Create a mock agent class for from_dict
+        class MockAgent:
+            def __init__(self, name):
+                self.name = name
+                self.prompt = type(
+                    "Prompt",
+                    (),
+                    {
+                        "user_prompt_argument": EnumPromptArgument,
+                        "system_prompt_argument": None,
+                        "longterm_memory": EnumLongtermMemory,
+                    },
+                )
+
+        # Create mock agent instances
+        mock_agents = [MockAgent("test_agent"), MockAgent("test_conductor")]
+
+        # Deserialize conversation
+        restored = ImmutableConversation.from_dict(data=data, agents=mock_agents)
+
+        # Verify enum values are correctly deserialized
+        assert restored.user_prompt_argument.chat_type == ChatType.CHANNEL
+        assert restored.user_prompt_argument.priority == Priority.HIGH
+        assert restored.user_prompt_argument.message_type == MessageType.CONDUCTOR
+        assert restored._longterm_memory["test_conductor"].preferred_chat_type == ChatType.GROUP
+
+    def test_special_enum_values(self):
+        """Test enums with special characters or values"""
+
+        class SpecialEnum(enum.Enum):
+            WITH_SPACE = "value with space"
+            WITH_SPECIAL = "value-with.special:chars"
+            EMPTY = ""
+
+        @dataclass
+        class SpecialPrompt(PromptArgument):
+            special: SpecialEnum = SpecialEnum.WITH_SPACE
+
+        # Test serialization
+        prompt = SpecialPrompt(special=SpecialEnum.WITH_SPECIAL)
+        data = prompt.to_dict()
+        assert data["special"] == "value-with.special:chars"
+
+        # Test deserialization
+        restored = SpecialPrompt.from_dict(data)
+        assert restored.special == SpecialEnum.WITH_SPECIAL
+
+        # Test empty string
+        prompt = SpecialPrompt(special=SpecialEnum.EMPTY)
+        data = prompt.to_dict()
+        assert data["special"] == ""
+
+        restored = SpecialPrompt.from_dict(data)
+        assert restored.special == SpecialEnum.EMPTY

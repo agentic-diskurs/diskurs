@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, fields, is_dataclass, field
 from enum import Enum
-from typing import Any, get_args, get_origin, Annotated
+from typing import Any, Union, get_args, get_origin, Annotated
 from typing import Optional, TypeVar, Callable
 
 
@@ -12,7 +12,7 @@ class JsonSerializable:
             if is_dataclass(obj):
                 return {f.name: serialize(getattr(obj, f.name)) for f in fields(obj)}
             elif isinstance(obj, Enum):
-                return obj.value  # or obj.name
+                return obj.value  # Convert Enum to its value
             elif isinstance(obj, list):
                 return [serialize(item) for item in obj]
             elif isinstance(obj, dict):
@@ -24,7 +24,12 @@ class JsonSerializable:
 
     @classmethod
     def from_dict(cls, data):
+        if data is None:
+            return None
+
         def deserialize(cls_or_type, data):
+            if data is None:
+                return None
             if is_dataclass(cls_or_type):
                 kwargs = {}
                 for field in fields(cls_or_type):
@@ -40,8 +45,15 @@ class JsonSerializable:
                 return data
 
         def deserialize_field(field_type, value):
+
             origin = get_origin(field_type)
             args = get_args(field_type)
+
+            # Handle Annotated types (for prompt_field annotations)
+            if origin is Annotated:
+                field_type = args[0]  # The actual type is the first argument
+                origin = get_origin(field_type)
+                args = get_args(field_type)
 
             if origin is list:
                 item_type = args[0]
@@ -49,10 +61,18 @@ class JsonSerializable:
             elif origin is dict:
                 key_type, val_type = args
                 return {deserialize_field(key_type, k): deserialize_field(val_type, v) for k, v in value.items()}
+            elif origin is Optional or origin is Union:
+                # Handle Optional fields
+                for arg in args:
+                    try:
+                        return deserialize_field(arg, value)
+                    except (ValueError, TypeError):
+                        continue
+                return value
             elif is_dataclass(field_type):
                 return deserialize(field_type, value)
             elif isinstance(field_type, type) and issubclass(field_type, Enum):
-                return field_type(value)
+                return field_type(value)  # Convert value back to Enum
             else:
                 return value
 
@@ -233,6 +253,7 @@ class ResultHolder(JsonSerializable):
 @dataclass
 class RoutingRule(JsonSerializable):
     """A rule used for deterministic routing decisions"""
+
     name: str
     description: str
     condition: Callable[[Conversation], bool]

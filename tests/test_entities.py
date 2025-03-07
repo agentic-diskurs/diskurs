@@ -1,8 +1,17 @@
 from dataclasses import dataclass
+import pytest
 
-from conftest import MyLongtermMemory, MyUserPromptArgument
-from diskurs import ImmutableConversation, PromptArgument
-from diskurs.entities import ChatMessage, Role, prompt_field, PromptField
+from diskurs.entities import (
+    MessageType,
+    PromptArgument,
+    JsonSerializable,
+    ChatMessage,
+    Role,
+    prompt_field,
+    PromptField,
+)
+from diskurs.immutable_conversation import ImmutableConversation
+from conftest import MyLongtermMemory, MyUserPromptArgument, EnumPromptArgument, ChatType, Priority
 from typing import Annotated, get_type_hints
 
 
@@ -205,3 +214,90 @@ def test_prompt_field_in_inheritance():
 
     child_visible_meta = hints["child_visible"].__metadata__[0]
     assert child_visible_meta.should_include() is True
+
+
+class TestEnumSerialization:
+    """Tests focused on enum serialization"""
+
+    def test_simple_enum_serialization(self):
+        """Test direct serialization of enum values"""
+        # Direct serialization
+        arg = EnumPromptArgument()
+        data = arg.to_dict()
+
+        assert data["chat_type"] == "direct"
+        assert data["priority"] == 1
+        assert data["message_type"] is None
+
+    def test_simple_enum_deserialization(self):
+        """Test direct deserialization of enum values"""
+        # Direct deserialization
+        data = {"chat_type": "group", "priority": 2, "message_type": "conductor"}
+
+        arg = EnumPromptArgument.from_dict(data)
+
+        assert arg.chat_type == ChatType.GROUP
+        assert arg.priority == Priority.HIGH
+        assert arg.message_type == MessageType.CONDUCTOR
+
+    def test_nested_enum_serialization(self):
+        """Test enums within nested structures"""
+
+        @dataclass
+        class NestedStruct(JsonSerializable):
+            inner_enum: ChatType = ChatType.DIRECT
+
+        @dataclass
+        class OuterStruct(JsonSerializable):
+            nested: NestedStruct = None
+            enum_list: list[ChatType] = None
+            enum_dict: dict[str, ChatType] = None
+
+        # Create a complex nested structure with enums
+        test_obj = OuterStruct(
+            nested=NestedStruct(inner_enum=ChatType.GROUP),
+            enum_list=[ChatType.DIRECT, ChatType.CHANNEL],
+            enum_dict={"first": ChatType.GROUP, "second": ChatType.CHANNEL},
+        )
+
+        # Serialize
+        data = test_obj.to_dict()
+
+        # Verify serialized values
+        assert data["nested"]["inner_enum"] == "group"
+        assert data["enum_list"] == ["direct", "channel"]
+        assert data["enum_dict"] == {"first": "group", "second": "channel"}
+
+        # Deserialize
+        restored = OuterStruct.from_dict(data)
+
+        # Verify deserialized values
+        assert restored.nested.inner_enum == ChatType.GROUP
+        assert restored.enum_list == [ChatType.DIRECT, ChatType.CHANNEL]
+        assert restored.enum_dict == {"first": ChatType.GROUP, "second": ChatType.CHANNEL}
+
+    def test_optional_enum_handling(self):
+        """Test optional enum fields"""
+        # Test with value
+        arg1 = EnumPromptArgument(message_type=MessageType.CONDUCTOR)
+        data1 = arg1.to_dict()
+        assert data1["message_type"] == "conductor"
+
+        # Test with None
+        arg2 = EnumPromptArgument(message_type=None)
+        data2 = arg2.to_dict()
+        assert data2["message_type"] is None
+
+        # Deserialize None value
+        arg3 = EnumPromptArgument.from_dict({"message_type": None})
+        assert arg3.message_type is None
+
+    def test_enum_error_handling(self):
+        """Test error handling with invalid enum values"""
+        # Invalid string value
+        with pytest.raises(ValueError):
+            EnumPromptArgument.from_dict({"chat_type": "invalid_value"})
+
+        # Invalid numeric value
+        with pytest.raises(ValueError):
+            EnumPromptArgument.from_dict({"priority": 99})
