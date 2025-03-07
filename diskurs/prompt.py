@@ -140,7 +140,7 @@ def clean_json_string(text: str) -> str:
     return text.strip()
 
 
-def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1_000_000) -> dict:
+def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1_000_000) -> Union[dict, list]:
     """
     Parse and validate the LLM response as JSON, applying several cleaning steps
     to handle common formatting issues.
@@ -151,26 +151,26 @@ def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1_000_0
     :param llm_response: Raw text response from the LLM.
     :param max_depth: Maximum recursion depth for nested cleaning/parsing attempts.
     :param max_size: Maximum allowed size (in characters) for the JSON string.
-    :return: A parsed Python dictionary.
+    :return: A parsed Python dictionary or list.
     :raises PromptValidationError: If the response is too large, too deeply nested,
                                    or ultimately invalid.
     """
     if len(llm_response) > max_size:
         raise PromptValidationError(f"JSON response exceeds maximum size of {max_size} characters.")
 
-    def _parse_with_depth(json_str: str, current_depth: int) -> dict:
+    def _parse_with_depth(json_str: str, current_depth: int) -> Union[dict, list]:
         if current_depth > max_depth:
             raise PromptValidationError("Maximum JSON nesting depth exceeded.")
         try:
             parsed = json.loads(json_str)
-            # If we successfully parse a dict, return it.
-            if isinstance(parsed, dict):
+            # Accept both dict and list as valid top-level JSON structures
+            if isinstance(parsed, (dict, list)):
                 return parsed
             # If we parsed a string, it might be double-encoded JSON. Try again.
             if isinstance(parsed, str):
                 return _parse_with_depth(parsed, current_depth + 1)
-            # Otherwise, we require a top-level JSON object.
-            raise PromptValidationError(f"Expected a JSON object, got {type(parsed).__name__}.")
+            # Otherwise, we require a top-level JSON object or array.
+            raise PromptValidationError(f"Expected a JSON object or array, got {type(parsed).__name__}.")
         except json.JSONDecodeError as e:
             # Try cleaning the string and parsing again.
             cleaned = clean_json_string(json_str)
