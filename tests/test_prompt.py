@@ -92,7 +92,10 @@ def test_fail_parse_prompt(prompt_instance, prompt_testing_conversation):
         old_user_prompt_argument=prompt_testing_conversation.user_prompt_argument,
     )
 
-    assert res.content == "Invalid JSON: Expecting ',' delimiter at line 3, column 3. Please ensure the response is valid JSON."
+    assert (
+        res.content
+        == "Invalid JSON: Expecting ',' delimiter at line 3, column 3. Please ensure the response is valid JSON."
+    )
 
 
 @dataclass
@@ -197,7 +200,7 @@ prompt_config_no_finalize = {
 def test_conductor_no_finalize_function():
     prompt = ConductorPrompt.create(**prompt_config_no_finalize)
 
-    assert prompt._finalize is None
+    assert prompt._can_finalize.__name__ == "can_finalize"
 
 
 def test_parse_user_prompt_partial_update(prompt_instance, prompt_testing_conversation):

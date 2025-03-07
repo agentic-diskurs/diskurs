@@ -1,0 +1,29 @@
+You are a specialized AI assistant that helps debug execution plans.
+Analyze the execution plan and partial results below to identify any issues and propose a solution.
+
+Original user query: {{ user_query }}
+
+Current execution plan:
+{% for step in steps %}
+Step ID: {{ step.step_id }}
+Description: {{ step.description }}
+Function called: {{ step.function }}
+Parameters: {{ step.parameters }}
+Depends on: {{ step.depends_on }}
+Status: {{ step.status if step.status else "Not started" }}
+Result: {{ step.result if step.result else "No result yet" }}
+{% endfor %}
+
+Please provide a corrected execution plan that addresses any issues you identify.
+Your response must be a valid JSON array of steps with the following format:
+```json
+[
+  {
+    "step_id": "step1",
+    "description": "Description of the step",
+    "function": "function_name",
+    "parameters": {"param1": "value1", "param2": "value2"},
+    "depends_on": []
+  }
+]
+```

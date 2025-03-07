@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, fields, is_dataclass, field
 from enum import Enum
-from typing import Any, get_args, get_origin, Annotated
+from typing import Any, get_args, get_origin
 from typing import Optional, TypeVar, Callable
 
 
@@ -233,6 +233,7 @@ class ResultHolder(JsonSerializable):
 @dataclass
 class RoutingRule(JsonSerializable):
     """A rule used for deterministic routing decisions"""
+
     name: str
     description: str
     condition: Callable[[Conversation], bool]

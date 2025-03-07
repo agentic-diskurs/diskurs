@@ -1,6 +1,6 @@
-from typing import List, Set, Dict
+from typing import List
 import networkx as nx
-from .entities import ExecutionPlan, PlanStep
+from diskurs.llm_compiler.entities import ExecutionPlan
 
 
 class DependencyAnalyzer:
@@ -11,11 +11,9 @@ class DependencyAnalyzer:
         """
         Builds a directed graph representing dependencies between steps.
 
-        Args:
-            plan: The execution plan with steps and their dependencies
+        :param plan: The execution plan with steps and their dependencies
 
-        Returns:
-            A directed graph where nodes are step IDs and edges represent dependencies
+        :returns: A directed graph where nodes are step IDs and edges represent dependencies
         """
         G = nx.DiGraph()
 
@@ -35,11 +33,9 @@ class DependencyAnalyzer:
         """
         Identifies groups of steps that can be executed in parallel.
 
-        Args:
-            plan: The execution plan
+        :param plan: The execution plan
 
-        Returns:
-            A list of lists, where each inner list contains step IDs that can run in parallel
+        :returns: A list of lists, where each inner list contains step IDs that can run in parallel
         """
         G = DependencyAnalyzer.build_dependency_graph(plan)
 

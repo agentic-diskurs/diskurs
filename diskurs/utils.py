@@ -4,7 +4,7 @@ import sys
 from dataclasses import asdict, dataclass
 from importlib import resources
 from pathlib import Path
-from typing import TypeVar, Any
+from typing import Callable, Optional, TypeVar, Any
 
 import jinja2
 from jinja2 import Template
@@ -52,6 +52,25 @@ def load_template_from_package(package_name: str, template_name: str) -> Templat
 
 
 T = TypeVar("T", bound=dataclass)
+
+
+def safe_load_symbol(symbol_name: str, module: Any, default_factory: Optional[Callable] = None, **kwargs) -> Any:
+    """
+    Safely loads a symbol from a module with an optional default factory function.
+
+    param: symbol_name: Name of the symbol to load
+    param: module: Module to load the symbol from
+    param: default_factory: Optional factory function to create a default value if symbol isn't found
+    param: kwargs: Additional arguments passed to the default_factory
+
+    return: The loaded symbol or the default value
+    """
+    try:
+        symbol = getattr(module, symbol_name)
+        return symbol
+    except AttributeError as e:
+        logger.warning(f"Missing attribute {symbol_name} in {module.__name__}: {e}\nloading defaults")
+        return default_factory(**kwargs) if default_factory else None
 
 
 def get_fields_as_dict(dataclass_obj: T, fields_to_get: list[str]) -> dict[str, Any]:

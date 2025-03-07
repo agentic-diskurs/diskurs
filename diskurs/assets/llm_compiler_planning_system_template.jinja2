@@ -20,11 +20,19 @@ Your response must be a valid JSON array of steps with the following format:
 ```json
 [
   {
-    "step_id": "unique_id",
+    "step_id": "step1",
     "description": "Description of the step",
     "function": "function_name",
     "parameters": {"param1": "value1", "param2": "value2"},
-    "depends_on": ["step_id_1", "step_id_2"] // IDs of steps this step depends on, or empty array if no dependencies
+    "depends_on": []
   },
-  ...
+  {
+    "step_id": "step2",
+    "description": "Description of the step",
+    "function": "another_function",
+    "parameters": {"param1": "value1", "param2": "value2"},
+    "depends_on": ["step1"]
+  }
 ]
+```
+Do not include any text outside the JSON array. Return only the JSON array of steps.

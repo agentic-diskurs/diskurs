@@ -1,9 +1,9 @@
 import asyncio
-from typing import Dict, List, Any, Callable
+from typing import Callable
 import logging
 
-from .entities import ExecutionPlan, PlanStep
-from .dependency_analyzer import DependencyAnalyzer
+from diskurs.llm_compiler.entities import ExecutionPlan, PlanStep
+from diskurs.llm_compiler.dependency_analyzer import DependencyAnalyzer
 
 logger = logging.getLogger(__name__)
 

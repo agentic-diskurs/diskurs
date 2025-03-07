@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Callable, Type, Any
 
 from diskurs.config import load_config_from_yaml
-from diskurs.entities import ToolDescription, DiskursInput, ChatMessage, Role, MessageType, RoutingRule
+from diskurs.entities import DiskursInput, ChatMessage, Role, MessageType, RoutingRule
 from diskurs.logger_setup import get_logger
 from diskurs.protocols import (
     Agent,
@@ -130,6 +130,7 @@ class ForumFactory:
                 "immutable_conversation.py",
                 "filesystem_conversation_store.py",
                 "heuristic_agent.py",
+                "llm_compiler/llm_compiler_agent.py",
             ]
         ]
         self.conversation_store = conversation_store
@@ -231,7 +232,9 @@ class ForumFactory:
             if hasattr(agent_conf, "final_properties"):
                 additional_args["final_properties"] = agent_conf.final_properties
             if hasattr(agent_conf, "prompt"):
-                agent_conf.prompt.location = agent_conf.prompt.location.resolve()
+                if hasattr(agent_conf.prompt, "location") and agent_conf.prompt.location:
+                    agent_conf.prompt.location = agent_conf.prompt.location.resolve()
+
                 prompt_creation_arguments = asdict(agent_conf.prompt)
 
                 if agent_conf.prompt.type == "conductor_prompt":
@@ -243,9 +246,6 @@ class ForumFactory:
             if hasattr(agent_conf, "llm") and getattr(agent_conf, "llm", False):
                 additional_args["llm_client"] = self.llm_clients[agent_conf.llm]
             if hasattr(agent_conf, "tools") and agent_conf.tools:
-                additional_args["tools"] = [
-                    ToolDescription.from_function(tool) for tool in self.tools if tool.__name__ in agent_conf.tools
-                ]
                 additional_args["tool_executor"] = self.tool_executor
             if hasattr(agent_conf, "topics") and self.dispatcher:
                 additional_args["topics"] = agent_conf.topics
@@ -289,6 +289,11 @@ class ForumFactory:
                 raise ValueError(f"Agent type '{agent_type}' is not registered.")
 
             agent = agent_cls.create(name=agent_conf.name, **additional_args)
+
+            if hasattr(agent_conf, "tools") and agent_conf.tools:
+                agent_tools = [tool for tool in self.tools if tool.__name__ in agent_conf.tools]
+                if agent_tools:
+                    agent.register_tools(agent_tools)
 
             self.dispatcher.subscribe(topic=agent.name, subscriber=agent)
 

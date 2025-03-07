@@ -1,13 +1,15 @@
-from typing import Optional, List, Self
+from typing import Optional, Self
 
+from diskurs.agent import get_last_conductor_name, is_previous_agent_conductor
 from diskurs.multistep_agent import MultiStepAgent
 from diskurs.registry import register_agent
 from diskurs.entities import MessageType, ChatMessage, Role, ToolDescription
 from diskurs.protocols import LLMClient, ConversationDispatcher, Conversation, ToolExecutor
 
-from .parallel_executor import ParallelExecutor
-from .entities import ExecutionPlan, PlanStep
-from .prompts import LLMCompilerPrompt
+from diskurs.llm_compiler.parallel_executor import ParallelExecutor
+from diskurs.llm_compiler.entities import ExecutionPlan, PlanStep
+from diskurs.llm_compiler.prompts import LLMCompilerPrompt
+from diskurs.utils import load_template_from_package
 
 
 @register_agent("llm_compiler")
@@ -58,18 +60,13 @@ class LLMCompilerAgent(MultiStepAgent):
     async def invoke(self, conversation: Conversation, message_type=MessageType.CONVERSATION) -> Conversation:
         self.logger.debug(f"Invoke called on LLM Compiler agent {self.name}")
 
-        # First, prepare the conversation with initial prompts
+        previous_user_prompt_augment = conversation.user_prompt_argument
+
         conversation = self.prepare_conversation(
             conversation,
-            system_prompt_argument=self.prompt.create_system_prompt_argument(
-                tools=[ToolDescription.from_function(tool).__dict__ for tool in self.tools]
-            ),
-            user_prompt_argument=self.prompt.create_user_prompt_argument(
-                user_query=conversation.user_prompt_argument.user_query if conversation.user_prompt_argument else ""
-            ),
+            system_prompt_argument=self.prompt.create_system_prompt_argument(tools=self.tools),
+            user_prompt_argument=self.prompt.create_user_prompt_argument(),
         )
-
-        # Apply longterm memory if needed
         if self.init_prompt_arguments_with_longterm_memory:
             conversation = conversation.update_prompt_argument_with_longterm_memory(
                 conductor_name=get_last_conductor_name(conversation.chat)
@@ -77,7 +74,7 @@ class LLMCompilerAgent(MultiStepAgent):
 
         # Apply previous agent info if needed
         if not is_previous_agent_conductor(conversation) and self.init_prompt_arguments_with_previous_agent:
-            conversation = conversation.update_prompt_argument_with_previous_agent(conversation.user_prompt_argument)
+            conversation = conversation.update_prompt_argument_with_previous_agent(previous_user_prompt_augment)
 
         # 1. Planning phase: Generate an execution plan
         conversation = await self.generate_validated_response(conversation)
@@ -85,20 +82,42 @@ class LLMCompilerAgent(MultiStepAgent):
             return conversation
 
         # 2. Execution phase: Execute the plan in parallel
-        plan_dict = conversation.user_prompt_argument.execution_plan
+        execution_plan_data = conversation.user_prompt_argument.execution_plan
+
+        # Enhanced defensive parsing of execution plan
+        step_list = []
+        if isinstance(execution_plan_data, list):
+            step_list = execution_plan_data
+        elif isinstance(execution_plan_data, dict) and any(
+            key in execution_plan_data for key in ["steps", "execution_plan", "plan"]
+        ):
+            for key in ["steps", "execution_plan", "plan"]:
+                if key in execution_plan_data and isinstance(execution_plan_data[key], list):
+                    step_list = execution_plan_data[key]
+                    break
 
         # Convert to our entity classes
         steps = []
-        for step_dict in plan_dict:
-            steps.append(
-                PlanStep(
-                    step_id=step_dict["step_id"],
-                    description=step_dict["description"],
-                    function=step_dict["function"],
-                    parameters=step_dict["parameters"],
-                    depends_on=step_dict.get("depends_on", []),
-                )
-            )
+        for i, step_dict in enumerate(step_list):
+            if isinstance(step_dict, dict):
+                try:
+                    steps.append(
+                        PlanStep(
+                            step_id=step_dict.get("step_id", f"step_{i+1}"),
+                            description=step_dict.get("description", ""),
+                            function=step_dict.get("function", ""),
+                            parameters=step_dict.get("parameters", {}),
+                            depends_on=step_dict.get("depends_on", []),
+                        )
+                    )
+                except Exception as e:
+                    self.logger.error(f"Error creating PlanStep: {e}")
+                    self.logger.error(f"Problematic step_dict: {step_dict}")
+
+        # Continue only if we have steps to execute
+        if not steps:
+            self.logger.warning("No valid execution steps found in the plan")
+            return conversation
 
         execution_plan = ExecutionPlan(steps=steps, user_query=conversation.user_prompt_argument.user_query)
 
@@ -155,8 +174,17 @@ class LLMCompilerAgent(MultiStepAgent):
 
     def render_summary_template(self, executed_plan: ExecutionPlan) -> str:
         """Render the summary system template."""
-        template = load_template_from_package("diskurs.assets", "llm_compiler_summary_system_template.jinja2")
+        try:
+            template = load_template_from_package("diskurs.assets", "llm_compiler_summary_system_template.jinja2")
 
-        return template.render(
-            user_query=executed_plan.user_query, executed_steps=[step.__dict__ for step in executed_plan.steps]
-        )
+            return template.render(
+                user_query=executed_plan.user_query, executed_steps=[step.__dict__ for step in executed_plan.steps]
+            )
+        except Exception as e:
+            self.logger.error(f"Error rendering summary template: {e}")
+            # Fallback template string
+            fallback = "You are an AI assistant. Synthesize the results from these steps to answer: "
+            fallback += f"\n{executed_plan.user_query}\n\n"
+            for step in executed_plan.steps:
+                fallback += f"Step {step.step_id}: {step.description}\nResult: {step.result}\n\n"
+            return fallback
