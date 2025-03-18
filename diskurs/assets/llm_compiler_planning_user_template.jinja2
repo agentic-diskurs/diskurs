@@ -1,0 +1,24 @@
+{% if evaluate_replanning %}
+Please evaluate if the execution plan has gathered enough information to answer my original query:
+
+{{ user_query }}
+
+Return a clear decision on whether replanning is needed. If essential information is missing, explain what information is still needed.
+{% elif execution_plan is none or execution_plan|length == 0 %}
+I need to accomplish the following task. Please break it down into steps, specifying which functions to call and which steps can be executed in parallel:
+
+{{ user_query }}
+{% elif replan == True %}
+I need to revise my approach for this task:
+
+{{ user_query }}
+
+The previous execution plan wasn't sufficient because: {{ replan_explanation }}
+
+Please create an improved execution plan that addresses these issues.
+{% else %}
+Based on all the gathered information, I need to answer the user's original query.
+I should store this answer in the "answer" property
+
+{{ user_query }}
+{% endif %}

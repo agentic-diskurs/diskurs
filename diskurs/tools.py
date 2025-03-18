@@ -3,11 +3,12 @@ import logging
 import re
 from collections import defaultdict
 from functools import wraps
+from logging import Logger
 from pathlib import Path
 from typing import Callable, Optional, Any
 
 from diskurs.config import ToolConfig, ToolDependencyConfig
-from diskurs.entities import ToolCallResult, ToolCall
+from diskurs.entities import ToolCallResult, ToolCall, ToolDescription
 from diskurs.protocols import ToolExecutor as ToolExecutorProtocol, ToolDependency
 from diskurs.registry import register_tool_executor
 from diskurs.utils import load_module_from_path
@@ -82,9 +83,17 @@ def tool(func):
         else:
             metadata["args"][param_name] = arg_description
 
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
+    if inspect.iscoroutinefunction(func):
+
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            return await func(*args, **kwargs)
+
+    else:
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
 
     wrapper.name = metadata["name"]
     wrapper.description = metadata["description"]
@@ -125,25 +134,35 @@ class ToolExecutor(ToolExecutorProtocol):
             invisible_args = {}
             if tool.invisible_args:
                 invisible_args = {key: metadata[key] for key in tool.invisible_args if key in metadata}
+
+            all_args = {**tool_call.arguments, **invisible_args}
+
+            if inspect.iscoroutinefunction(tool):
+                result = await tool(**all_args)
+            else:
+                # Tool is synchronous, call it directly for simple CPU-bound functions
+                result = tool(**all_args)
+
             return ToolCallResult(
                 tool_call_id=tool_call.tool_call_id,
                 function_name=tool_call.function_name,
-                result=await tool(**{**tool_call.arguments, **invisible_args}),
+                result=result,
             )
         else:
             raise ValueError(f"Tool '{tool_call.function_name}' not found.")
 
-    async def call_tool(self, function_name: str, arguments: dict[str, Any]) -> Any:
+    async def call_tool(self, function_name: str, arguments: dict[str, Any], metadata: Optional[dict] = None) -> Any:
         """
         Can be used to call a tool directly by providing the function name and arguments.
-        This can be handy, when one wants to manually call a tool, without calling an LLM.
+        This can be handy, when one wants to manually call a tool, without using the function calling api.
+        Essentially whenever you call a tool without a tool call id, use this function.
         :param function_name: The name of the function to call.
 
         :param arguments: The arguments to pass to the function.
         :return: The result of the function call.
         """
         tool_call = ToolCall(tool_call_id="0", function_name=function_name, arguments=arguments)
-        tool_response = await self.execute_tool(tool_call, {})
+        tool_response = await self.execute_tool(tool_call, metadata=metadata or {})
         return tool_response.result
 
 
@@ -246,3 +265,34 @@ def load_dependencies(
             dependencies.append(instance)
 
     return dependencies
+
+
+def generate_tool_descriptions(
+    tools: list[ToolDescription], new_tools: list[Callable] | Callable, logger: Logger, agent_name: str
+) -> list[ToolDescription]:
+    """
+    Registers one or more tools with the executor.
+
+    This method allows the registration of a single tool or a list of tools
+    that can be executed by the executor. Each tool is a callable that can
+    be invoked with specific arguments.
+
+    :param tools: The list of tools that have already been registered.
+    :param new_tools: A single callable or a list of callables representing the tools to be registered.
+    :param logger: The logger object to use for logging.
+    :param agent_name: The name of the agent registering the tools.
+    """
+    logger.info(f"Registering tools for agent {agent_name}: {[tool.name for tool in new_tools]}")
+    if callable(new_tools):
+        new_tools = [new_tools]
+
+    new_tools = [ToolDescription.from_function(fun) for fun in new_tools]
+
+    if new_tools and set([tool.name for tool in tools]) & set(tool.name for tool in new_tools):
+        logger.error(
+            f"Tool names must be unique, found: {set([tool.name for tool in new_tools]) & set(tool.name for tool in new_tools)}"
+        )
+        raise ValueError("Tool names must be unique")
+    else:
+        new_tools = new_tools + new_tools
+        return new_tools

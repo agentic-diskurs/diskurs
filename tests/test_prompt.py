@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Annotated
 from unittest.mock import AsyncMock, Mock
@@ -18,8 +18,9 @@ from diskurs.prompt import (
     validate_json,
     BasePrompt,
 )
+from diskurs.utils import load_template_from_package
 from test_files.heuristic_agent_test_files.prompt import MyHeuristicPromptArgument
-from test_files.prompt_test_files.prompt import MyUserPromptArgument
+from test_files.prompt_test_files.prompt import MyUserPromptArgument, MyUserPromptWithArrayArgument, Step
 
 
 @pytest.fixture
@@ -28,6 +29,15 @@ def prompt_instance():
         location=Path(__file__).parent / "test_files" / "prompt_test_files",
         system_prompt_argument_class="MySystemPromptArgument",
         user_prompt_argument_class="MyUserPromptArgument",
+    )
+
+
+@pytest.fixture
+def prompt_with_array_instance() -> MultistepPrompt:
+    return MultistepPrompt.create(
+        location=Path(__file__).parent / "test_files" / "prompt_test_files",
+        system_prompt_argument_class="MySystemPromptArgument",
+        user_prompt_argument_class="MyUserPromptWithArrayArgument",
     )
 
 
@@ -92,7 +102,10 @@ def test_fail_parse_prompt(prompt_instance, prompt_testing_conversation):
         old_user_prompt_argument=prompt_testing_conversation.user_prompt_argument,
     )
 
-    assert res.content == "Invalid JSON: Expecting ',' delimiter at line 3, column 3. Please ensure the response is valid JSON."
+    assert (
+        res.content
+        == "Invalid JSON: Expecting ',' delimiter at line 3, column 3. Please ensure the response is valid JSON."
+    )
 
 
 @dataclass
@@ -197,7 +210,7 @@ prompt_config_no_finalize = {
 def test_conductor_no_finalize_function():
     prompt = ConductorPrompt.create(**prompt_config_no_finalize)
 
-    assert prompt._finalize is None
+    assert prompt._can_finalize.__name__ == "can_finalize"
 
 
 def test_parse_user_prompt_partial_update(prompt_instance, prompt_testing_conversation):
@@ -228,6 +241,21 @@ def test_parse_user_prompt(prompt_instance, prompt_testing_conversation):
 
     assert isinstance(res, PromptArgument)
     assert res.topic == "Secure Web Gateway"
+
+
+def test_parse_user_prompt_json_array(prompt_with_array_instance, prompt_testing_conversation):
+    res = prompt_with_array_instance.parse_user_prompt(
+        name="test_agent",
+        llm_response='{"steps": [{"topic": "Secure Web Gateway"}, {"topic": "Secure Web Gateway 2"}]}',
+        old_user_prompt_argument=MyUserPromptWithArrayArgument(),
+    )
+
+    # Use are_classes_structurally_similar instead of direct class comparison
+    assert are_classes_structurally_similar(type(res), MyUserPromptWithArrayArgument)
+    assert isinstance(res.steps, list)
+    assert are_classes_structurally_similar(type(res.steps[0]), Step)
+    assert res.steps[0].topic == "Secure Web Gateway"
+    assert res.steps[1].topic == "Secure Web Gateway 2"
 
 
 def test_fail():
@@ -349,7 +377,7 @@ def test_render_json_formatting_prompt_with_prompt_fields():
 
     # Create a minimal template for testing
     template = Template(
-        "Fields to include: {% for key in keys %}{{ key }}{% if not loop.last %}, {% endif %}{% endfor %}"
+        "Fields to include: {% for key in schema.keys() %}{{ key }}{% if not loop.last %}, {% endif %}{% endfor %}"
     )
 
     prompt = BasePrompt(
@@ -404,7 +432,7 @@ def test_render_json_formatting_prompt_missing_template():
 
     with pytest.raises(ValueError) as exc_info:
         prompt.render_json_formatting_prompt({"test": "value"})
-    assert str(exc_info.value) == "json_render_template is not set."
+    assert str(exc_info.value) == "json_formatting_template is not set."
 
 
 def test_render_json_formatting_prompt_inheritance():
@@ -428,3 +456,140 @@ def test_render_json_formatting_prompt_inheritance():
         user_prompt_argument_class=ChildPromptArg,
         json_formatting_template=template,
     )
+
+
+def test_generate_json_schema_with_nested_dataclass():
+    @dataclass
+    class NestedClass:
+        field1: str = ""
+        field2: int = 0
+
+    @dataclass
+    class TestPromptArg(PromptArgument):
+        name: str = ""
+        nested: NestedClass = field(default_factory=NestedClass)
+
+    prompt = BasePrompt(
+        agent_description="Test Agent",
+        system_template=Template("system"),
+        user_template=Template("user"),
+        system_prompt_argument_class=TestPromptArg,
+        user_prompt_argument_class=TestPromptArg,
+        json_formatting_template=Template("{{ schema | tojson(indent=2) }}"),
+    )
+
+    schema = prompt._generate_json_schema({"name": str, "nested": NestedClass})
+
+    assert "name" in schema
+    assert "nested" in schema
+    assert isinstance(schema["nested"], dict)
+    assert "field1" in schema["nested"]
+    assert "field2" in schema["nested"]
+    assert schema["nested"]["field1"] == ""
+    assert schema["nested"]["field2"] == 0
+
+
+def test_generate_json_schema_with_list_of_dataclasses():
+    @dataclass
+    class ListItem:
+        topic: str = ""
+        priority: int = 0
+
+    @dataclass
+    class TestPromptArg(PromptArgument):
+        name: str = ""
+        items: list[ListItem] = field(default_factory=list)
+
+    prompt = BasePrompt(
+        agent_description="Test Agent",
+        system_template=Template("system"),
+        user_template=Template("user"),
+        system_prompt_argument_class=TestPromptArg,
+        user_prompt_argument_class=TestPromptArg,
+        json_formatting_template=Template("{{ schema | tojson(indent=2) }}"),
+    )
+
+    schema = prompt._generate_json_schema({"name": str, "items": list[ListItem]})
+
+    assert "name" in schema
+    assert "items" in schema
+    assert isinstance(schema["items"], list)
+    assert len(schema["items"]) > 0  # Should have at least one example
+    assert "topic" in schema["items"][0]
+    assert "priority" in schema["items"][0]
+    assert schema["items"][0]["topic"] == ""
+    assert schema["items"][0]["priority"] == 0
+
+
+def test_render_json_formatting_prompt_with_array_type():
+    # Test with PlanningUserPromptArgument-like class
+    @dataclass
+    class PlanStep:
+        step_id: str = ""
+        description: str = ""
+        function: str = ""
+        parameters: dict = field(default_factory=dict)
+        depends_on: list[str] = field(default_factory=list)
+
+    @dataclass
+    class TestArrayArgument(PromptArgument):
+        user_query: str = ""
+        execution_plan: list[PlanStep] = field(default_factory=list)
+        summary: str = ""
+
+    template = load_template_from_package("diskurs.assets", "json_formatting.jinja2")
+
+    prompt = BasePrompt(
+        agent_description="Test Agent",
+        system_template=Template("system"),
+        user_template=Template("user"),
+        system_prompt_argument_class=TestArrayArgument,
+        user_prompt_argument_class=TestArrayArgument,
+        json_formatting_template=template,
+    )
+
+    result = prompt.render_json_formatting_prompt({"user_query": "", "execution_plan": [], "summary": ""})
+
+    # Check for the structure in the formatted output
+    assert '"user_query"' in result
+    assert '"execution_plan"' in result
+    assert '"step_id"' in result  # From the example step
+    assert '"description"' in result
+    assert '"function"' in result
+    assert '"parameters"' in result
+    assert '"depends_on"' in result
+    assert '"summary"' in result
+
+
+def test_json_formatting_with_real_llm_compiler_prompt(prompt_with_array_instance):
+    from diskurs.llm_compiler.prompts import PlanningUserPromptArgument, PlanStep
+    from diskurs.llm_compiler.entities import PlanStep
+
+    # Create an instance with proper template
+    template = load_template_from_package("diskurs.assets", "json_formatting.jinja2")
+
+    prompt = BasePrompt(
+        agent_description="LLM Compiler",
+        system_template=Template("system"),
+        user_template=Template("user"),
+        system_prompt_argument_class=PlanningUserPromptArgument,
+        user_prompt_argument_class=PlanningUserPromptArgument,
+        json_formatting_template=template,
+    )
+
+    # Generate the JSON formatting instructions
+    result = prompt.render_json_formatting_prompt({"user_query": "", "execution_plan": [], "summary": ""})
+
+    # Validate the generated format
+    assert "JSON" in result
+    assert '"user_query"' in result
+    assert '"execution_plan"' in result
+    assert '"step_id"' in result
+    assert '"description"' in result
+    assert '"function"' in result
+    assert '"parameters"' in result
+    assert '"depends_on"' in result
+    assert '"summary"' in result
+
+    # Make sure the result shows an array structure for execution_plan
+    assert "[" in result and "]" in result

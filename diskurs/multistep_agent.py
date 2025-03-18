@@ -18,6 +18,7 @@ from diskurs.protocols import (
     ConversationResponder,
 )
 from diskurs.registry import register_agent
+from diskurs.tools import generate_tool_descriptions
 from diskurs.utils import get_fields_as_dict
 
 
@@ -56,28 +57,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         return cls(name=name, prompt=prompt, llm_client=llm_client, **kwargs)
 
     def register_tools(self, tools: list[Callable] | Callable) -> None:
-        """
-        Registers one or more tools with the executor.
-
-        This method allows the registration of a single tool or a list of tools
-        that can be executed by the executor. Each tool is a callable that can
-        be invoked with specific arguments.
-
-        :param tools: A single callable or a list of callables representing the tools to be registered.
-        """
-        self.logger.info(f"Registering tools for agent {self.name}: {[tool.name for tool in tools]}")
-        if callable(tools):
-            tools = [tools]
-
-        new_tools = [ToolDescription.from_function(fun) for fun in tools]
-
-        if self.tools and set([tool.name for tool in new_tools]) & set(tool.name for tool in self.tools):
-            self.logger.error(
-                f"Tool names must be unique, found: {set([tool.name for tool in new_tools]) & set(tool.name for tool in self.tools)}"
-            )
-            raise ValueError("Tool names must be unique")
-        else:
-            self.tools = self.tools + new_tools
+        self.tools = generate_tool_descriptions(self.tools, tools, self.logger, self.name)
 
     async def compute_tool_response(self, response: Conversation) -> list[ChatMessage]:
         """

@@ -27,9 +27,7 @@ class YamlSerializable:
     """
 
     @classmethod
-    def load_from_yaml(
-        cls: Type[T], yaml_content: str, base_path: Optional[Path] = None
-    ) -> T:
+    def load_from_yaml(cls: Type[T], yaml_content: str, base_path: Optional[Path] = None) -> T:
         """
         Load a YAML string with camelCase keys and convert it into an instance
         of the dataclass, mapping keys to snake_case.
@@ -39,9 +37,7 @@ class YamlSerializable:
         :return: An instance of the dataclass with values loaded from the YAML.
         """
         data = yaml.safe_load(yaml_content)
-        data = resolve_env_vars(
-            data
-        )  # Replace placeholders with environment variables
+        data = resolve_env_vars(data)  # Replace placeholders with environment variables
         snake_case_data = cls._convert_keys_to_snake_case(data)
         return dataclass_loader(cls, snake_case_data, base_path=base_path)
 
@@ -78,10 +74,7 @@ class YamlSerializable:
         to snake_case.
         """
         if isinstance(d, dict):
-            return {
-                cls._camel_to_snake(k): cls._convert_keys_to_snake_case(v)
-                for k, v in d.items()
-            }
+            return {cls._camel_to_snake(k): cls._convert_keys_to_snake_case(v) for k, v in d.items()}
         elif isinstance(d, list):
             return [cls._convert_keys_to_snake_case(i) for i in d]
         else:
@@ -94,10 +87,7 @@ class YamlSerializable:
         to camelCase.
         """
         if isinstance(d, dict):
-            return {
-                cls._snake_to_camel(k): cls._convert_keys_to_camel_case(v)
-                for k, v in d.items()
-            }
+            return {cls._snake_to_camel(k): cls._convert_keys_to_camel_case(v) for k, v in d.items()}
         elif isinstance(d, list):
             return [cls._convert_keys_to_camel_case(i) for i in d]
         else:
@@ -170,6 +160,20 @@ class HeuristicPromptConfig(PromptConfig):
 
 
 @dataclass(kw_only=True)
+class LLMCompilerPromptConfig(PromptConfig):
+    """
+    Represents the prompt configuration for an agent.
+    """
+
+    type: str = "llm_compiler_prompt"
+    location: Optional[Path] = None
+    user_prompt_argument_class: Optional[str] = None
+    system_prompt_argument_class: Optional[str] = None
+    is_valid_name: Optional[str] = None
+    is_final_name: Optional[str] = None
+
+
+@dataclass(kw_only=True)
 class AgentConfig(YamlSerializable, Registrable):
     """
     Represents an agent configuration.
@@ -187,6 +191,22 @@ class MultistepAgentConfig(AgentConfig):
     """
 
     type: str = "multistep"
+    llm: str
+    prompt: PromptConfig
+    tools: Optional[list[str]] = None
+    init_prompt_arguments_with_longterm_memory: Optional[bool] = True
+    init_prompt_arguments_with_previous_agent: Optional[bool] = True
+    max_reasoning_steps: Optional[int] = 5
+    max_trials: Optional[int] = 5
+
+
+@dataclass(kw_only=True)
+class LLMCompilerAgentConfig(AgentConfig):
+    """
+    Represents an agent configuration.
+    """
+
+    type: str = "llm_compiler"
     llm: str
     prompt: PromptConfig
     tools: Optional[list[str]] = None
@@ -343,15 +363,14 @@ class ForumConfig(YamlSerializable):
     tool_dependencies: list[ToolDependencyConfig] = field(default_factory=list)
     conversation_type: str = "immutable_conversation"
     conversation_store: ConversationStoreConfig = field(
-        default_factory=lambda: FilesystemConversationStoreConfig(
-            base_path=Path(__file__).parent / "conversations"
-        )
+        default_factory=lambda: FilesystemConversationStoreConfig(base_path=Path(__file__).parent / "conversations")
     )
 
 
 @dataclass(kw_only=True)
 class RuleConfig(YamlSerializable):
     """Configuration for a routing rule"""
+
     name: str
     description: str
     condition_module: str
@@ -371,12 +390,8 @@ def resolve_env_vars(data):
         for var, default in matches:
             env_value = os.getenv(var, default)
             if env_value is None:
-                raise ValueError(
-                    f"Environment variable '{var}' is not set and no default value provided."
-                )
-            data = data.replace(
-                f'${{{var}{":" + default if default else ""}}}', env_value
-            )
+                raise ValueError(f"Environment variable '{var}' is not set and no default value provided.")
+            data = data.replace(f'${{{var}{":" + default if default else ""}}}', env_value)
         return data
     else:
         return data
@@ -393,9 +408,7 @@ def get_dataclass_subclass(base_class, data):
             else:
                 raise ValueError(f"Unknown {base_class.__name__} type: {key}")
         else:
-            raise ValueError(
-                f"Discriminator '{discriminator}' not found in data for {base_class.__name__}"
-            )
+            raise ValueError(f"Discriminator '{discriminator}' not found in data for {base_class.__name__}")
     else:
         return base_class
 
@@ -405,10 +418,7 @@ def dataclass_loader(dataclass_type, data, base_path=None):
     if is_dataclass(dataclass_type) and isinstance(data, dict):
         # Get the correct subclass based on data
         dataclass_type = get_dataclass_subclass(dataclass_type, data)
-        field_types = {
-            field.name: field.type
-            for field in dataclass_type.__dataclass_fields__.values()
-        }
+        field_types = {field.name: field.type for field in dataclass_type.__dataclass_fields__.values()}
 
         # Create kwargs dict including both data fields and base_path if needed
         kwargs = {
@@ -425,10 +435,7 @@ def dataclass_loader(dataclass_type, data, base_path=None):
 
     elif get_origin(dataclass_type) == list and isinstance(data, list):
         list_type = get_args(dataclass_type)[0]
-        return [
-            dataclass_loader(list_type, item, base_path=base_path)
-            for item in data
-        ]
+        return [dataclass_loader(list_type, item, base_path=base_path) for item in data]
     elif dataclass_type == Path and isinstance(data, str):
         # Resolve paths relative to the base path
         path = Path(data)
@@ -449,9 +456,7 @@ def pre_load_custom_modules(yaml_data, base_path: Path):
         load_module_from_path(module_full_path)
 
 
-def load_config_from_yaml(
-    config: str | Path, base_path: Optional[Path] = None
-) -> ForumConfig:
+def load_config_from_yaml(config: str | Path, base_path: Optional[Path] = None) -> ForumConfig:
     """
     Loads the complete configuration from YAML content and maps it
     to the ForumConfig dataclass.

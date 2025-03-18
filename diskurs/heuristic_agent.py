@@ -1,4 +1,4 @@
-from typing import Optional, Self
+from typing import Optional, Self, Callable
 
 from diskurs import register_agent, Conversation, ToolExecutor, Agent, PromptArgument
 from diskurs.agent import is_previous_agent_conductor, get_last_conductor_name, has_conductor_been_called
@@ -11,6 +11,7 @@ from diskurs.protocols import (
     ConversationFinalizer,
     LLMClient,
 )
+from diskurs.tools import generate_tool_descriptions
 from diskurs.utils import get_fields_as_dict
 
 
@@ -46,6 +47,9 @@ class HeuristicAgent(Agent, ConversationParticipant):
     @classmethod
     def create(cls, name: str, prompt: HeuristicPrompt, **kwargs) -> Self:
         return cls(name=name, prompt=prompt, **kwargs)
+
+    def register_tools(self, tools: list[Callable] | Callable) -> None:
+        self.tools = generate_tool_descriptions(self.tools, tools, self.logger, self.name)
 
     def register_dispatcher(self, dispatcher: ConversationDispatcher) -> None:
         self.dispatcher = dispatcher

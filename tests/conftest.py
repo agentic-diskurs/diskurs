@@ -119,7 +119,7 @@ def conversation():
 def are_classes_structurally_similar(class_a: Type, class_b: Type) -> bool:
     """
     Check if two classes are structurally similar, i.e. they have the same class name, parent classes, and fields.
-    This can be useful, if we want to check if two classes are the same, but one has been dynamically imported
+    This can be useful when checking if two classes are the same, but one has been dynamically imported
     :param class_a: The first class to compare
     :param class_b: The second class to compare
     :return: True if the classes are structurally similar, False otherwise
@@ -128,23 +128,51 @@ def are_classes_structurally_similar(class_a: Type, class_b: Type) -> bool:
     if class_a.__name__ != class_b.__name__:
         return False
 
-    # Check parent classes
-    parents_a = set(inspect.getmro(class_a))
-    parents_b = set(inspect.getmro(class_b))
-    if not parents_a.intersection(parents_b):
+    # Check parent classes - look for similar class names rather than identity
+    parents_a_names = {parent.__name__ for parent in inspect.getmro(class_a)}
+    parents_b_names = {parent.__name__ for parent in inspect.getmro(class_b)}
+    if not parents_a_names.intersection(parents_b_names):
         return False
 
     # Get type hints and attributes of each class
     type_hints_a = inspect.get_annotations(class_a)
     type_hints_b = inspect.get_annotations(class_b)
 
-    # Check field names and types
+    # Check field names
     if type_hints_a.keys() != type_hints_b.keys():
         return False
 
+    # Compare type hints by name rather than identity
     for field, type_hint_a in type_hints_a.items():
         type_hint_b = type_hints_b.get(field)
-        if type_hint_a != type_hint_b:
+
+        # Get the string representation of both types for comparison
+        type_a_str = str(type_hint_a)
+        type_b_str = str(type_hint_b)
+
+        # Strip module names for comparison to handle dynamically imported types
+        # Example: convert 'module1.List[module1.Step]' to 'List[Step]'
+        type_a_stripped = type_a_str.split(".")[-1]
+        type_b_stripped = type_b_str.split(".")[-1]
+
+        # Handle generic types like List[X] by comparing the base names
+        if "[" in type_a_stripped and "[" in type_b_stripped:
+            type_a_base = type_a_stripped.split("[")[0]
+            type_b_base = type_b_stripped.split("[")[0]
+
+            # If the generic container types match (like 'List'), check contents
+            if type_a_base == type_b_base:
+                # Extract what's inside the brackets (e.g., 'Step' from 'List[Step]')
+                type_a_inner = type_a_stripped[type_a_stripped.find("[") + 1 : type_a_stripped.rfind("]")]
+                type_b_inner = type_b_stripped[type_b_stripped.find("[") + 1 : type_b_stripped.rfind("]")]
+
+                # Compare the inner types by name
+                if type_a_inner.split(".")[-1] != type_b_inner.split(".")[-1]:
+                    return False
+            else:
+                return False
+        # For non-generic types, compare the stripped type names
+        elif type_a_stripped != type_b_stripped:
             return False
 
     return True

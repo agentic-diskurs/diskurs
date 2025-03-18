@@ -1,0 +1,64 @@
+llms:
+  - type: openai
+    name: default
+    modelName: gpt-4-turbo
+    modelMaxTokens: 4000
+    apiKey: ${OPENAI_API_KEY}
+ 
+conversation:
+  type: immutable_conversation
+  
+conversationStore:
+  type: filesystem
+  isPersistent: true
+  directory: conversations
+  
+toolExecutor:
+  type: default
+  
+dispatcher:
+  type: asynchronous
+
+tools:
+  - function: search_wikipedia
+    modulePath: tools/wikipedia_tools.py
+  - function: fetch_weather
+    modulePath: tools/weather_tools.py
+  - function: get_stock_price
+    modulePath: tools/finance_tools.py
+
+agents:
+  - type: llm_compiler
+    name: compiler
+    llm: default
+    tools:
+      - search_wikipedia
+      - fetch_weather
+      - get_stock_price
+    prompt:
+      type: llm_compiler
+      location: llm_compiler/prompts.py
+      userPromptArgumentClass: PlanningUserPromptArgument
+      systemPromptArgumentClass: PlanningSystemPromptArgument
+    maxReasoningSteps: 2
+    maxTrials: 3
+    topics: 
+      - finalize
+  
+  - type: conductor
+    name: conductor
+    llm: default
+    topics:
+      - compiler
+    agentDescriptions:
+      compiler: "Breaks down complex tasks into steps with function calls and executes them in parallel when possible"
+    finalizerName: compiler
+    prompt:
+      type: conductor_prompt
+      location: conductor/prompt.py
+      longtermMemoryClass: LongTermMemory
+      userPromptArgumentClass: UserPromptArgument 
+      systemPromptArgumentClass: SystemPromptArgument
+      failName: fail
+
+firstContact: conductor

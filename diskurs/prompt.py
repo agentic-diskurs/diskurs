@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from dataclasses import dataclass, asdict, is_dataclass, fields, MISSING
+from dataclasses import dataclass, asdict, is_dataclass, fields, MISSING, field
 from pathlib import Path
 from typing import Type, TypeVar, Optional, Callable, Self, Any, Union, get_type_hints
 
@@ -19,7 +19,7 @@ from diskurs.protocols import (
     LLMClient,
 )
 from diskurs.registry import register_prompt
-from diskurs.utils import load_template_from_package, load_module_from_path
+from diskurs.utils import load_template_from_package, load_module_from_path, safe_load_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -34,25 +34,6 @@ class PromptValidationError(Exception):
 
 def always_true(*args, **kwargs) -> bool:
     return True
-
-
-def safe_load_symbol(symbol_name: str, module: Any, default_factory: Optional[Callable] = None, **kwargs) -> Any:
-    """
-    Safely loads a symbol from a module with an optional default factory function.
-
-    param: symbol_name: Name of the symbol to load
-    param: module: Module to load the symbol from
-    param: default_factory: Optional factory function to create a default value if symbol isn't found
-    param: kwargs: Additional arguments passed to the default_factory
-
-    return: The loaded symbol or the default value
-    """
-    try:
-        symbol = getattr(module, symbol_name)
-        return symbol
-    except AttributeError as e:
-        logger.warning(f"Missing attribute {symbol_name} in {module.__name__}: {e}\nloading defaults")
-        return default_factory(**kwargs) if default_factory else None
 
 
 def load_template(location: Path) -> Template:
@@ -159,7 +140,7 @@ def clean_json_string(text: str) -> str:
     return text.strip()
 
 
-def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1_000_000) -> dict:
+def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1_000_000) -> Union[dict, list]:
     """
     Parse and validate the LLM response as JSON, applying several cleaning steps
     to handle common formatting issues.
@@ -170,26 +151,26 @@ def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1_000_0
     :param llm_response: Raw text response from the LLM.
     :param max_depth: Maximum recursion depth for nested cleaning/parsing attempts.
     :param max_size: Maximum allowed size (in characters) for the JSON string.
-    :return: A parsed Python dictionary.
+    :return: A parsed Python dictionary or list.
     :raises PromptValidationError: If the response is too large, too deeply nested,
                                    or ultimately invalid.
     """
     if len(llm_response) > max_size:
         raise PromptValidationError(f"JSON response exceeds maximum size of {max_size} characters.")
 
-    def _parse_with_depth(json_str: str, current_depth: int) -> dict:
+    def _parse_with_depth(json_str: str, current_depth: int) -> Union[dict, list]:
         if current_depth > max_depth:
             raise PromptValidationError("Maximum JSON nesting depth exceeded.")
         try:
             parsed = json.loads(json_str)
-            # If we successfully parse a dict, return it.
-            if isinstance(parsed, dict):
+            # Accept both dict and list as valid top-level JSON structures
+            if isinstance(parsed, (dict, list)):
                 return parsed
             # If we parsed a string, it might be double-encoded JSON. Try again.
             if isinstance(parsed, str):
                 return _parse_with_depth(parsed, current_depth + 1)
-            # Otherwise, we require a top-level JSON object.
-            raise PromptValidationError(f"Expected a JSON object, got {type(parsed).__name__}.")
+            # Otherwise, we require a top-level JSON object or array.
+            raise PromptValidationError(f"Expected a JSON object or array, got {type(parsed).__name__}.")
         except json.JSONDecodeError as e:
             # Try cleaning the string and parsing again.
             cleaned = clean_json_string(json_str)
@@ -262,16 +243,33 @@ def validate_dataclass(
                 field_type = next(t for t in field_types if t != type(None))
 
         try:
-            if field_type == bool and isinstance(value, str):
+            # Special handling for Any type
+            if field_type is Any:
+                converted[field_name] = value
+            elif field_type == bool and isinstance(value, str):
                 converted[field_name] = value.lower() == "true"
+            elif field_type == dict or (hasattr(field_type, "__origin__") and field_type.__origin__ is dict):
+                # Handle dictionaries - if the value is already a dict, use it directly
+                if isinstance(value, dict):
+                    converted[field_name] = value
+                else:
+                    # Otherwise try to convert it
+                    converted[field_name] = field_type(value)
             elif isinstance(value, list) and hasattr(field_type, "__origin__") and field_type.__origin__ is list:
                 element_type = field_type.__args__[0]
-                converted[field_name] = [element_type(item) for item in value]
+                # Handle lists of dataclass objects
+                if is_dataclass(element_type) and all(isinstance(item, dict) for item in value):
+                    converted[field_name] = [validate_dataclass(item, element_type) for item in value]
+                else:
+                    converted[field_name] = [element_type(item) for item in value]
+            elif is_dataclass(field_type) and isinstance(value, dict):
+                # Handle nested dataclass
+                converted[field_name] = validate_dataclass(value, field_type)
             else:
                 converted[field_name] = field_type(value)
         except (ValueError, TypeError) as e:
             raise PromptValidationError(
-                f"Type conversion failed for field '{field_name}': expected {field_type}, got {type(value)}"
+                f"Type conversion failed for field '{field_name}': expected {field_type}, got {type(value)} with error: {e}"
             )
 
     try:
@@ -288,6 +286,7 @@ class BasePrompt(PromptProtocol):
         user_template: Template,
         system_prompt_argument_class: Type[SystemPromptArg],
         user_prompt_argument_class: Type[UserPromptArg],
+        return_json: bool = True,
         json_formatting_template: Optional[Template] = None,
         is_valid: Optional[Callable[[Any], bool]] = None,
         is_final: Optional[Callable[[Any], bool]] = None,
@@ -297,6 +296,7 @@ class BasePrompt(PromptProtocol):
         self.user_prompt_argument = user_prompt_argument_class
         self.system_template = system_template
         self.user_template = user_template
+        self.return_json = return_json
         self.json_formatting_template = json_formatting_template
         self._is_valid = is_valid
         self._is_final = is_final
@@ -400,10 +400,10 @@ class BasePrompt(PromptProtocol):
 
         return cls(**all_args)
 
-    def render_system_template(self, name: str, prompt_args: PromptArgument, return_json: bool = True) -> ChatMessage:
+    def render_system_template(self, name: str, prompt_args: PromptArgument) -> ChatMessage:
         content = self.system_template.render(**asdict(prompt_args))
 
-        if return_json:
+        if self.return_json:
             content += "\n" + self.render_json_formatting_prompt(asdict(self.user_prompt_argument()))
 
         return ChatMessage(role=Role.SYSTEM, name=name, content=content)
@@ -454,8 +454,9 @@ class BasePrompt(PromptProtocol):
         """
         Render the JSON formatting template with included fields.
 
-        This method filters the prompt arguments based on PromptField annotations
-        and renders only the fields that should be included in the prompt.
+        This method analyzes the structure of the user_prompt_argument class and generates
+        a representative JSON example that shows the expected structure, including nested dataclasses
+        and lists of dataclasses.
 
         :param prompt_args: Dictionary of prompt arguments to be filtered and rendered.
 
@@ -464,17 +465,79 @@ class BasePrompt(PromptProtocol):
         :raises: ValueError: If json_formatting_template is not set.
         """
         if self.json_formatting_template is None:
-            raise ValueError("json_render_template is not set.")
+            raise ValueError("json_formatting_template is not set.")
 
+        # Get type hints with metadata
         hints = get_type_hints(self.user_prompt_argument, include_extras=True)
-        included_keys = [
-            key
-            for key in prompt_args.keys()
-            if not hasattr(hints.get(key, None), "__metadata__")
-            or any(isinstance(m, PromptField) and m.should_include() for m in hints[key].__metadata__)
-        ]
 
-        return self.json_formatting_template.render(keys=included_keys)
+        # Filter fields based on PromptField annotations
+        included_fields = {}
+        for key in prompt_args.keys():
+            if not hasattr(hints.get(key, None), "__metadata__") or any(
+                isinstance(m, PromptField) and m.should_include() for m in hints[key].__metadata__
+            ):
+                field_type = hints.get(key, None) if key in hints else None
+                included_fields[key] = field_type
+
+        # Generate schema for the fields
+        schema = self._generate_json_schema(included_fields)
+
+        return self.json_formatting_template.render(schema=schema)
+
+    def _generate_json_schema(self, field_dict: dict) -> dict:
+        """
+        Generate a JSON schema representation of the dataclass structure.
+
+        :param field_dict: Dictionary mapping field names to their type hints
+        :return: Dict representing the structure with example values
+        """
+        schema = {}
+
+        for field_name, field_type in field_dict.items():
+            # Handle None type (shouldn't happen in practice)
+            if field_type is None:
+                schema[field_name] = ""
+                continue
+
+            # Handle Optional types
+            if hasattr(field_type, "__origin__") and field_type.__origin__ is Union:
+                field_types = field_type.__args__
+                if type(None) in field_types:  # Optional field
+                    field_type = next(t for t in field_types if t != type(None))
+
+            # Handle different types
+            if field_type == str:
+                schema[field_name] = ""
+            elif field_type == int:
+                schema[field_name] = 0
+            elif field_type == float:
+                schema[field_name] = 0.0
+            elif field_type == bool:
+                schema[field_name] = False
+            elif field_type == dict or (hasattr(field_type, "__origin__") and field_type.__origin__ is dict):
+                schema[field_name] = {}
+            elif hasattr(field_type, "__origin__") and field_type.__origin__ is list:
+                # Handle lists
+                element_type = field_type.__args__[0]
+                if is_dataclass(element_type):
+                    # It's a list of dataclasses, generate example items
+                    element_fields = {f.name: f.type for f in fields(element_type)}
+                    schema[field_name] = [self._generate_json_schema(element_fields)]
+                    # Add a second example item for clarity
+                    if not all(value == "" for value in schema[field_name][0].values()):
+                        schema[field_name].append(self._generate_json_schema(element_fields))
+                else:
+                    # Simple list type
+                    schema[field_name] = []
+            elif is_dataclass(field_type):
+                # Handle nested dataclasses
+                nested_fields = {f.name: f.type for f in fields(field_type)}
+                schema[field_name] = self._generate_json_schema(nested_fields)
+            else:
+                # Default for unknown types
+                schema[field_name] = ""
+
+        return schema
 
     def render_user_template(
         self,
@@ -506,6 +569,7 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
         user_template: Template,
         system_prompt_argument_class: Type[SystemPromptArg],
         user_prompt_argument_class: Type[UserPromptArg],
+        return_json: bool = True,
         json_formatting_template: Optional[Template] = None,
         is_valid: Optional[Callable[[Any], bool]] = None,
         is_final: Optional[Callable[[Any], bool]] = None,
@@ -517,6 +581,7 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
             user_template=user_template,
             system_prompt_argument_class=system_prompt_argument_class,
             user_prompt_argument_class=user_prompt_argument_class,
+            return_json=return_json,
             json_formatting_template=json_formatting_template,
             is_valid=is_valid,
             is_final=is_final,
@@ -534,6 +599,13 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
 @dataclass
 class DefaultConductorUserPromptArgument(PromptArgument):
     next_agent: Optional[str] = None
+
+
+@dataclass
+class DefaultConductorSystemPromptArgument(PromptArgument):
+    """Default system prompt argument for conductor with minimal required fields."""
+
+    agent_descriptions: dict[str, str] = field(default_factory=dict)
 
 
 GenericConductorLongtermMemory = TypeVar("GenericConductorLongtermMemory", bound="ConductorLongtermMemory")
@@ -606,32 +678,59 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
     ) -> tuple[Template, Template]:
         system_template = (
             load_template(location / system_template_filename)
-            if system_template_filename
+            if (location / system_template_filename).exists()
             else load_template_from_package("diskurs.assets", "conductor_system_template.jinja2")
         )
         user_template = (
             load_template(location / user_template_filename)
-            if user_template_filename
+            if (location / user_template_filename).exists()
             else load_template_from_package("diskurs.assets", "conductor_user_template.jinja2")
         )
         return system_template, user_template
 
     @classmethod
     def load_additional_resources(cls, module: Any, kwargs: dict) -> dict:
+        """Modified to provide default implementations for conductor resources."""
+
         def load_symbol_if_provided(default_name: str, name_key: str) -> Optional[Callable[..., bool]]:
             symbol_name = kwargs.get(name_key, default_name)
             return safe_load_symbol(symbol_name, module) if symbol_name else None
 
-        assert "longterm_memory_class" in kwargs, "Longterm memory class not provided"
+        def default_finalize(ltm):
+            return asdict(ltm) if hasattr(ltm, "__dict__") else ltm
 
+        def default_fail(ltm):
+            if hasattr(ltm, "__dict__"):
+                result = asdict(ltm)
+                result["error"] = "Failed to finalize conversation"
+                return result
+            return {"error": "Failed to finalize conversation"}
+
+        # Load functions with defaults
         can_finalize = load_symbol_if_provided("can_finalize", "can_finalize_name")
         finalize = load_symbol_if_provided("finalize", "finalize_name")
         fail = load_symbol_if_provided("fail", "fail_name")
 
-        longterm_memory_class: Type[GenericConductorLongtermMemory] = safe_load_symbol(
-            kwargs["longterm_memory_class"],
-            module,
-        )
+        # Use defaults if not provided
+        if can_finalize is None:
+            can_finalize = always_true
+        if finalize is None:
+            finalize = default_finalize
+        if fail is None:
+            fail = default_fail
+
+        # Create default longterm memory if not provided
+        longterm_memory_class_name = kwargs.get("longterm_memory_class")
+        if longterm_memory_class_name:
+            longterm_memory_class = safe_load_symbol(
+                longterm_memory_class_name,
+                module,
+            )
+        else:
+            # Use a simple default implementation
+            from diskurs.entities import LongtermMemory
+
+            longterm_memory_class = LongtermMemory
 
         return {
             "can_finalize": can_finalize,
@@ -639,6 +738,93 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
             "fail": fail,
             "longterm_memory": longterm_memory_class,
         }
+
+    @classmethod
+    def create(cls, location: Path, **kwargs) -> Self:
+        """Override BasePrompt.create to use default conductor prompt argument classes when needed."""
+        system_prompt_argument_class: str = kwargs.get("system_prompt_argument_class")
+        user_prompt_argument_class: str = kwargs.get("user_prompt_argument_class")
+        agent_description_filename: str = kwargs.get("agent_description_filename", "agent_description.txt")
+        code_filename: str = kwargs.get("code_filename", "prompt.py")
+        is_valid_name: str = kwargs.get("is_valid_name", "is_valid")
+        is_final_name: str = kwargs.get("is_final_name", "is_final")
+        user_template_filename: str = kwargs.get("user_template_filename", "user_template.jinja2")
+        system_template_filename: str = kwargs.get("system_template_filename", "system_template.jinja2")
+        json_formatting_filename = kwargs.get("json_formatting_filename", "")
+
+        module_path = location / code_filename
+
+        # Read agent description
+        agent_description = ""
+        try:
+            if agent_description_filename and (location / agent_description_filename).exists():
+                with open(location / agent_description_filename, "r") as f:
+                    agent_description = f.read()
+        except Exception as e:
+            logger.warning(f"Error reading agent description: {e}")
+
+        if module_path.exists():
+            module = load_module_from_path(module_path=module_path)
+        else:
+            module = None
+            logger.warning(f"Module file {module_path} not found, using default values")
+
+        system_prompt_class = None
+        user_prompt_class = None
+
+        if system_prompt_argument_class and module:
+            system_prompt_class = safe_load_symbol(symbol_name=system_prompt_argument_class, module=module)
+
+        if user_prompt_argument_class and module:
+            user_prompt_class = safe_load_symbol(symbol_name=user_prompt_argument_class, module=module)
+
+        if not system_prompt_class:
+            system_prompt_class = DefaultConductorSystemPromptArgument
+            logger.info("Using DefaultConductorSystemPromptArgument")
+
+        if not user_prompt_class:
+            user_prompt_class = DefaultConductorUserPromptArgument
+            logger.info("Using ConductorUserPromptArgument")
+
+        is_final, is_valid = cls.safe_load_predicates(
+            is_final_name=is_final_name, is_valid_name=is_valid_name, module=module, topics=kwargs.get("topics", [])
+        )
+
+        # Load templates
+        system_template, user_template = cls.load_templates(
+            location=location,
+            system_template_filename=system_template_filename,
+            user_template_filename=user_template_filename,
+            kwargs=kwargs,
+        )
+
+        # Load JSON formatting template
+        json_render_template = None
+        if json_formatting_filename and (location / json_formatting_filename).exists():
+            try:
+                json_render_template = load_template(location / json_formatting_filename)
+            except Exception:
+                json_render_template = load_template_from_package("diskurs.assets", "json_formatting.jinja2")
+        else:
+            json_render_template = load_template_from_package("diskurs.assets", "json_formatting.jinja2")
+
+        # Load additional resources specific to conductor prompt
+        additional_resources = cls.load_additional_resources(module, kwargs)
+
+        base_args = {
+            "agent_description": agent_description,
+            "system_template": system_template,
+            "user_template": user_template,
+            "json_formatting_template": json_render_template,
+            "system_prompt_argument_class": system_prompt_class,
+            "user_prompt_argument_class": user_prompt_class,
+            "is_valid": is_valid,
+            "is_final": is_final,
+        }
+
+        all_args = {**base_args, **additional_resources}
+
+        return cls(**all_args)
 
     def can_finalize(self, longterm_memory: GenericConductorLongtermMemory) -> bool:
         return self._can_finalize(longterm_memory)
