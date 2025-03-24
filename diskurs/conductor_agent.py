@@ -24,15 +24,12 @@ from diskurs.registry import register_agent
 logger = logging.getLogger(__name__)
 
 
-def validate_finalization(can_finalize_name, finalizer_name, prompt, supervisor):
+def validate_finalization(finalizer_name, prompt, supervisor):
     if not (finalizer_name is None and supervisor is None):
         assert (finalizer_name is None) != (
             supervisor is None
         ), "Either finalizer_name or supervisor must be set, but not both"
         delattr(prompt, "_finalize")
-
-    if can_finalize_name:
-        delattr(prompt, "_can_finalize")
 
 
 @register_agent("conductor")
@@ -54,7 +51,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         fallback_to_llm: bool = True,
     ):
 
-        validate_finalization(can_finalize_name, finalizer_name, prompt, supervisor=supervisor)
+        validate_finalization(finalizer_name, prompt, supervisor=supervisor)
 
         super().__init__(
             name=name,
@@ -159,6 +156,17 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
         return conversation.update_agent_longterm_memory(agent_name=self.name, longterm_memory=longterm_memory)
 
+    async def add_routing_message_to_chat(self, conversation, next_agent):
+        updated_prompt = conversation.user_prompt_argument
+        updated_prompt.next_agent = next_agent
+        conversation = conversation.update(user_prompt_argument=updated_prompt)
+        # Add JSON message to conversation to ensure a consistent chat history
+        prompt_dict = asdict(updated_prompt)
+        content = json.dumps(prompt_dict)
+        return conversation.append(
+            ChatMessage(role=Role.ASSISTANT, content=content, name=self.name, type=MessageType.CONDUCTOR)
+        )
+
     async def invoke(self, conversation: Conversation, message_type=MessageType.CONDUCTOR) -> Conversation:
         self.logger.debug(f"Invoke called on conductor agent {self.name}")
 
@@ -173,16 +181,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
         if next_agent := self.evaluate_rules(conversation):
             # Directly update the next_agent field in the prompt argument
-            updated_prompt = conversation.user_prompt_argument
-            updated_prompt.next_agent = next_agent
-            conversation = conversation.update(user_prompt_argument=updated_prompt)
-
-            # Add JSON message to conversation to ensure a consistent chat history
-            prompt_dict = asdict(updated_prompt)
-            content = json.dumps(prompt_dict)
-            conversation = conversation.append(
-                ChatMessage(role=Role.ASSISTANT, content=content, name=self.name, type=MessageType.CONDUCTOR)
-            )
+            conversation = await self.add_routing_message_to_chat(conversation, next_agent)
 
         elif self.fallback_to_llm and self.llm_client:
             self.logger.debug("No matching rule found, falling back to LLM routing")
@@ -206,16 +205,30 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
     async def can_finalize(self, conversation: Conversation) -> bool:
         if self.can_finalize_name:
             conversation = await self.dispatcher.request_response(self.can_finalize_name, conversation)
-            return conversation.user_prompt_argument.can_finalize
+            return conversation.user_prompt_argument.can_finalize or self.prompt.can_finalize(
+                conversation.get_agent_longterm_memory(self.name)
+            )
         else:
             return self.prompt.can_finalize(conversation.get_agent_longterm_memory(self.name))
 
     async def finalize(self, conversation: Conversation) -> None:
         self.logger.debug(f"Finalize conversation on conductor agent {self.name}")
 
+        if self.supervisor or self.finalizer_name:
+            conversation = self.prepare_conversation(
+                conversation,
+                system_prompt_argument=self.prompt.create_system_prompt_argument(
+                    agent_descriptions=self.agent_descriptions
+                ),
+                user_prompt_argument=self.prompt.create_user_prompt_argument(),
+                message_type=MessageType.CONDUCTOR,
+            )
+
         if self.supervisor:
+            conversation = await self.add_routing_message_to_chat(conversation, self.supervisor)
             await self.dispatcher.publish(topic=self.supervisor, conversation=conversation)
         elif self.finalizer_name:
+            conversation = await self.add_routing_message_to_chat(conversation, self.finalizer_name)
             await self.dispatcher.publish_final(topic=self.finalizer_name, conversation=conversation)
         else:
             conversation.final_result = self.prompt.finalize(conversation.get_agent_longterm_memory(self.name))

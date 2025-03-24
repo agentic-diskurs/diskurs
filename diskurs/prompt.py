@@ -32,7 +32,7 @@ class PromptValidationError(Exception):
         super().__init__(message)
 
 
-def always_true(*args, **kwargs) -> bool:
+def always_false(*args, **kwargs) -> bool:
     return True
 
 
@@ -589,11 +589,11 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
 
     @classmethod
     def create_default_is_valid(cls, **kwargs) -> Callable[[UserPromptArg], bool]:
-        return always_true
+        return always_false
 
     @classmethod
     def create_default_is_final(cls, **kwargs) -> Callable[[UserPromptArg], bool]:
-        return always_true
+        return always_false
 
 
 @dataclass
@@ -713,7 +713,7 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
 
         # Use defaults if not provided
         if can_finalize is None:
-            can_finalize = always_true
+            can_finalize = always_false
         if finalize is None:
             finalize = default_finalize
         if fail is None:
@@ -860,6 +860,7 @@ class HeuristicPrompt(HeuristicPromptProtocol):
         code_filename: str = kwargs.get("code_filename", "prompt.py")
         user_template_filename: str = kwargs.get("user_template_filename", "user_template.jinja2")
         heuristic_sequence_name: str = kwargs.get("heuristic_sequence_name", "heuristic_sequence")
+        render_template: bool = kwargs.get("render_template", False)
 
         module_path = location / code_filename
 
@@ -875,7 +876,17 @@ class HeuristicPrompt(HeuristicPromptProtocol):
             symbol_name=user_prompt_argument_class, module=module
         )
 
-        user_template = load_template(location / user_template_filename)
+        template_location = location / user_template_filename
+
+        user_template = None
+
+        if render_template and template_location.exists():
+            user_template = load_template(location / user_template_filename)
+        elif render_template and not template_location.exists():
+            logger.warning(
+                f"User template not found at {template_location}, if you dont need a template, "
+                + "set render_template to False, rendering has been disabled for this prompt"
+            )
 
         heuristic_sequence: HeuristicSequence = safe_load_symbol(symbol_name=heuristic_sequence_name, module=module)
 

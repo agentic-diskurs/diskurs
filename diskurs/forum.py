@@ -231,6 +231,8 @@ class ForumFactory:
         for agent_conf in self.config.agents:
             additional_args = {}
 
+            if hasattr(agent_conf, "render_prompt"):
+                additional_args["render_prompt"] = agent_conf.render_prompt
             if hasattr(agent_conf, "max_trials"):
                 additional_args["max_trials"] = agent_conf.max_trials
             if hasattr(agent_conf, "max_reasoning_steps"):

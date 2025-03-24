@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional, Callable, Self
 
 from diskurs.agent import BaseAgent, is_previous_agent_conductor, get_last_conductor_name
@@ -122,12 +123,9 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
 
         return self.return_fail_validation_message(response or conversation)
 
-    async def invoke(self, conversation: Conversation, message_type=MessageType.CONVERSATION) -> Conversation:
-
+    async def prepare_invoke(self, conversation):
         self.logger.debug(f"Invoke called on agent {self.name}")
-
         previous_user_prompt_augment = conversation.user_prompt_argument
-
         conversation = self.prepare_conversation(
             conversation,
             system_prompt_argument=self.prompt.create_system_prompt_argument(),
@@ -142,9 +140,13 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
                     name=self.name, prompt_args=conversation.user_prompt_argument
                 )
             )
-
         if not is_previous_agent_conductor(conversation) and self.init_prompt_arguments_with_previous_agent:
             conversation = conversation.update_prompt_argument_with_previous_agent(previous_user_prompt_augment)
+        return conversation
+
+    async def invoke(self, conversation: Conversation, message_type=MessageType.CONVERSATION) -> Conversation:
+
+        conversation = await self.prepare_invoke(conversation)
 
         for reasoning_step in range(self.max_reasoning_steps):
             self.logger.debug(f"Reasoning step {reasoning_step + 1} for Agent {self.name}")
@@ -194,3 +196,42 @@ class MultistepAgentPredicate(MultiStepAgent, ConversationResponder):
         self.logger.info(f"Process conversation on agent: {self.name}")
         conversation = await self.invoke(conversation, message_type=MessageType.CONDUCTOR)
         return conversation
+
+
+@register_agent("parallel_multistep")
+class ParallelMulstistepAgent(MultiStepAgent):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.invoke_on_final: bool = kwargs.pop("invoke_on_final")
+        self._branch_conversation: Callable[[Conversation], list[Conversation]] = kwargs.pop("branch_conversations")
+        self._join_conversations: Callable[[list[Conversation]], Conversation] = kwargs.pop("join_conversations")
+
+    async def branch_conversations(self, conversation: Conversation) -> list[Conversation]:
+        return self._branch_conversation(conversation)
+
+    async def join_conversations(self, conversations: list[Conversation]) -> Conversation:
+        return self._join_conversations(conversations)
+
+    async def invoke_parallel(self, conversation: Conversation, message_type=MessageType.CONVERSATION) -> Conversation:
+        """
+        Parallelize work, by first invoking the main conversation and then branching out the conversation to multiple
+        invoke calls. The first invoke is meant to identify parallelizable work, we then call branch_conversations to
+        split the work into multiple conversations and then invoke each conversation in parallel.
+
+        :param conversation: The conversation object to process.
+        :param message_type: The message type to use when generating responses.
+        :return: The conversation object with the final result.
+        """
+        conversation = await self.invoke(conversation, message_type=message_type)
+        conversations = await self.branch_conversations(conversation)
+
+        results = await asyncio.gather(
+            *(self.invoke(conversation, message_type=message_type) for conversation in conversations)
+        )
+        result = await self.join_conversations(results)
+
+        if self.invoke_on_final:
+            return await self.invoke(conversation, message_type=message_type)
+        else:
+            return result

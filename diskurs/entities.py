@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, fields, is_dataclass, field
 from enum import Enum
-from typing import Any, get_args, get_origin
+from typing import Any, get_args, get_origin, Annotated, Union
 from typing import Optional, TypeVar, Callable
 
 
