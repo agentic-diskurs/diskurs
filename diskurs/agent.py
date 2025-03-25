@@ -121,6 +121,18 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
             )
         )
 
+    async def handle_tool_call(self, conversation, response):
+        """
+        This method handles a tool call by executing the tool and updating the conversation
+        with the tool response. It is not implemented in the base class and should be implemented
+        in subclasses that require it
+
+        :param conversation: The conversation object to add the result to.
+        :param response: The response object containing the tool call to handle.
+        :return: The updated conversation object with the tool response.
+        """
+        return conversation
+
     async def generate_validated_response(
         self,
         conversation: Conversation,
@@ -146,25 +158,28 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
                 conversation=conversation, tools=getattr(self, "tools", None), message_type=message_type
             )
 
-            parsed_response = self.prompt.parse_user_prompt(
-                self.name,
-                llm_response=response.last_message.content,
-                old_user_prompt_argument=response.user_prompt_argument,
-                message_type=message_type,
-            )
-
-            if isinstance(parsed_response, PromptArgument):
-                self.logger.debug(f"Valid response found for Agent {self.name}")
-                return response.update(
-                    user_prompt_argument=parsed_response,
-                    user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=parsed_response),
-                )
-            elif isinstance(parsed_response, ChatMessage):
-                self.logger.debug(f"Invalid response, created corrective message for Agent {self.name}")
-
-                conversation = response.update(user_prompt=parsed_response)
+            if response.has_pending_tool_call():
+                conversation = await self.handle_tool_call(conversation, response)
             else:
-                self.logger.error(f"Failed to parse response from LLM model: {parsed_response}")
-                raise ValueError(f"Failed to parse response from LLM model: {parsed_response}")
+
+                parsed_response = self.prompt.parse_user_prompt(
+                    self.name,
+                    llm_response=response.last_message.content,
+                    old_user_prompt_argument=response.user_prompt_argument,
+                    message_type=message_type,
+                )
+
+                if isinstance(parsed_response, PromptArgument):
+                    self.logger.debug(f"Valid response found for Agent {self.name}")
+                    return response.update(
+                        user_prompt_argument=parsed_response,
+                        user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=parsed_response),
+                    )
+                elif isinstance(parsed_response, ChatMessage):
+                    self.logger.debug(f"Invalid response, created corrective message for Agent {self.name}")
+                    conversation = response.update(user_prompt=parsed_response)
+                else:
+                    self.logger.error(f"Failed to parse response from LLM model: {parsed_response}")
+                    raise ValueError(f"Failed to parse response from LLM model: {parsed_response}")
 
         return self.return_fail_validation_message(response or conversation)

@@ -235,7 +235,7 @@ def test_parse_user_prompt_partial_update(prompt_instance, prompt_testing_conver
 def test_parse_user_prompt(prompt_instance, prompt_testing_conversation):
     res = prompt_instance.parse_user_prompt(
         name="test_agent",
-        llm_response='"{\\"topic\\": \\"Secure Web Gateway\\"}"',
+        llm_response='"{\\"topic\\": \\"Secure Web Gateway\\", \\"name\\": \\"Hans Ruedi\\", \\"user_question\\": \\"Where is my sandwich?\\"}"',
         old_user_prompt_argument=prompt_testing_conversation.user_prompt_argument,
     )
 
@@ -244,6 +244,8 @@ def test_parse_user_prompt(prompt_instance, prompt_testing_conversation):
 
 
 def test_parse_user_prompt_json_array(prompt_with_array_instance, prompt_testing_conversation):
+    prompt_with_array_instance.is_valid = lambda _: True
+
     res = prompt_with_array_instance.parse_user_prompt(
         name="test_agent",
         llm_response='{"steps": [{"topic": "Secure Web Gateway"}, {"topic": "Secure Web Gateway 2"}]}',
@@ -562,8 +564,7 @@ def test_render_json_formatting_prompt_with_array_type():
 
 
 def test_json_formatting_with_real_llm_compiler_prompt(prompt_with_array_instance):
-    from diskurs.llm_compiler.prompts import PlanningUserPromptArgument, PlanStep
-    from diskurs.llm_compiler.entities import PlanStep
+    from diskurs.llm_compiler.prompts import PlanningUserPromptArgument
 
     # Create an instance with proper template
     template = load_template_from_package("diskurs.assets", "json_formatting.jinja2")

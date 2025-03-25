@@ -2,7 +2,7 @@ import asyncio
 from typing import Callable, Optional, Self
 
 from diskurs.agent import BaseAgent, get_last_conductor_name, is_previous_agent_conductor
-from diskurs.entities import ChatMessage, MessageType, PromptArgument, Role, ToolDescription
+from diskurs.entities import ChatMessage, MessageType, Role, ToolDescription
 from diskurs.protocols import (
     Conversation,
     ConversationDispatcher,
@@ -76,46 +76,10 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
             )
         return tool_responses
 
-    async def generate_validated_response(
-        self,
-        conversation: Conversation,
-        message_type: MessageType = MessageType.CONVERSATION,
-    ) -> Conversation:
-        response = None
-
-        for max_trials in range(self.max_trials):
-            self.logger.debug(f"Generating validated response trial {max_trials + 1} for Agent {self.name}")
-
-            response = await self.llm_client.generate(
-                conversation=conversation, tools=getattr(self, "tools", None), message_type=message_type
-            )
-
-            if response.has_pending_tool_call():
-                tool_responses = await self.compute_tool_response(response)
-                conversation = response.update(user_prompt=tool_responses)
-            else:
-
-                parsed_response = self.prompt.parse_user_prompt(
-                    self.name,
-                    llm_response=response.last_message.content,
-                    old_user_prompt_argument=response.user_prompt_argument,
-                    message_type=message_type,
-                )
-
-                if isinstance(parsed_response, PromptArgument):
-                    self.logger.debug(f"Valid response found for Agent {self.name}")
-                    return response.update(
-                        user_prompt_argument=parsed_response,
-                        user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=parsed_response),
-                    )
-                elif isinstance(parsed_response, ChatMessage):
-                    self.logger.debug(f"Invalid response, created corrective message for Agent {self.name}")
-                    conversation = response.update(user_prompt=parsed_response)
-                else:
-                    self.logger.error(f"Failed to parse response from LLM model: {parsed_response}")
-                    raise ValueError(f"Failed to parse response from LLM model: {parsed_response}")
-
-        return self.return_fail_validation_message(response or conversation)
+    async def handle_tool_call(self, conversation, response):
+        tool_responses = await self.compute_tool_response(response)
+        conversation = response.update(user_prompt=tool_responses)
+        return conversation
 
     async def prepare_invoke(self, conversation):
         self.logger.debug(f"Invoke called on agent {self.name}")

@@ -434,6 +434,7 @@ class BasePrompt(PromptProtocol):
             parsed_response = validate_json(llm_response)
             merged_arguments = {**vars(old_user_prompt_argument), **parsed_response}
             validated_response = validate_dataclass(merged_arguments, self.user_prompt_argument)
+            self.is_valid(validated_response)
 
             return validated_response
         except PromptValidationError as e:
@@ -555,8 +556,6 @@ class BasePrompt(PromptProtocol):
                     content=content,
                     type=message_type,
                 )
-            else:
-                logger.warning(f"Invalid prompt arguments: {prompt_args}")
         except PromptValidationError as e:
             return ChatMessage(role=Role.USER, name=name, content=str(e), type=message_type)
         except Exception as e:
