@@ -32,8 +32,12 @@ class PromptValidationError(Exception):
         super().__init__(message)
 
 
-def always_false(*args, **kwargs) -> bool:
+def always_true(*args, **kwargs) -> bool:
     return True
+
+
+def always_false(*args, **kwargs) -> bool:
+    return False
 
 
 def load_template(location: Path) -> Template:
@@ -554,6 +558,8 @@ class BasePrompt(PromptProtocol):
                     content=content,
                     type=message_type,
                 )
+            else:
+                logger.warning(f"Invalid prompt arguments: {prompt_args}")
         except PromptValidationError as e:
             return ChatMessage(role=Role.USER, name=name, content=str(e), type=message_type)
         except Exception as e:
@@ -589,11 +595,11 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
 
     @classmethod
     def create_default_is_valid(cls, **kwargs) -> Callable[[UserPromptArg], bool]:
-        return always_false
+        return always_true
 
     @classmethod
     def create_default_is_final(cls, **kwargs) -> Callable[[UserPromptArg], bool]:
-        return always_false
+        return always_true
 
 
 @dataclass
@@ -693,7 +699,10 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
         """Modified to provide default implementations for conductor resources."""
 
         def load_symbol_if_provided(default_name: str, name_key: str) -> Optional[Callable[..., bool]]:
-            symbol_name = kwargs.get(name_key, default_name)
+            if name_key in kwargs and kwargs[name_key] is not None:
+                symbol_name = kwargs[name_key]
+            else:
+                symbol_name = default_name
             return safe_load_symbol(symbol_name, module) if symbol_name else None
 
         def default_finalize(ltm):
@@ -880,13 +889,8 @@ class HeuristicPrompt(HeuristicPromptProtocol):
 
         user_template = None
 
-        if render_template and template_location.exists():
+        if template_location.exists():
             user_template = load_template(location / user_template_filename)
-        elif render_template and not template_location.exists():
-            logger.warning(
-                f"User template not found at {template_location}, if you dont need a template, "
-                + "set render_template to False, rendering has been disabled for this prompt"
-            )
 
         heuristic_sequence: HeuristicSequence = safe_load_symbol(symbol_name=heuristic_sequence_name, module=module)
 
