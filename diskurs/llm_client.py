@@ -1,24 +1,22 @@
 import json
-import logging
 from abc import abstractmethod
-from typing import Any, Optional, Callable
+from typing import Any, Callable, Optional
 
 import tiktoken
-from typing_extensions import Self
-
 from openai import (
     APIError,
     APITimeoutError,
+    AsyncOpenAI,
+    AuthenticationError,
+    BadRequestError,
     RateLimitError,
     UnprocessableEntityError,
-    AuthenticationError,
-    AsyncOpenAI,
 )
-from openai import OpenAI, BadRequestError
 from openai.types.chat import ChatCompletion
+from typing_extensions import Self
 
-from diskurs.entities import ChatMessage, Role, ToolCall, ToolDescription, MessageType
 from diskurs import ImmutableConversation
+from diskurs.entities import ChatMessage, MessageType, Role, ToolCall, ToolDescription
 from diskurs.logger_setup import get_logger
 from diskurs.protocols import LLMClient
 from diskurs.registry import register_llm

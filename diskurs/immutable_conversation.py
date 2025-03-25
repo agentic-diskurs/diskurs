@@ -2,10 +2,10 @@ import copy
 import enum
 import importlib
 from dataclasses import fields, replace
-from typing import TypeVar, Optional, Any
+from typing import Any, Optional, TypeVar
 
 from diskurs import LongtermMemory
-from diskurs.entities import ChatMessage, Role, MessageType, ResultHolder
+from diskurs.entities import ChatMessage, MessageType, ResultHolder, Role
 from diskurs.protocols import Conversation, ConversationStore
 from diskurs.registry import register_conversation
 

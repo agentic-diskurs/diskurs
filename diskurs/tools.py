@@ -5,11 +5,12 @@ from collections import defaultdict
 from functools import wraps
 from logging import Logger
 from pathlib import Path
-from typing import Callable, Optional, Any
+from typing import Any, Callable, Optional
 
 from diskurs.config import ToolConfig, ToolDependencyConfig
-from diskurs.entities import ToolCallResult, ToolCall, ToolDescription
-from diskurs.protocols import ToolExecutor as ToolExecutorProtocol, ToolDependency
+from diskurs.entities import ToolCall, ToolCallResult, ToolDescription
+from diskurs.protocols import ToolDependency
+from diskurs.protocols import ToolExecutor as ToolExecutorProtocol
 from diskurs.registry import register_tool_executor
 from diskurs.utils import load_module_from_path
 

@@ -1,19 +1,12 @@
 import logging
-from abc import abstractmethod, ABC
-from typing import Optional, Generic
+from abc import ABC, abstractmethod
+from typing import Generic, Optional
 
 from typing_extensions import TypeVar
 
-from diskurs.entities import ChatMessage, PromptArgument, MessageType, Role
+from diskurs.entities import ChatMessage, MessageType, PromptArgument, Role
 from diskurs.logger_setup import get_logger
-from diskurs.protocols import (
-    ConversationDispatcher,
-    LLMClient,
-    Agent,
-    ConversationParticipant,
-    Conversation,
-    Prompt,
-)
+from diskurs.protocols import Agent, Conversation, ConversationDispatcher, ConversationParticipant, LLMClient, Prompt
 
 logger = logging.getLogger(__name__)
 

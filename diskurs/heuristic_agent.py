@@ -1,14 +1,14 @@
-from typing import Optional, Self, Callable
+from typing import Callable, Optional, Self
 
-from diskurs import register_agent, Conversation, ToolExecutor, Agent, PromptArgument
-from diskurs.agent import is_previous_agent_conductor, get_last_conductor_name, has_conductor_been_called
+from diskurs import Agent, Conversation, PromptArgument, ToolExecutor, register_agent
+from diskurs.agent import get_last_conductor_name, has_conductor_been_called, is_previous_agent_conductor
 from diskurs.entities import MessageType, ToolDescription
 from diskurs.logger_setup import get_logger
 from diskurs.protocols import (
-    ConversationParticipant,
-    HeuristicPrompt,
     ConversationDispatcher,
     ConversationFinalizer,
+    ConversationParticipant,
+    HeuristicPrompt,
     LLMClient,
 )
 from diskurs.tools import generate_tool_descriptions

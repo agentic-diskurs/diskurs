@@ -1,10 +1,8 @@
 import os
 import re
-from dataclasses import asdict, is_dataclass, field
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
-from typing import Any, Optional, TypeVar, get_args, get_origin
-from typing import Type
+from typing import Any, Optional, Type, TypeVar, get_args, get_origin
 
 import yaml
 

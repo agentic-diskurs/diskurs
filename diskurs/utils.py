@@ -4,7 +4,7 @@ import sys
 from dataclasses import asdict, dataclass
 from importlib import resources
 from pathlib import Path
-from typing import Callable, Optional, TypeVar, Any
+from typing import Any, Callable, Optional, TypeVar
 
 import jinja2
 from jinja2 import Template

@@ -1,28 +1,22 @@
 import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import List, Callable, Type, Any
+from typing import Any, Callable, List, Type
 
 from diskurs.config import load_config_from_yaml
-from diskurs.entities import DiskursInput, ChatMessage, Role, MessageType, RoutingRule, PromptArgument
+from diskurs.entities import ChatMessage, DiskursInput, MessageType, PromptArgument, Role, RoutingRule
 from diskurs.logger_setup import get_logger
-from diskurs.protocols import (
-    Agent,
-    ConversationParticipant,
-    ConversationStore,
-    Conversation,
-    ConductorAgent,
-)
+from diskurs.protocols import Agent, ConductorAgent, Conversation, ConversationParticipant, ConversationStore
 from diskurs.registry import (
     AGENT_REGISTRY,
-    LLM_REGISTRY,
-    TOOL_EXECUTOR_REGISTRY,
-    DISPATCHER_REGISTRY,
-    PROMPT_REGISTRY,
     CONVERSATION_REGISTRY,
     CONVERSATION_STORE_REGISTRY,
+    DISPATCHER_REGISTRY,
+    LLM_REGISTRY,
+    PROMPT_REGISTRY,
+    TOOL_EXECUTOR_REGISTRY,
 )
-from diskurs.tools import load_tools, load_dependencies
+from diskurs.tools import load_dependencies, load_tools
 from diskurs.utils import load_module_from_path
 
 logging.basicConfig(level=logging.WARNING)

@@ -3,7 +3,6 @@ from typing import Annotated, Any, Optional, Self
 
 from jinja2 import Template
 
-
 from diskurs.entities import PromptArgument, PromptField
 from diskurs.llm_compiler.entities import PlanStep
 from diskurs.prompt import BasePrompt, load_template

@@ -7,7 +7,7 @@ from typing import Self
 import aiofiles
 
 from diskurs.logger_setup import get_logger
-from diskurs.protocols import ConversationStore, Conversation
+from diskurs.protocols import Conversation, ConversationStore
 from diskurs.registry import register_conversation_store
 
 

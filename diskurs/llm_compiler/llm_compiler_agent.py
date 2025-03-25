@@ -1,15 +1,16 @@
 from typing import Optional, Self
 
-
 from diskurs.agent import get_last_conductor_name, is_previous_agent_conductor
-from diskurs.multistep_agent import MultiStepAgent
-from diskurs.registry import register_agent
 from diskurs.entities import MessageType, ToolDescription
-from diskurs.protocols import LLMClient, ConversationDispatcher, Conversation, ToolExecutor
-
-from diskurs.llm_compiler.parallel_executor import ParallelExecutor
 from diskurs.llm_compiler.entities import ExecutionPlan
-from diskurs.llm_compiler.prompts import LLMCompilerPrompt, PlanningSystemPromptArgument, PlanningUserPromptArgument
+from diskurs.llm_compiler.parallel_executor import ParallelExecutor
+from diskurs.llm_compiler.prompts import (LLMCompilerPrompt,
+                                          PlanningSystemPromptArgument,
+                                          PlanningUserPromptArgument)
+from diskurs.multistep_agent import MultiStepAgent
+from diskurs.protocols import (Conversation, ConversationDispatcher, LLMClient,
+                               ToolExecutor)
+from diskurs.registry import register_agent
 from diskurs.utils import load_template_from_package
 
 

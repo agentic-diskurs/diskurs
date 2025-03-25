@@ -1,24 +1,12 @@
 import json
 import logging
-from dataclasses import fields, asdict
-from typing import Optional, Self, Any, List
+from dataclasses import asdict, fields
+from typing import Any, List, Optional, Self
 
 from diskurs.agent import BaseAgent, is_previous_agent_conductor
-from diskurs.entities import (
-    MessageType,
-    LongtermMemory,
-    PromptArgument,
-    RoutingRule,
-    ChatMessage,
-    Role,
-)
-from diskurs.protocols import (
-    LLMClient,
-    ConversationDispatcher,
-    ConductorPrompt,
-    Conversation,
-    ConductorAgent as ConductorAgentProtocol,
-)
+from diskurs.entities import ChatMessage, LongtermMemory, MessageType, PromptArgument, Role, RoutingRule
+from diskurs.protocols import ConductorAgent as ConductorAgentProtocol
+from diskurs.protocols import ConductorPrompt, Conversation, ConversationDispatcher, LLMClient
 from diskurs.registry import register_agent
 
 logger = logging.getLogger(__name__)

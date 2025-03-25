@@ -1,27 +1,15 @@
 from dataclasses import dataclass
-from typing import (
-    List,
-    Dict,
-    Self,
-    Callable,
-    Protocol,
-    Any,
-    Type,
-    TypeVar,
-    Optional,
-    Union,
-    runtime_checkable,
-)
+from typing import Any, Callable, Dict, List, Optional, Protocol, Self, Type, TypeVar, Union, runtime_checkable
 
 from diskurs.entities import (
-    ToolDescription,
-    LongtermMemory,
-    ToolCallResult,
-    ToolCall,
-    PromptArgument,
     ChatMessage,
+    LongtermMemory,
     MessageType,
+    PromptArgument,
     Role,
+    ToolCall,
+    ToolCallResult,
+    ToolDescription,
 )
 
 

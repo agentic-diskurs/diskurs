@@ -1,9 +1,9 @@
 from diskurs.logger_setup import get_logger
 from diskurs.protocols import (
-    ConversationParticipant,
-    ConversationDispatcher,
     Conversation,
+    ConversationDispatcher,
     ConversationFinalizer,
+    ConversationParticipant,
     ConversationResponder,
 )
 from diskurs.registry import register_dispatcher

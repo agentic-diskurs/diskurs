@@ -1,22 +1,16 @@
 import asyncio
-from typing import Optional, Callable, Self
+from typing import Callable, Optional, Self
 
-from diskurs.agent import BaseAgent, is_previous_agent_conductor, get_last_conductor_name
-from diskurs.entities import (
-    ToolDescription,
-    ChatMessage,
-    Role,
-    MessageType,
-    PromptArgument,
-)
+from diskurs.agent import BaseAgent, get_last_conductor_name, is_previous_agent_conductor
+from diskurs.entities import ChatMessage, MessageType, PromptArgument, Role, ToolDescription
 from diskurs.protocols import (
-    LLMClient,
-    ConversationDispatcher,
-    MultistepPrompt,
     Conversation,
-    ToolExecutor,
+    ConversationDispatcher,
     ConversationFinalizer,
     ConversationResponder,
+    LLMClient,
+    MultistepPrompt,
+    ToolExecutor,
 )
 from diskurs.registry import register_agent
 from diskurs.tools import generate_tool_descriptions
