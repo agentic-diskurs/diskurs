@@ -7,12 +7,11 @@ import pytest
 from jinja2 import Template
 
 from conftest import are_classes_structurally_similar
-from diskurs import ImmutableConversation, ToolExecutor
+from diskurs import ImmutableConversation, ToolExecutor, PromptValidationError
 from diskurs.entities import ChatMessage, Role, PromptArgument, prompt_field
 from diskurs.prompt import (
     MultistepPrompt,
     validate_dataclass,
-    PromptValidationError,
     ConductorPrompt,
     HeuristicPrompt,
     validate_json,

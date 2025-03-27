@@ -4,7 +4,7 @@ from unittest.mock import ANY, AsyncMock, Mock, patch
 
 import pytest
 
-from diskurs import ImmutableConversation, Conversation
+from diskurs import ImmutableConversation, Conversation, PromptValidationError
 from diskurs.conductor_agent import ConductorAgent, validate_finalization
 from diskurs.entities import (
     ChatMessage,
@@ -15,7 +15,6 @@ from diskurs.entities import (
     RoutingRule,
 )
 from diskurs.prompt import (
-    PromptValidationError,
     DefaultConductorUserPromptArgument,
 )
 from diskurs.protocols import (

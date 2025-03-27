@@ -7,6 +7,7 @@ from typing import Any, Callable, Optional, Self, Type, TypeVar, Union, get_type
 
 from jinja2 import Environment, FileSystemLoader, Template
 
+from diskurs.errors import PromptValidationError
 from diskurs.entities import ChatMessage, MessageType, PromptArgument, PromptField, Role
 from diskurs.protocols import CallTool
 from diskurs.protocols import ConductorPrompt as ConductorPromptProtocol
@@ -22,11 +23,6 @@ logger = logging.getLogger(__name__)
 
 UserPromptArg = TypeVar("UserPromptArg", bound=PromptArgument)
 SystemPromptArg = TypeVar("SystemPromptArg", bound=PromptArgument)
-
-
-class PromptValidationError(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)
 
 
 def always_true(*args, **kwargs) -> bool:

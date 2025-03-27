@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 from diskurs.entities import JsonSerializable, PromptArgument
-from diskurs.prompt import PromptValidationError
+from diskurs import PromptValidationError
 
 
 @dataclass

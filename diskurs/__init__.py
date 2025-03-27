@@ -7,7 +7,7 @@ from .entities import DiskursInput, LongtermMemory, PromptArgument, PromptField,
 from .forum import Forum, ForumFactory, create_forum_from_config
 from .immutable_conversation import ImmutableConversation
 from .multistep_agent import MultiStepAgent
-from .prompt import PromptValidationError
+from .errors import PromptValidationError
 from .protocols import (
     Agent,
     CallTool,
@@ -48,10 +48,10 @@ __all__ = [
     "AsynchronousConversationDispatcher",
     "ToolDependencyConfig",
     "ImmutableConversation",
-    "PromptValidationError",
     "tool",
     "ConversationStoreConfig",
     "ConversationStore",
+    "PromptValidationError",
     "register_conversation_store",
     "register_llm",
     "register_conversation",

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from diskurs.entities import PromptArgument
-from diskurs.prompt import PromptValidationError
+from diskurs import PromptValidationError
 
 
 @dataclass
