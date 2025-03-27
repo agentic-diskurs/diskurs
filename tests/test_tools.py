@@ -55,9 +55,7 @@ def custom_modules():
 
 def test_load_dependencies(dependency_config, custom_modules):
     dependencies = load_dependencies(
-        [dependency_config],
-        custom_modules=custom_modules,
-        base_path=Path(__file__).parent  # Add base path parameter
+        [dependency_config], custom_modules=custom_modules, base_path=Path(__file__).parent  # Add base path parameter
     )
     assert len(dependencies) == 1
     assert any(dep.name == "dummy_dependency_name" for dep in dependencies)
@@ -72,6 +70,7 @@ def test_create_func_with_closure(dependency_config, custom_modules):
                 "dep_foo": dummy_dependency_name.foo,
                 "dep_bar": dummy_dependency_name.bar,
             }
+
         return dummy_func
 
     config = ToolConfig(
@@ -83,9 +82,7 @@ def test_create_func_with_closure(dependency_config, custom_modules):
     )
 
     dependencies = load_dependencies(
-        [dependency_config],
-        custom_modules=custom_modules,
-        base_path=Path(__file__).parent
+        [dependency_config], custom_modules=custom_modules, base_path=Path(__file__).parent
     )
 
     result_func = create_func_with_closure(create_dummy_func, config, dependencies)
@@ -98,16 +95,11 @@ def test_create_func_with_closure(dependency_config, custom_modules):
 
 def test_load_tools(tool_configs, dependency_config, custom_modules):
     dependencies = load_dependencies(
-        [dependency_config],
-        custom_modules=custom_modules,
-        base_path=Path(__file__).parent
+        [dependency_config], custom_modules=custom_modules, base_path=Path(__file__).parent
     )
 
     loaded_functions = load_tools(
-        dependencies,
-        tool_configs,
-        custom_modules=custom_modules,
-        base_path=Path(__file__).parent
+        dependencies, tool_configs, custom_modules=custom_modules, base_path=Path(__file__).parent
     )
 
     assert len(loaded_functions) == len(tool_configs)
@@ -186,6 +178,7 @@ def test_register_multiple_tools(tool_executor):
     tool_executor.register_tools(tool_list)
 
     # Check that both tools are registered correctly
+    assert len(tool_executor.tools) == 2
     assert "tool_b" in tool_executor.tools
     assert "tool_c" in tool_executor.tools
     assert tool_executor.tools["tool_b"] == tool_b

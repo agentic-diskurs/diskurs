@@ -282,18 +282,21 @@ def generate_tool_descriptions(
     :param new_tools: A single callable or a list of callables representing the tools to be registered.
     :param logger: The logger object to use for logging.
     :param agent_name: The name of the agent registering the tools.
+    :return: The combined list of existing and newly registered tool descriptions.
     """
-    logger.info(f"Registering tools for agent {agent_name}: {[tool.name for tool in new_tools]}")
+    logger.info(
+        f"Registering tools for agent {agent_name}: {[tool.__name__ for tool in new_tools] if isinstance(new_tools, list) else new_tools.__name__}"
+    )
     if callable(new_tools):
         new_tools = [new_tools]
 
-    new_tools = [ToolDescription.from_function(fun) for fun in new_tools]
+    new_tool_descriptions = [ToolDescription.from_function(fun) for fun in new_tools]
 
-    if new_tools and set([tool.name for tool in tools]) & set(tool.name for tool in new_tools):
+    if new_tool_descriptions and set([tool.name for tool in tools]) & set(tool.name for tool in new_tool_descriptions):
         logger.error(
-            f"Tool names must be unique, found: {set([tool.name for tool in new_tools]) & set(tool.name for tool in new_tools)}"
+            f"Tool names must be unique, found duplicates: {set([tool.name for tool in tools]) & set(tool.name for tool in new_tool_descriptions)}"
         )
         raise ValueError("Tool names must be unique")
     else:
-        new_tools = new_tools + new_tools
-        return new_tools
+        # Return combined list of existing tools and new tools
+        return tools + new_tool_descriptions

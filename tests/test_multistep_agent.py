@@ -6,6 +6,11 @@ from diskurs import MultiStepAgent, LLMClient, ToolExecutor
 from diskurs.entities import ChatMessage, Role, MessageType
 from diskurs.heuristic_agent import HeuristicAgentFinalizer
 from diskurs.multistep_agent import MultistepAgentFinalizer
+from test_files.tool_test_files.data_analysis_tools import (
+    analyze_sales_data,
+    analyze_employee_performance,
+    generate_budget_projection,
+)
 
 CONDUCTOR_NAME = "my_conductor"
 
@@ -100,6 +105,37 @@ async def test_invoke_with_longterm_memory_and_previous_agent(extended_multistep
             result.user_prompt_argument.field4 == "user prompt field 4",
         ]
     )
+
+
+class TestRegisterTools:
+    def test_register_tools(self, multistep_agent):
+        multistep_agent.register_tools([analyze_sales_data])
+
+        assert "analyze_sales_data" in [tool.name for tool in multistep_agent.tools]
+        assert len(multistep_agent.tools) == 1
+
+    def test_register_multiple_tools(self, multistep_agent):
+        multistep_agent.register_tools([analyze_sales_data, analyze_employee_performance])
+
+        assert "analyze_sales_data" in [tool.name for tool in multistep_agent.tools]
+        assert len(multistep_agent.tools) == 2
+
+    def test_register_new_tool_to_existing_tools(self, multistep_agent):
+        multistep_agent.register_tools([analyze_sales_data])
+        multistep_agent.register_tools([analyze_employee_performance])
+
+        assert "analyze_sales_data" in [tool.name for tool in multistep_agent.tools]
+        assert "analyze_employee_performance" in [tool.name for tool in multistep_agent.tools]
+        assert len(multistep_agent.tools) == 2
+
+    def test_register_multiple_tools_to_existing_tools(self, multistep_agent):
+        multistep_agent.register_tools(analyze_sales_data)
+        multistep_agent.register_tools([analyze_employee_performance, generate_budget_projection])
+
+        assert len(multistep_agent.tools) == 3
+        assert "analyze_sales_data" in [tool.name for tool in multistep_agent.tools]
+        assert "analyze_employee_performance" in [tool.name for tool in multistep_agent.tools]
+        assert "generate_budget_projection" in [tool.name for tool in multistep_agent.tools]
 
 
 #################################
