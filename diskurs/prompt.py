@@ -7,8 +7,8 @@ from typing import Any, Callable, Optional, Self, Type, TypeVar, Union, get_type
 
 from jinja2 import Environment, FileSystemLoader, Template
 
-from diskurs.errors import PromptValidationError
 from diskurs.entities import ChatMessage, MessageType, PromptArgument, PromptField, Role
+from diskurs.errors import PromptValidationError
 from diskurs.protocols import CallTool
 from diskurs.protocols import ConductorPrompt as ConductorPromptProtocol
 from diskurs.protocols import Conversation
@@ -447,6 +447,32 @@ class BasePrompt(PromptProtocol):
 
     def create_user_prompt_argument(self, **prompt_args: dict) -> UserPromptArg:
         return self.user_prompt_argument(**prompt_args)
+
+    def init_prompt(
+        self,
+        agent_name: str,
+        conversation: Conversation,
+        message_type: MessageType = MessageType.CONVERSATION,
+    ) -> Conversation:
+        """
+        Initialize the prompt before starting an agent's turn.
+        This method sets fresh values for prompt arguments and renders prompts
+        """
+        system_prompt_argument = self.create_system_prompt_argument()
+        user_prompt_argument = self.create_user_prompt_argument()
+
+        system_prompt = self.render_system_template(agent_name, prompt_args=system_prompt_argument)
+        user_prompt = self.render_user_template(
+            agent_name, prompt_args=user_prompt_argument, message_type=message_type
+        )
+
+        return conversation.update(
+            system_prompt_argument=system_prompt_argument,
+            user_prompt_argument=user_prompt_argument,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            active_agent=agent_name,
+        )
 
     def render_json_formatting_prompt(self, prompt_args: dict[str, Any]) -> str:
         """

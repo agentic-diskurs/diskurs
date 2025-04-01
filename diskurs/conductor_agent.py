@@ -155,17 +155,12 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             ChatMessage(role=Role.ASSISTANT, content=content, name=self.name, type=MessageType.CONDUCTOR)
         )
 
-    async def invoke(self, conversation: Conversation, message_type=MessageType.CONDUCTOR) -> Conversation:
+    async def invoke(
+        self, conversation: Conversation, message_type=MessageType.CONVERSATION, reset_prompt=True
+    ) -> Conversation:
         self.logger.debug(f"Invoke called on conductor agent {self.name}")
 
-        conversation = self.prepare_conversation(
-            conversation,
-            system_prompt_argument=self.prompt.create_system_prompt_argument(
-                agent_descriptions=self.agent_descriptions
-            ),
-            user_prompt_argument=self.prompt.create_user_prompt_argument(),
-            message_type=MessageType.CONDUCTOR,
-        )
+        conversation = self.prompt.init_prompt(self.name, conversation, message_type=MessageType.CONDUCTOR)
 
         if next_agent := self.evaluate_rules(conversation):
             # Directly update the next_agent field in the prompt argument
@@ -203,14 +198,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         self.logger.debug(f"Finalize conversation on conductor agent {self.name}")
 
         if self.supervisor or self.finalizer_name:
-            conversation = self.prepare_conversation(
-                conversation,
-                system_prompt_argument=self.prompt.create_system_prompt_argument(
-                    agent_descriptions=self.agent_descriptions
-                ),
-                user_prompt_argument=self.prompt.create_user_prompt_argument(),
-                message_type=MessageType.CONDUCTOR,
-            )
+            conversation = self.prompt.init_prompt(self.name, conversation, message_type=MessageType.CONDUCTOR)
 
         if self.supervisor:
             conversation = await self.add_routing_message_to_chat(conversation, self.supervisor)

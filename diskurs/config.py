@@ -132,6 +132,17 @@ class MultistepPromptConfig(PromptConfig):
 
 
 @dataclass(kw_only=True)
+class ParallelMultistepPromptConfig(PromptConfig):
+    """
+    Represents the prompt configuration for an agent.
+    """
+
+    type: str = "parallel_multistep_prompt"
+    branchName: Optional[str] = None
+    joinName: Optional[str] = None
+
+
+@dataclass(kw_only=True)
 class ConductorPromptConfig(PromptConfig):
     """
     Represents the prompt configuration for an agent.
@@ -196,6 +207,19 @@ class MultistepAgentConfig(AgentConfig):
     init_prompt_arguments_with_previous_agent: Optional[bool] = True
     max_reasoning_steps: Optional[int] = 5
     max_trials: Optional[int] = 5
+
+
+@dataclass(kw_only=True)
+class ParallelMultistepAgentConfig(MultistepAgentConfig):
+    """
+    Represents an agent configuration.
+    """
+
+    type: str = "parallel_multistep"
+    location: Path
+    invoke_on_final: bool = True
+    branch_conversation_name: Optional[str] = None
+    join_conversations_name: Optional[str] = None
 
 
 @dataclass(kw_only=True)

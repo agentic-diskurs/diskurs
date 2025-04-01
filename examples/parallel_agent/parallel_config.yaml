@@ -1,0 +1,51 @@
+firstContact: "Parallel_Agent"
+toolExecutorType: "default"
+dispatcherType: "asynchronous"
+
+llms:
+  - name: "gpt-4-base"
+    type: "azure"
+    api_version: "2024-08-01-preview"
+    model_name: "gpt-4-0613"
+    endpoint: "${AZURE_AI_ENDPOINT}"
+    use_entra_id: true
+    modelMaxTokens: 8192
+
+conversation:
+  type: immutable_conversation
+
+conversationStore:
+  type: filesystem
+  isPersistent: true
+  directory: conversations
+
+agents:
+  - name: "Parallel_Agent"
+    type: "parallel_multistep"
+    llm: "gpt-4-base"
+    location: "agents/Parallel_Agent"
+    branchConversationName: "branch_conversation"
+    joinConversationName: "join_conversation"
+    invokeOnFinal: False
+    prompt:
+      type: "multistep_prompt"
+      location: "agents/Parallel_Agent"
+      systemPromptArgumentClass: "ParallelMultiStepSystemPrompt"
+      userPromptArgumentClass: "ParallelMultiStepUserPrompt"
+      isValidName: "is_valid"
+      isFinalName: "is_final"
+    topics:
+      - "Finalizing_Agent"
+    maxReasoningSteps: 10
+    maxTrials: 5
+
+  - name: "Finalizing_Agent"
+    type: "heuristic_finalizer"
+    renderPrompt: false
+    prompt:
+      type: "heuristic_prompt"
+      location: "agents/Finalizing_Agent"
+      userPromptArgumentClass: "FinalizingUserPrompt"
+      heuristicSequenceName: "heuristic_sequence"
+    finalProperties:
+      - "instructions"

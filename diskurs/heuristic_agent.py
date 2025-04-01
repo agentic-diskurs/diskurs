@@ -60,7 +60,9 @@ class HeuristicAgent(Agent, ConversationParticipant):
         self.logger.debug(f"Preparing conversation for agent {self.name}")
         return conversation.update(user_prompt_argument=user_prompt_argument, active_agent=self.name)
 
-    async def invoke(self, conversation: Conversation, message_type=MessageType.CONVERSATION) -> Conversation:
+    async def invoke(
+        self, conversation: Conversation, message_type=MessageType.CONVERSATION, init_prompt=True
+    ) -> Conversation:
         self.logger.debug(f"Invoke called on agent {self.name}")
 
         previous_user_prompt_augment = conversation.user_prompt_argument
@@ -121,3 +123,7 @@ class HeuristicAgentFinalizer(HeuristicAgent, ConversationFinalizer):
         await conversation.maybe_persist()
 
         conversation.final_result = get_fields_as_dict(conversation.user_prompt_argument, self.final_properties)
+
+    async def process_conversation(self, conversation: Conversation) -> None:
+        self.logger.info(f"Finalizing conversation on agent: {self.name}")
+        return await self.finalize_conversation(conversation)

@@ -227,6 +227,10 @@ class ForumFactory:
 
             if hasattr(agent_conf, "render_prompt"):
                 additional_args["render_prompt"] = agent_conf.render_prompt
+            if hasattr(agent_conf, "invoke_on_final"):
+                additional_args["invoke_on_final"] = agent_conf.invoke_on_final
+            if hasattr(agent_conf, "location"):
+                additional_args["location"] = agent_conf.location
             if hasattr(agent_conf, "max_trials"):
                 additional_args["max_trials"] = agent_conf.max_trials
             if hasattr(agent_conf, "max_reasoning_steps"):

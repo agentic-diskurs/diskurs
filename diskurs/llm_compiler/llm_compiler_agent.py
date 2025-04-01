@@ -4,12 +4,9 @@ from diskurs.agent import get_last_conductor_name, is_previous_agent_conductor
 from diskurs.entities import MessageType, ToolDescription
 from diskurs.llm_compiler.entities import ExecutionPlan
 from diskurs.llm_compiler.parallel_executor import ParallelExecutor
-from diskurs.llm_compiler.prompts import (LLMCompilerPrompt,
-                                          PlanningSystemPromptArgument,
-                                          PlanningUserPromptArgument)
+from diskurs.llm_compiler.prompts import LLMCompilerPrompt, PlanningSystemPromptArgument, PlanningUserPromptArgument
 from diskurs.multistep_agent import MultiStepAgent
-from diskurs.protocols import (Conversation, ConversationDispatcher, LLMClient,
-                               ToolExecutor)
+from diskurs.protocols import Conversation, ConversationDispatcher, LLMClient, ToolExecutor
 from diskurs.registry import register_agent
 from diskurs.utils import load_template_from_package
 
@@ -60,16 +57,14 @@ class LLMCompilerAgent(MultiStepAgent):
     ) -> Self:
         return cls(name=name, prompt=prompt, llm_client=llm_client, **kwargs)
 
-    async def invoke(self, conversation: Conversation, message_type=MessageType.CONVERSATION) -> Conversation:
+    async def invoke(
+        self, conversation: Conversation, message_type=MessageType.CONVERSATION, reset_prompt=True
+    ) -> Conversation:
         self.logger.debug(f"Invoke called on LLM Compiler agent {self.name}")
 
         previous_user_prompt_augment = conversation.user_prompt_argument
 
-        conversation = self.prepare_conversation(
-            conversation,
-            system_prompt_argument=self.prompt.create_system_prompt_argument(),
-            user_prompt_argument=self.prompt.create_user_prompt_argument(),
-        )
+        conversation = self.prompt.init_prompt(self.name, conversation)
         if self.init_prompt_arguments_with_longterm_memory:
             conversation = conversation.update_prompt_argument_with_longterm_memory(
                 conductor_name=get_last_conductor_name(conversation.chat)

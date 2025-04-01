@@ -153,6 +153,18 @@ class Prompt(Protocol):
         """
         ...
 
+    def init_prompt(
+        self,
+        agent_name: str,
+        conversation: "Conversation",
+        message_type: MessageType = MessageType.CONVERSATION,
+    ) -> "Conversation":
+        """
+        Initialize the prompt before starting an agent's turn.
+        This method sets fresh values for prompt arguments and renders prompts
+        """
+        ...
+
 
 class MultistepPrompt(Prompt):
     system_prompt_argument: Type[SystemPromptArg]
@@ -980,7 +992,9 @@ class Agent(Protocol):
     @classmethod
     def create(cls, name: str, prompt: Prompt, llm_client: LLMClient, **kwargs): ...
 
-    async def invoke(self, conversation: Conversation, message_type=MessageType.CONVERSATION) -> Conversation:
+    async def invoke(
+        self, conversation: Conversation, message_type=MessageType.CONVERSATION, init_prompt=True
+    ) -> Conversation:
         """
         Run the agent on a conversation.
 

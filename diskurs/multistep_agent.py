@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 from typing import Callable, Optional, Self
 
 from diskurs.agent import BaseAgent, get_last_conductor_name, is_previous_agent_conductor
@@ -14,7 +15,7 @@ from diskurs.protocols import (
 )
 from diskurs.registry import register_agent
 from diskurs.tools import generate_tool_descriptions
-from diskurs.utils import get_fields_as_dict
+from diskurs.utils import get_fields_as_dict, load_module_from_path
 
 
 @register_agent("multistep")
@@ -82,13 +83,14 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         return conversation
 
     async def prepare_invoke(self, conversation):
-        self.logger.debug(f"Invoke called on agent {self.name}")
+        """
+        Prepares the conversation for invocation by initializing the prompt and updating it with long-term memory
+        and previous agent arguments if applicable.
+        :param conversation: The conversation object to prepare.
+        :return: The updated conversation object.
+        """
         previous_user_prompt_augment = conversation.user_prompt_argument
-        conversation = self.prepare_conversation(
-            conversation,
-            system_prompt_argument=self.prompt.create_system_prompt_argument(),
-            user_prompt_argument=self.prompt.create_user_prompt_argument(),
-        )
+        conversation = self.prompt.init_prompt(self.name, conversation)
         if self.init_prompt_arguments_with_longterm_memory:
             conversation = conversation.update_prompt_argument_with_longterm_memory(
                 conductor_name=get_last_conductor_name(conversation.chat)
@@ -102,9 +104,30 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
             conversation = conversation.update_prompt_argument_with_previous_agent(previous_user_prompt_augment)
         return conversation
 
-    async def invoke(self, conversation: Conversation, message_type=MessageType.CONVERSATION) -> Conversation:
+    async def invoke(
+        self, conversation: Conversation, message_type=MessageType.CONVERSATION, reset_prompt=True
+    ) -> Conversation:
+        """
+        Executes the reasoning steps to process the conversation.
 
-        conversation = await self.prepare_invoke(conversation)
+        :param conversation: The conversation object to process
+        :param message_type: The type of message to use
+        :param reset_prompt: Whether to reset the prompt with fresh prompts and prompt arguments before invoking
+        :return: The updated conversation after processing
+        """
+        self.logger.debug(f"Invoke called on agent {self.name}")
+
+        if reset_prompt:
+            conversation = await self.prepare_invoke(conversation)
+        else:
+            conversation = conversation.update(
+                system_prompt=self.prompt.render_system_template(
+                    name=self.name, prompt_args=conversation.system_prompt_argument
+                ),
+                user_prompt=self.prompt.render_user_template(
+                    name=self.name, prompt_args=conversation.user_prompt_argument
+                ),
+            )
 
         for reasoning_step in range(self.max_reasoning_steps):
             self.logger.debug(f"Reasoning step {reasoning_step + 1} for Agent {self.name}")
@@ -159,11 +182,44 @@ class MultistepAgentPredicate(MultiStepAgent, ConversationResponder):
 @register_agent("parallel_multistep")
 class ParallelMulstistepAgent(MultiStepAgent):
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        """
+        Parallelize work, by first invoking the main conversation and then branching out the conversation to multiple
+        :param invoke_on_final: whether we want to call the LLM again on the final result after applying the join function
+        """
 
         self.invoke_on_final: bool = kwargs.pop("invoke_on_final")
-        self._branch_conversation: Callable[[Conversation], list[Conversation]] = kwargs.pop("branch_conversations")
+        self._branch_conversation: Callable[[Conversation], list[Conversation]] = kwargs.pop("branch_conversation")
         self._join_conversations: Callable[[list[Conversation]], Conversation] = kwargs.pop("join_conversations")
+
+        super().__init__(**kwargs)
+
+    @classmethod
+    def create(
+        cls,
+        name: str,
+        prompt: MultistepPrompt,
+        llm_client: LLMClient,
+        **kwargs,
+    ) -> Self:
+
+        location = kwargs.pop("location", Path(__file__).parent)
+        module_name: str = kwargs.get("code_filename", "parallelize.py")
+        module = load_module_from_path(location / module_name)
+
+        branch_conversation_name = kwargs.pop("branch_conversation_name", "branch_conversation")
+        join_conversation_name = kwargs.pop("join_conversations_name", "join_conversations")
+
+        branch_conversation: Callable = getattr(module, branch_conversation_name)
+        join_conversation: Callable = getattr(module, join_conversation_name)
+
+        return cls(
+            name=name,
+            prompt=prompt,
+            llm_client=llm_client,
+            branch_conversation=branch_conversation,
+            join_conversations=join_conversation,
+            **kwargs,
+        )
 
     async def branch_conversations(self, conversation: Conversation) -> list[Conversation]:
         return self._branch_conversation(conversation)
@@ -185,11 +241,18 @@ class ParallelMulstistepAgent(MultiStepAgent):
         conversations = await self.branch_conversations(conversation)
 
         results = await asyncio.gather(
-            *(self.invoke(conversation, message_type=message_type) for conversation in conversations)
+            *(self.invoke(conv, message_type=message_type, reset_prompt=False) for conv in conversations)
         )
         result = await self.join_conversations(results)
 
         if self.invoke_on_final:
-            return await self.invoke(conversation, message_type=message_type)
+            return await self.invoke(result, message_type=message_type)
         else:
             return result
+
+    async def process_conversation(self, conversation: Conversation) -> None:
+        self.logger.info(f"Process conversation on agent: {self.name}")
+        conversation = await self.invoke_parallel(conversation)
+
+        for topic in self.topics:
+            await self.dispatcher.publish(topic=topic, conversation=conversation)

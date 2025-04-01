@@ -62,7 +62,9 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
         self._topics = value
 
     @abstractmethod
-    async def invoke(self, conversation: Conversation | str, message_type=MessageType.CONVERSATION) -> Conversation:
+    async def invoke(
+        self, conversation: Conversation | str, message_type=MessageType.CONVERSATION, reset_prompt=True
+    ) -> Conversation:
         pass
 
     def register_dispatcher(self, dispatcher: ConversationDispatcher) -> None:
@@ -79,38 +81,6 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
         :param conversation: The conversation object to process.
         """
         pass
-
-    def prepare_conversation(
-        self,
-        conversation: Conversation,
-        system_prompt_argument: PromptArgument,
-        user_prompt_argument: PromptArgument,
-        message_type: MessageType = MessageType.CONVERSATION,
-    ) -> Conversation:
-        """
-        Ensures the conversation is in a valid state by creating a new set of prompts
-        and prompt_variables for system and user, as well creating a fresh copy of the conversation.
-
-        :param conversation: A conversation object, possible passed from another agent
-            or a string to start a new conversation.
-        :param system_prompt_argument: The system prompt argument to use for the system prompt.
-        :param user_prompt_argument: The user prompt argument to use for the user prompt.
-        :param message_type: The type of message to render the user prompt as.
-        :return: A deep copy of the conversation, in a valid state for this agent
-        """
-        self.logger.debug(f"Preparing conversation for agent {self.name}")
-        system_prompt = self.prompt.render_system_template(self.name, prompt_args=system_prompt_argument)
-        user_prompt = self.prompt.render_user_template(
-            name=self.name, prompt_args=user_prompt_argument, message_type=message_type
-        )
-
-        return conversation.update(
-            system_prompt_argument=system_prompt_argument,
-            user_prompt_argument=user_prompt_argument,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            active_agent=self.name,
-        )
 
     def return_fail_validation_message(self, response):
         return response.append(

@@ -1,0 +1,11 @@
+{% if branching %}
+The text contains one or more urls, which we have to adjust the settings for
+Extract all urls we should do something with and store them in a list in the urls property
+
+{% elif joining %}
+The text contains instructions specifically related to this url: {{ urls }}
+Extract only the instructions related to this url and store them in right property
+
+{% elif merging %}
+{% else %}
+{% endif %}

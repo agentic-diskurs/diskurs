@@ -1,0 +1,1 @@
+This agent can extract and parse multiple requests for exclusion lists and block lists from a single ticket
