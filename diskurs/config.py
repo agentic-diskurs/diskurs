@@ -132,17 +132,6 @@ class MultistepPromptConfig(PromptConfig):
 
 
 @dataclass(kw_only=True)
-class ParallelMultistepPromptConfig(PromptConfig):
-    """
-    Represents the prompt configuration for an agent.
-    """
-
-    type: str = "parallel_multistep_prompt"
-    branchName: Optional[str] = None
-    joinName: Optional[str] = None
-
-
-@dataclass(kw_only=True)
 class ConductorPromptConfig(PromptConfig):
     """
     Represents the prompt configuration for an agent.

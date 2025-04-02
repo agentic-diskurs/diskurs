@@ -1,8 +1,11 @@
 from unittest.mock import AsyncMock
 
 import pytest
+from jinja2 import Template
 
+from conftest import MyExtendedUserPromptArgument, MySystemPromptArgument
 from diskurs import MultiStepAgent, LLMClient, ToolExecutor
+from diskurs.prompt import MultistepPrompt
 from diskurs.entities import ChatMessage, Role, MessageType
 from diskurs.heuristic_agent import HeuristicAgentFinalizer
 from diskurs.multistep_agent import MultistepAgentFinalizer
@@ -49,8 +52,8 @@ async def test_invoke_with_conductor_as_previous_agent(multistep_agent, conversa
             content="I am a conductor message", role=Role.USER, type=MessageType.CONDUCTOR, name=CONDUCTOR_NAME
         )
     )
-
-    # Execute
+    # The last argument of the init_prompt is optional, so lambda has only two arguments
+    multistep_agent.prompt.init_prompt = lambda agent_name, conversation: conversation
     result = await multistep_agent.invoke(conversation)
     longterm_memory = conversation.get_agent_longterm_memory(CONDUCTOR_NAME)
 
@@ -72,6 +75,7 @@ async def test_invoke_with_agent_chain(multistep_agent, conversation):
             type=MessageType.CONVERSATION,
         )
     )
+    multistep_agent.prompt.init_prompt = lambda agent_name, conversation: conversation
     result = await multistep_agent.invoke(conversation)
     assert all(
         [
@@ -82,8 +86,28 @@ async def test_invoke_with_agent_chain(multistep_agent, conversation):
     )
 
 
+@pytest.fixture
+def real_prompt():
+    prompt = MultistepPrompt(
+        agent_description="Some agent",
+        system_template=Template("System Template"),
+        user_template=Template("User Template"),
+        return_json=False,
+        system_prompt_argument_class=MySystemPromptArgument,
+        user_prompt_argument_class=MyExtendedUserPromptArgument,
+        is_valid=lambda x: True,
+        is_final=lambda x: True,
+    )
+    return prompt
+
+
+@pytest.fixture
+def real_extended_multistep_agent(real_prompt):
+    return create_multistep_agent(real_prompt)
+
+
 @pytest.mark.asyncio
-async def test_invoke_with_longterm_memory_and_previous_agent(extended_multistep_agent, extended_conversation):
+async def test_invoke_with_longterm_memory_and_previous_agent(real_extended_multistep_agent, extended_conversation):
     extended_conversation = extended_conversation.append(
         message=ChatMessage(
             content="I am a conductor message", role=Role.USER, type=MessageType.CONDUCTOR, name=CONDUCTOR_NAME
@@ -96,7 +120,7 @@ async def test_invoke_with_longterm_memory_and_previous_agent(extended_multistep
             type=MessageType.CONVERSATION,
         )
     )
-    result = await extended_multistep_agent.invoke(extended_conversation)
+    result = await real_extended_multistep_agent.invoke(extended_conversation)
     assert all(
         [
             result.user_prompt_argument.field1 == "extended user prompt field 1",
