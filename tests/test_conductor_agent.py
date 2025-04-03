@@ -413,7 +413,9 @@ async def test_conductor_agent_valid_next_agent(conductor_cannot_finalize, mock_
     parsed_prompt_argument = DefaultConductorUserPromptArgument(next_agent="agent1")
     conductor_cannot_finalize.prompt.parse_user_prompt.return_value = parsed_prompt_argument
     conductor_cannot_finalize.prompt.can_finalize.return_value = False
-    conductor_cannot_finalize.prompt.init_prompt = lambda agent_name, conversation, message_type: conversation
+    conductor_cannot_finalize.prompt.init_prompt = (
+        lambda agent_name, conversation, message_type, **kwargs: conversation
+    )
 
     await conductor_cannot_finalize.process_conversation(conversation)
 
@@ -559,7 +561,9 @@ def test_evaluate_rules_handles_exceptions(conductor_agent_with_rules, mock_conv
 @pytest.mark.asyncio
 async def test_invoke_with_rule_match(conductor_agent_with_rules, mock_conversation):
     # Set up the agent to use rule-based routing
-    conductor_agent_with_rules.prompt.init_prompt = lambda agent_name, conversation, message_type: conversation
+    conductor_agent_with_rules.prompt.init_prompt = (
+        lambda agent_name, conversation, message_type, **kwargs: conversation
+    )
 
     # Set up the prompt to properly create a user_prompt_argument with next_agent
     def mock_create_user_prompt_arg(**kwargs):
@@ -583,7 +587,9 @@ async def test_invoke_fallback_to_llm(conductor_agent_with_rules, mock_conversat
     for rule in conductor_agent_with_rules.rules:
         rule.condition = rule_always_false
 
-    conductor_agent_with_rules.prompt.init_prompt = lambda agent_name, conversation, message_type: conversation
+    conductor_agent_with_rules.prompt.init_prompt = (
+        lambda agent_name, conversation, message_type, **kwargs: conversation
+    )
 
     # Set up LLM to return a response with next_agent
     async def mock_llm_generate(conversation, message_type=None, tools=None):
@@ -645,7 +651,9 @@ async def test_rule_only_conductor_no_llm_fallback(conductor_agent_rules_only, m
 
     # Clear any existing next_agent value
     clean_conversation = mock_conversation.update(user_prompt_argument=TestUserPromptArgument(next_agent=None))
-    conductor_agent_rules_only.prompt.init_prompt = lambda agent_name, conversation, message_type: conversation
+    conductor_agent_rules_only.prompt.init_prompt = (
+        lambda agent_name, conversation, message_type, **kwargs: conversation
+    )
 
     # Also mock prompt.create_user_prompt_argument to ensure it returns a clean object
     conductor_agent_rules_only.prompt.create_user_prompt_argument = Mock(
@@ -663,7 +671,9 @@ async def test_rule_only_conductor_no_llm_fallback(conductor_agent_rules_only, m
 async def test_rule_based_routing_with_update(conductor_agent_with_rules, mock_conversation):
     """Test that rule-based routing correctly updates the user prompt argument"""
     # Setup
-    conductor_agent_with_rules.prompt.init_prompt = lambda agent_name, conversation, message_type: conversation
+    conductor_agent_with_rules.prompt.init_prompt = (
+        lambda agent_name, conversation, message_type, **kwargs: conversation
+    )
 
     # Create a prompt argument with existing values to preserve
     user_prompt_arg = DefaultConductorUserPromptArgument(next_agent=None)
@@ -749,7 +759,9 @@ def test_validate_finalization_with_all_raises():
 @pytest.mark.asyncio
 async def test_invoke_rule_match_one_message(conductor_agent_with_rules, mock_conversation):
     """Test that invoke appends only one message when a rule matches."""
-    conductor_agent_with_rules.prompt.init_prompt = lambda agent_name, conversation, message_type: conversation
+    conductor_agent_with_rules.prompt.init_prompt = (
+        lambda agent_name, conversation, message_type, **kwargs: conversation
+    )
 
     # Set up the prompt to properly create a user_prompt_argument with next_agent
     def mock_create_user_prompt_arg(**kwargs):
@@ -773,7 +785,9 @@ async def test_invoke_no_rule_match_one_message(conductor_agent_with_rules, mock
     for rule in conductor_agent_with_rules.rules:
         rule.condition = rule_always_false
 
-    conductor_agent_with_rules.prompt.init_prompt = lambda agent_name, conversation, message_type: conversation
+    conductor_agent_with_rules.prompt.init_prompt = (
+        lambda agent_name, conversation, message_type, **kwargs: conversation
+    )
 
     # Mock generate_validated_response to return a modified conversation
     async def mock_generate_validated_response(conversation, message_type=None):
@@ -800,7 +814,9 @@ async def test_invoke_no_rule_no_llm_no_message(conductor_agent_rules_only, mock
     for rule in conductor_agent_rules_only.rules:
         rule.condition = rule_always_false
 
-    conductor_agent_rules_only.prompt.init_prompt = lambda agent_name, conversation, message_type: conversation
+    conductor_agent_rules_only.prompt.init_prompt = (
+        lambda agent_name, conversation, message_type, **kwargs: conversation
+    )
 
     initial_message_count = len(mock_conversation.chat)
     result = await conductor_agent_rules_only.invoke(mock_conversation, MessageType.CONDUCTOR)

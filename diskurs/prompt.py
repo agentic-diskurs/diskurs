@@ -453,13 +453,14 @@ class BasePrompt(PromptProtocol):
         agent_name: str,
         conversation: Conversation,
         message_type: MessageType = MessageType.CONVERSATION,
+        **kwargs,
     ) -> Conversation:
         """
         Initialize the prompt before starting an agent's turn.
         This method sets fresh values for prompt arguments and renders prompts
         """
-        system_prompt_argument = self.create_system_prompt_argument()
-        user_prompt_argument = self.create_user_prompt_argument()
+        system_prompt_argument = self.create_system_prompt_argument(**kwargs.get("system_prompt_argument", {}))
+        user_prompt_argument = self.create_user_prompt_argument(**kwargs.get("user_prompt_argument", {}))
 
         system_prompt = self.render_system_template(agent_name, prompt_args=system_prompt_argument)
         user_prompt = self.render_user_template(
@@ -629,7 +630,7 @@ class DefaultConductorUserPromptArgument(PromptArgument):
 class DefaultConductorSystemPromptArgument(PromptArgument):
     """Default system prompt argument for conductor with minimal required fields."""
 
-    agent_descriptions: dict[str, str] = field(default_factory=dict)
+    agent_descriptions: Optional[dict[str, str]] = field(default_factory=dict)
 
 
 GenericConductorLongtermMemory = TypeVar("GenericConductorLongtermMemory", bound="ConductorLongtermMemory")

@@ -158,6 +158,7 @@ class Prompt(Protocol):
         agent_name: str,
         conversation: "Conversation",
         message_type: MessageType = MessageType.CONVERSATION,
+        **kwargs
     ) -> "Conversation":
         """
         Initialize the prompt before starting an agent's turn.
