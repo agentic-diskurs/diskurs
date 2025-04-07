@@ -53,7 +53,8 @@ execution_plan_json = [
 
 @pytest.fixture
 def tool_executor():
-    from test_files.tool_test_files.data_analysis_tools import (
+    # Use absolute import instead of relative import
+    from .test_files.tool_test_files.data_analysis_tools import (
         fetch_budget,
         analyze_sales_data,
         analyze_employee_performance,

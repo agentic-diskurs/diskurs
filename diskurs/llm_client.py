@@ -15,12 +15,14 @@ from openai import (
 from openai.types.chat import ChatCompletion
 from typing_extensions import Self
 
-from diskurs import ImmutableConversation
+from diskurs import Conversation
 from diskurs.entities import ChatMessage, MessageType, Role, ToolCall, ToolDescription
 from diskurs.logger_setup import get_logger
 from diskurs.protocols import LLMClient
 from diskurs.registry import register_llm
 from diskurs.tools import map_python_type_to_json
+
+TOOL_RESPONSE_MAX_FRACTION = 4
 
 
 class BaseOaiApiLLMClient(LLMClient):
@@ -124,9 +126,96 @@ class BaseOaiApiLLMClient(LLMClient):
             **tool_call_id,
         }
 
+    def count_tokens_tool_responses(
+        self, total_tokens, user_prompt_tool_responses
+    ) -> tuple[int, list[tuple[ChatMessage, int]]]:
+        # Ensure user_prompt_tool_responses is iterable
+        if not isinstance(user_prompt_tool_responses, list):
+            user_prompt_tool_responses = [user_prompt_tool_responses]
+
+        tool_responses_tokens = 0
+        tool_responses = []
+        for msg in user_prompt_tool_responses:
+            if msg.role == Role.TOOL:
+                tool_tokens = self.count_tokens(str(msg.content))
+                tool_responses.append((msg, tool_tokens))
+                tool_responses_tokens += tool_tokens
+        tool_responses.sort(key=lambda x: x[1], reverse=True)
+
+        return tool_responses_tokens, tool_responses
+
+    def _truncate_text(self, text: str, max_tokens: int) -> str:
+        # Helper to truncate text so that its token count is at most max_tokens.
+        tokens = self.tokenizer.encode(text)
+        if len(tokens) <= max_tokens:
+            return text
+        truncated_tokens = tokens[:max_tokens]
+        return self.tokenizer.decode(truncated_tokens)
+
+    def truncate_tool_responses(
+        self, user_prompt_tool_responses: list[ChatMessage], total_tokens: int
+    ) -> list[ChatMessage]:
+        """
+        Truncate all tool responses such that the combined tokens of the responses and total_tokens
+        is less than self.max_tokens.
+        """
+        available = self.max_tokens - total_tokens
+        marker = "[Content truncated due to token limits...]"
+        marker_tokens = self.count_tokens(marker)
+
+        # If no available tokens, replace every response with the marker.
+        if available <= 0:
+            for msg in user_prompt_tool_responses:
+                msg.content = marker
+            return user_prompt_tool_responses
+
+        # Calculate total tokens in tool responses.
+        total_tool_tokens = sum(self.count_tokens(msg.content) for msg in user_prompt_tool_responses)
+
+        # If current responses already fit into available tokens, return them unchanged.
+        if total_tool_tokens <= available:
+            return user_prompt_tool_responses
+
+        # Proportionally compute allowed tokens per message.
+        for msg in user_prompt_tool_responses:
+            orig_tokens = self.count_tokens(msg.content)
+            # Allocate tokens proportionally ensuring room for marker if truncation is needed.
+            new_max = int(orig_tokens * available / total_tool_tokens)
+            if new_max < marker_tokens:
+                new_max = marker_tokens
+            # If message exceeds the allowed token count, truncate and append marker.
+            if orig_tokens > new_max:
+                effective_max = new_max - marker_tokens
+                if effective_max < 0:
+                    effective_max = 0
+                truncated = self._truncate_text(msg.content, effective_max)
+                msg.content = truncated + marker
+        return user_prompt_tool_responses
+
+    @staticmethod
+    def is_last_msg_tool_response(conversation: Conversation) -> bool:
+        """
+        Check if the conversation contains tool responses.
+        """
+        if isinstance(conversation.user_prompt, list):
+            return any(msg.role == Role.TOOL for msg in conversation.user_prompt)
+        return False
+
+    def format_messages_for_llm(self, conversation, message_type):
+        messages = []
+        for message in conversation.render_chat(message_type=message_type):
+            if isinstance(message, list):
+                # If we executed multiple tools in a single pass, we have to flatten the list
+                # containing the tool call responses
+                for m in message:
+                    messages.append(self.format_message_for_llm(m))
+            else:
+                messages.append(self.format_message_for_llm(message))
+        return messages
+
     def format_conversation_for_llm(
         self,
-        conversation: ImmutableConversation,
+        conversation: Conversation,
         tools: Optional[list[ToolDescription]] = None,
         message_type=MessageType.CONVERSATION,
     ) -> dict[str, Any]:
@@ -143,22 +232,29 @@ class BaseOaiApiLLMClient(LLMClient):
 
         formatted_tools = {"tools": [self.format_tool_description_for_llm(tool) for tool in tools]} if tools else {}
 
-        messages = []
-        for message in conversation.render_chat(message_type=message_type):
-            if isinstance(message, list):
-                # If we executed multiple tools in a single pass, we have to flatten the list
-                # containing the tool call responses
-                for m in message:
-                    messages.append(self.format_message_for_llm(m))
-            else:
-                messages.append(self.format_message_for_llm(message))
+        messages = self.format_messages_for_llm(conversation, message_type)
 
         n_tokens_tool_descriptions = (
             self.count_tokens_of_tool_descriptions(formatted_tools["tools"]) if formatted_tools else 0
         )
 
-        if (self.count_tokens_in_conversation(messages) + n_tokens_tool_descriptions) > self.max_tokens:
-            messages = self.truncate_chat_history(messages, n_tokens_tool_descriptions)
+        tokens_in_conversation = self.count_tokens_in_conversation(messages)
+
+        if (tokens_in_conversation + n_tokens_tool_descriptions) > self.max_tokens:
+            n_tokens_tool_response, _ = self.count_tokens_tool_responses(self.max_tokens, conversation.user_prompt)
+            if (
+                self.is_last_msg_tool_response(conversation)
+                and n_tokens_tool_response > self.max_tokens // TOOL_RESPONSE_MAX_FRACTION
+            ):
+                truncated_tool_responses = self.truncate_tool_responses(
+                    user_prompt_tool_responses=conversation.user_prompt,
+                    total_tokens=tokens_in_conversation + n_tokens_tool_descriptions,
+                )
+                messages = self.format_messages_for_llm(
+                    conversation=conversation.update(user_prompt=truncated_tool_responses), message_type=message_type
+                )
+            else:
+                messages = self.truncate_chat_history(messages, n_tokens_tool_descriptions)
 
         return {
             **formatted_tools,
@@ -206,7 +302,7 @@ class BaseOaiApiLLMClient(LLMClient):
 
     @classmethod
     def concatenate_user_prompt_with_llm_response(
-        cls, conversation: ImmutableConversation, completion: ChatCompletion
+        cls, conversation: Conversation, completion: ChatCompletion
     ) -> list[ChatMessage]:
         """
         Creates a list of ChatMessages that combines the user prompt with the LLM response.
@@ -377,10 +473,10 @@ class BaseOaiApiLLMClient(LLMClient):
 
     async def generate(
         self,
-        conversation: ImmutableConversation,
+        conversation: Conversation,
         tools: Optional[ToolDescription] = None,
         message_type=MessageType.CONVERSATION,
-    ) -> ImmutableConversation:
+    ) -> Conversation:
         """
         Generates a response from the LLM model for the given conversation.
         Handles conversion from Conversation to LLM request format, sending the request to the LLM model,

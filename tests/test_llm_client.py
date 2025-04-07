@@ -1,4 +1,3 @@
-from unittest.mock import AsyncMock, MagicMock
 from unittest.mock import Mock
 
 import pytest
@@ -10,7 +9,6 @@ from diskurs import ImmutableConversation
 from diskurs.entities import ChatMessage, PromptArgument, ToolDescription
 from diskurs.entities import Role
 from diskurs.llm_client import OpenAILLMClient
-from diskurs.protocols import LLMClient, Conversation
 
 load_dotenv()
 
@@ -252,3 +250,131 @@ def test_format_conversation_with_multistep_agent_interaction(llm_client):
     # Verify we kept essential messages
     assert formatted["messages"][0]["role"] == "system"  # Keep system prompt
     assert formatted["messages"][-1]["role"] == "user"  # Keep last user
+
+
+def test_truncate_tool_responses_when_too_long(llm_client):
+    from diskurs.entities import ChatMessage, Role
+
+    large_content = "x" * 3000
+    llm_client.max_tokens = 200
+    messages = [
+        ChatMessage(role=Role.TOOL, content=large_content, tool_call_id="tc_1"),
+        ChatMessage(role=Role.TOOL, content=large_content, tool_call_id="tc_2"),
+    ]
+
+    truncated_messages = llm_client.truncate_tool_responses(messages, total_tokens=3000)
+
+    assert any("[Content truncated due to token limits...]" in msg.content for msg in truncated_messages)
+    assert all(len(msg.content) <= len(large_content) for msg in truncated_messages)
+
+
+def test_truncate_tool_responses_with_large_conversation(llm_client):
+    from diskurs.entities import ChatMessage, Role
+
+    llm_client.max_tokens = 100
+    large_content = "x" * 3000
+    conversation_tokens = 50  # Assume user/system messages use 50 tokens
+
+    # Tool messages that push us over the limit
+    messages = [
+        ChatMessage(role=Role.TOOL, content=large_content, tool_call_id="tool_call_1"),
+        ChatMessage(role=Role.TOOL, content=large_content, tool_call_id="tool_call_2"),
+    ]
+
+    # Trigger truncation
+    truncated = llm_client.truncate_tool_responses(messages, total_tokens=conversation_tokens)
+    assert any("[Content truncated due to token limits...]" in msg.content for msg in truncated)
+    assert all(len(msg.content) < len(large_content) for msg in truncated)
+
+
+def test_truncate_tool_responses_no_truncation_when_under_limit(llm_client):
+    from diskurs.entities import ChatMessage, Role
+
+    llm_client.max_tokens = 400
+    large_content = "x" * 100
+    # Combined tokens < max_tokens => no truncation
+    messages = [ChatMessage(role=Role.TOOL, content=large_content, tool_call_id="tc_1")]
+    truncated = llm_client.truncate_tool_responses(messages, total_tokens=200)
+
+    # Should remain unchanged
+    assert len(truncated) == len(messages)
+    assert truncated[0].content == large_content
+
+
+def test_truncate_tool_responses_partial_truncation_of_multiple_tools(llm_client):
+    from diskurs.entities import ChatMessage, Role
+
+    llm_client.max_tokens = 300
+    # Increase content size to ensure tokens exceed max_tokens
+    content_1 = "x" * 1000
+    content_2 = "y" * 1000
+
+    messages = [
+        ChatMessage(role=Role.TOOL, content=content_1, tool_call_id="tc_1"),
+        ChatMessage(role=Role.TOOL, content=content_2, tool_call_id="tc_2"),
+    ]
+    truncated = llm_client.truncate_tool_responses(messages, total_tokens=150)
+
+    assert all("[Content truncated due to token limits...]" in msg.content for msg in truncated)
+    assert all(len(msg.content) < len(content_1) for msg in truncated)
+
+
+def test_iterative_truncation_multiple_iterations(llm_client):
+    from diskurs.entities import ChatMessage, Role
+
+    # Set a very low max_tokens to force iterative truncation
+    llm_client.max_tokens = 150
+    original_content_1 = "a" * 2000
+    original_content_2 = "b" * 2000
+
+    messages = [
+        ChatMessage(role=Role.TOOL, content=original_content_1, tool_call_id="tc_1"),
+        ChatMessage(role=Role.TOOL, content=original_content_2, tool_call_id="tc_2"),
+    ]
+    conversation_tokens = 100  # Simulated token count for conversation
+
+    truncated = llm_client.truncate_tool_responses(messages, total_tokens=conversation_tokens)
+
+    for msg in truncated:
+        # Each truncated message should contain the truncation marker
+        assert "[Content truncated due to token limits...]" in msg.content
+        # And should be shorter than the original message
+        assert llm_client.count_tokens(msg.content) < llm_client.count_tokens(original_content_1)
+
+    # Verify that the combined token count (conversation + truncated tool responses) is within the limit
+    final_combined = conversation_tokens + sum(llm_client.count_tokens(msg.content) for msg in truncated)
+    assert final_combined <= llm_client.max_tokens
+
+
+def test_format_conversation_truncates_tool_responses(llm_client):
+    from diskurs.entities import ChatMessage, Role
+    from diskurs import ImmutableConversation
+
+    # Force truncation by setting a low max_tokens
+    llm_client.max_tokens = 150
+    # Create two tool response messages with large content
+    tool_msg1 = ChatMessage(role=Role.TOOL, content="x" * 3000, tool_call_id="tool1")
+    tool_msg2 = ChatMessage(role=Role.TOOL, content="y" * 3000, tool_call_id="tool2")
+
+    chat_history = [
+        ChatMessage(role=Role.USER, content="What should I do next?"),
+    ]
+
+    conversation = ImmutableConversation(
+        chat=chat_history,
+        system_prompt=ChatMessage(role=Role.SYSTEM, content="You are a helpful assistant."),
+        user_prompt=[tool_msg1, tool_msg2],
+    )
+
+    formatted = llm_client.format_conversation_for_llm(conversation)
+
+    # Extract tool responses from formatted messages
+    tool_responses = [msg for msg in formatted["messages"] if msg["role"] == str(Role.TOOL)]
+
+    # Verify that the tool responses have been truncated (marker is present)
+    for msg in tool_responses:
+        assert "[Content truncated due to token limits...]" in msg["content"]
+
+    # Ensure that the total token count (without tool descriptions) is within max_tokens
+    total_tokens = llm_client.count_tokens_in_conversation(formatted["messages"])
+    assert total_tokens < llm_client.max_tokens
