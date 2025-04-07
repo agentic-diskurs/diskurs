@@ -53,11 +53,11 @@ def longterm_memories():
     return MyLongtermMemory, MyLongtermMemory2
 
 
-def create_conductor_mock(name, system_prompt_argument, user_prompt_argument, longterm_memory):
+def create_conductor_mock(name, system_prompt_argument, prompt_argument, longterm_memory):
     agent_mock = Mock(spec=ConductorAgent)
     prompt = Mock(spec=ConductorPrompt)
     prompt.system_prompt_argument = system_prompt_argument
-    prompt.user_prompt_argument = user_prompt_argument
+    prompt.prompt_argument = prompt_argument
     prompt.longterm_memory = longterm_memory
     agent_mock.prompt = prompt
     agent_mock.name = name
@@ -70,7 +70,7 @@ def conductor_mock():
     return create_conductor_mock(
         name="my_conductor",
         system_prompt_argument=MySystemPromptArgument(),
-        user_prompt_argument=MyUserPromptArgument(),
+        prompt_argument=MyUserPromptArgument(),
         longterm_memory=MyLongtermMemory,
     )
 
@@ -80,7 +80,7 @@ def conductor_mock2():
     return create_conductor_mock(
         name="my_conductor_2",
         system_prompt_argument=MySystemPromptArgument(),
-        user_prompt_argument=MyUserPromptArgument(),
+        prompt_argument=MyUserPromptArgument(),
         longterm_memory=MyLongtermMemory2,
     )
 
@@ -88,8 +88,7 @@ def conductor_mock2():
 @pytest.fixture
 def conversation():
     conversation = ImmutableConversation(
-        conversation_id="my_conversation_id",
-        user_prompt_argument=MyUserPromptArgument(
+        prompt_argument=MyUserPromptArgument(
             field1="user prompt field 1",
             field2="user prompt field 2",
             field3="user prompt field 3",
@@ -112,6 +111,7 @@ def conversation():
             ),
         },
         active_agent="my_conductor",
+        conversation_id="my_conversation_id",
     )
     return conversation
 
@@ -178,10 +178,10 @@ def are_classes_structurally_similar(class_a: Type, class_b: Type) -> bool:
     return True
 
 
-def create_prompt(user_prompt_argument):
+def create_prompt(prompt_argument):
     prompt = AsyncMock(spec=MultistepPrompt)
     prompt.create_system_prompt_argument.return_value = AsyncMock()
-    prompt.create_user_prompt_argument.return_value = user_prompt_argument
+    prompt.create_prompt_argument.return_value = prompt_argument
     prompt.render_user_template.return_value = ChatMessage(
         role=Role.USER,
         name="my_multistep",
@@ -189,7 +189,7 @@ def create_prompt(user_prompt_argument):
         type=MessageType.CONVERSATION,
     )
     prompt.is_final.return_value = True
-    prompt.user_prompt_argument = user_prompt_argument
+    prompt.prompt_argument = prompt_argument
 
     return prompt
 
@@ -227,8 +227,7 @@ def mock_extended_prompt():
 @pytest.fixture
 def extended_conversation():
     conversation = ImmutableConversation(
-        conversation_id="my_conversation_id",
-        user_prompt_argument=MySourceUserPromptArgument(
+        prompt_argument=MySourceUserPromptArgument(
             field3="user prompt field 3",
             field4="user prompt field 4",
         ),
@@ -241,6 +240,7 @@ def extended_conversation():
             ),
         },
         active_agent="my_conductor",
+        conversation_id="my_conversation_id",
     )
     return conversation
 
@@ -248,13 +248,13 @@ def extended_conversation():
 @pytest.fixture
 def finalizer_conversation():
     conversation = ImmutableConversation(
-        conversation_id="my_conversation_id",
-        user_prompt_argument=MyUserPromptArgument(field1="user prompt field 1", field2="user prompt field 2"),
+        prompt_argument=MyUserPromptArgument(field1="user prompt field 1", field2="user prompt field 2"),
         chat=[ChatMessage(role=Role.USER, content="Hello, world!", name="Alice")],
         longterm_memory={
             "my_conductor": MyLongtermMemory(user_query="longterm user query"),
         },
         active_agent="my_conductor",
+        conversation_id="my_conversation_id",
     )
     return conversation
 
@@ -277,7 +277,7 @@ def conversation_dict():
         "system_prompt": None,
         "user_prompt": None,
         "system_prompt_argument": None,
-        "user_prompt_argument": None,
+        "prompt_argument": None,
         "chat": [],
         "longterm_memory": {},
         "metadata": {},

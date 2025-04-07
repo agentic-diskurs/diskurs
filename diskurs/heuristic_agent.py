@@ -56,20 +56,19 @@ class HeuristicAgent(Agent, ConversationParticipant):
 
         self.logger.debug(f"Registered dispatcher {dispatcher} for agent {self.name}")
 
-    def prepare_conversation(self, conversation: Conversation, user_prompt_argument: PromptArgument) -> Conversation:
+    def prepare_conversation(self, conversation: Conversation, prompt_argument: PromptArgument) -> Conversation:
         self.logger.debug(f"Preparing conversation for agent {self.name}")
-        return conversation.update(user_prompt_argument=user_prompt_argument, active_agent=self.name)
+        return conversation.update(prompt_argument=prompt_argument, active_agent=self.name)
 
     async def invoke(
         self, conversation: Conversation, message_type=MessageType.CONVERSATION, init_prompt=True
     ) -> Conversation:
         self.logger.debug(f"Invoke called on agent {self.name}")
 
-        previous_user_prompt_augment = conversation.user_prompt_argument
+        previous_user_prompt_augment = conversation.prompt_argument
 
         conversation = self.prepare_conversation(
-            conversation=conversation,
-            user_prompt_argument=self.prompt.create_user_prompt_argument(),
+            conversation=conversation, prompt_argument=self.prompt.create_prompt_argument()
         )
         if has_conductor_been_called(conversation) and self.init_prompt_arguments_with_longterm_memory:
             conversation = conversation.update_prompt_argument_with_longterm_memory(
@@ -92,7 +91,7 @@ class HeuristicAgent(Agent, ConversationParticipant):
                 name=self.name,
                 message=self.prompt.render_user_template(
                     self.name,
-                    prompt_args=conversation.user_prompt_argument,
+                    prompt_args=conversation.prompt_argument,
                     message_type=MessageType.CONVERSATION,
                 ),
             )
@@ -122,7 +121,7 @@ class HeuristicAgentFinalizer(HeuristicAgent, ConversationFinalizer):
 
         await conversation.maybe_persist()
 
-        conversation.final_result = get_fields_as_dict(conversation.user_prompt_argument, self.final_properties)
+        conversation.final_result = get_fields_as_dict(conversation.prompt_argument, self.final_properties)
 
     async def process_conversation(self, conversation: Conversation) -> None:
         self.logger.info(f"Finalizing conversation on agent: {self.name}")

@@ -135,14 +135,14 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
                 parsed_response = self.prompt.parse_user_prompt(
                     self.name,
                     llm_response=response.last_message.content,
-                    old_user_prompt_argument=response.user_prompt_argument,
+                    old_prompt_argument=response.prompt_argument,
                     message_type=message_type,
                 )
 
                 if isinstance(parsed_response, PromptArgument):
                     self.logger.debug(f"Valid response found for Agent {self.name}")
                     return response.update(
-                        user_prompt_argument=parsed_response,
+                        prompt_argument=parsed_response,
                         user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=parsed_response),
                     )
                 elif isinstance(parsed_response, ChatMessage):

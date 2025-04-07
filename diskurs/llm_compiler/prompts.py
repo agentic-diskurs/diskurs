@@ -38,7 +38,7 @@ class PlanningUserPromptArgument(PromptArgument):
 class LLMCompilerPrompt(BasePrompt):
     """Prompt implementation for the LLM Compiler agent."""
 
-    user_prompt_argument = PlanningUserPromptArgument
+    prompt_argument = PlanningUserPromptArgument
     system_prompt_argument = PlanningSystemPromptArgument
 
     @classmethod
@@ -83,7 +83,7 @@ class LLMCompilerPrompt(BasePrompt):
             user_template=planning_user_template,
             system_prompt_argument_class=system_arg_cls,
             json_formatting_template=json_render_template,
-            user_prompt_argument_class=user_arg_cls,
+            prompt_argument_class=user_arg_cls,
         )
 
         return instance
@@ -91,13 +91,13 @@ class LLMCompilerPrompt(BasePrompt):
     def create_system_prompt_argument(self, **prompt_args) -> PlanningSystemPromptArgument:
         return PlanningSystemPromptArgument(**prompt_args)
 
-    def create_user_prompt_argument(self, **prompt_args) -> PlanningUserPromptArgument:
+    def create_prompt_argument(self, **prompt_args) -> PlanningUserPromptArgument:
         return PlanningUserPromptArgument(**prompt_args)
 
-    def is_valid(self, user_prompt_argument: PlanningUserPromptArgument) -> bool:
+    def is_valid(self, prompt_argument: PlanningUserPromptArgument) -> bool:
         """Check if the prompt argument is valid."""
         return True
 
-    def is_final(self, user_prompt_argument: PlanningUserPromptArgument) -> bool:
+    def is_final(self, prompt_argument: PlanningUserPromptArgument) -> bool:
         """Check if the prompt argument represents a final state."""
-        return user_prompt_argument.execution_plan is not None
+        return prompt_argument.execution_plan is not None

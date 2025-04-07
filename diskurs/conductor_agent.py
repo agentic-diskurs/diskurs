@@ -132,7 +132,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         source = (
             conversation.get_agent_longterm_memory(conversation.last_message.name)
             if is_previous_agent_conductor(conversation)
-            else conversation.user_prompt_argument
+            else conversation.prompt_argument
         )
 
         if source:
@@ -145,9 +145,9 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         return conversation.update_agent_longterm_memory(agent_name=self.name, longterm_memory=longterm_memory)
 
     async def add_routing_message_to_chat(self, conversation, next_agent):
-        updated_prompt = conversation.user_prompt_argument
+        updated_prompt = conversation.prompt_argument
         updated_prompt.next_agent = next_agent
-        conversation = conversation.update(user_prompt_argument=updated_prompt)
+        conversation = conversation.update(prompt_argument=updated_prompt)
         # Add JSON message to conversation to ensure a consistent chat history
         prompt_dict = asdict(updated_prompt)
         content = json.dumps(prompt_dict)
@@ -179,9 +179,9 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
                 conversation = await self.generate_validated_response(conversation, message_type=MessageType.CONDUCTOR)
 
                 if (
-                    self.prompt.is_final(conversation.user_prompt_argument)
+                    self.prompt.is_final(conversation.prompt_argument)
                     and not conversation.has_pending_tool_response()
-                    and hasattr(conversation.user_prompt_argument, "next_agent")
+                    and hasattr(conversation.prompt_argument, "next_agent")
                 ):
                     self.logger.debug("Final response found in LLM routing")
                     break
@@ -193,7 +193,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
     async def can_finalize(self, conversation: Conversation) -> bool:
         if self.can_finalize_name:
             conversation = await self.dispatcher.request_response(self.can_finalize_name, conversation)
-            return conversation.user_prompt_argument.can_finalize or self.prompt.can_finalize(
+            return conversation.prompt_argument.can_finalize or self.prompt.can_finalize(
                 conversation.get_agent_longterm_memory(self.name)
             )
         else:
@@ -238,8 +238,8 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             conversation.final_result = formatted_response
         else:
             conversation = await self.invoke(conversation)
-            # Get the next agent from user_prompt_argument and route if available
-            if next_agent := conversation.user_prompt_argument.next_agent:
+            # Get the next agent from prompt_argument and route if available
+            if next_agent := conversation.prompt_argument.next_agent:
                 await self.dispatcher.publish(topic=next_agent, conversation=conversation)
             else:
                 self.logger.error("No next agent specified for routing. This should not happen after invoke().")

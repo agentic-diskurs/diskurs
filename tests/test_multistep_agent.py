@@ -59,9 +59,9 @@ async def test_invoke_with_conductor_as_previous_agent(multistep_agent, conversa
 
     assert all(
         [
-            longterm_memory.field1 == result.user_prompt_argument.field1,
-            longterm_memory.field2 == result.user_prompt_argument.field2,
-            longterm_memory.field3 == result.user_prompt_argument.field3,
+            longterm_memory.field1 == result.prompt_argument.field1,
+            longterm_memory.field2 == result.prompt_argument.field2,
+            longterm_memory.field3 == result.prompt_argument.field3,
         ]
     )
 
@@ -79,9 +79,9 @@ async def test_invoke_with_agent_chain(multistep_agent, conversation):
     result = await multistep_agent.invoke(conversation)
     assert all(
         [
-            conversation.user_prompt_argument.field1 == result.user_prompt_argument.field1,
-            conversation.user_prompt_argument.field2 == result.user_prompt_argument.field2,
-            conversation.user_prompt_argument.field3 == result.user_prompt_argument.field3,
+            conversation.prompt_argument.field1 == result.prompt_argument.field1,
+            conversation.prompt_argument.field2 == result.prompt_argument.field2,
+            conversation.prompt_argument.field3 == result.prompt_argument.field3,
         ]
     )
 
@@ -94,7 +94,7 @@ def real_prompt():
         user_template=Template("User Template"),
         return_json=False,
         system_prompt_argument_class=MySystemPromptArgument,
-        user_prompt_argument_class=MyExtendedUserPromptArgument,
+        prompt_argument_class=MyExtendedUserPromptArgument,
         is_valid=lambda x: True,
         is_final=lambda x: True,
     )
@@ -123,10 +123,10 @@ async def test_invoke_with_longterm_memory_and_previous_agent(real_extended_mult
     result = await real_extended_multistep_agent.invoke(extended_conversation)
     assert all(
         [
-            result.user_prompt_argument.field1 == "extended user prompt field 1",
-            result.user_prompt_argument.field2 == "longterm val 2",
-            result.user_prompt_argument.field3 == "user prompt field 3",
-            result.user_prompt_argument.field4 == "user prompt field 4",
+            result.prompt_argument.field1 == "extended user prompt field 1",
+            result.prompt_argument.field2 == "longterm val 2",
+            result.prompt_argument.field3 == "user prompt field 3",
+            result.prompt_argument.field4 == "user prompt field 4",
         ]
     )
 

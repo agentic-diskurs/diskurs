@@ -27,7 +27,7 @@ def prompt_instance():
     return MultistepPrompt.create(
         location=Path(__file__).parent / "test_files" / "prompt_test_files",
         system_prompt_argument_class="MySystemPromptArgument",
-        user_prompt_argument_class="MyUserPromptArgument",
+        prompt_argument_class="MyUserPromptArgument",
     )
 
 
@@ -36,7 +36,7 @@ def prompt_with_array_instance() -> MultistepPrompt:
     return MultistepPrompt.create(
         location=Path(__file__).parent / "test_files" / "prompt_test_files",
         system_prompt_argument_class="MySystemPromptArgument",
-        user_prompt_argument_class="MyUserPromptWithArrayArgument",
+        prompt_argument_class="MyUserPromptWithArrayArgument",
     )
 
 
@@ -44,8 +44,7 @@ def prompt_with_array_instance() -> MultistepPrompt:
 def prompt_testing_conversation(longterm_memories):
     ltm1, ltm2 = longterm_memories
     conversation = ImmutableConversation(
-        conversation_id="my_conversation_id",
-        user_prompt_argument=MyUserPromptArgument(
+        prompt_argument=MyUserPromptArgument(
             name="",
             topic="",
             user_question="",
@@ -64,6 +63,7 @@ def prompt_testing_conversation(longterm_memories):
             ),
         },
         active_agent="my_conductor",
+        conversation_id="my_conversation_id",
     )
     return conversation
 
@@ -87,7 +87,7 @@ def test_parse_prompt(prompt_instance, prompt_testing_conversation):
     res = prompt_instance.parse_user_prompt(
         name="test_agent",
         llm_response=mock_llm_response,
-        old_user_prompt_argument=prompt_testing_conversation.user_prompt_argument,
+        old_prompt_argument=prompt_testing_conversation.prompt_argument,
     )
 
     assert res.name == "John Doe"
@@ -98,7 +98,7 @@ def test_fail_parse_prompt(prompt_instance, prompt_testing_conversation):
     res = prompt_instance.parse_user_prompt(
         name="test_agent",
         llm_response=mock_illegal_llm_response,
-        old_user_prompt_argument=prompt_testing_conversation.user_prompt_argument,
+        old_prompt_argument=prompt_testing_conversation.prompt_argument,
     )
 
     assert (
@@ -123,7 +123,7 @@ class ExampleTypedPromptArg(PromptArgument):
 
 def test_validate_dataclass():
     response = {"url": "https://diskurs.dev", "comment": "Do what thou wilt", "username": "Jane"}
-    res_prompt_arg = validate_dataclass(parsed_response=response, user_prompt_argument=ExamplePromptArg)
+    res_prompt_arg = validate_dataclass(parsed_response=response, prompt_argument=ExamplePromptArg)
 
     assert (
         res_prompt_arg.url == response["url"]
@@ -138,7 +138,7 @@ def test_validate_dataclass_typed():
         "is_valid": "true",
         "comments": ["Do what thou wilt", "Do what thou wilt"],
     }
-    res_prompt_arg = validate_dataclass(parsed_response=response, user_prompt_argument=ExampleTypedPromptArg)
+    res_prompt_arg = validate_dataclass(parsed_response=response, prompt_argument=ExampleTypedPromptArg)
 
     assert (
         res_prompt_arg.url == response["url"]
@@ -153,7 +153,7 @@ def test_validate_dataclass_typed_empty():
         "url": "https://diskurs.dev",
         "comments": ["Do what thou wilt", "Do what thou wilt"],
     }
-    res_prompt_arg = validate_dataclass(parsed_response=response, user_prompt_argument=ExampleTypedPromptArg)
+    res_prompt_arg = validate_dataclass(parsed_response=response, prompt_argument=ExampleTypedPromptArg)
 
     assert (
         res_prompt_arg.url == response["url"]
@@ -167,7 +167,7 @@ def test_validate_dataclass_additional_fields():
     response = {"url": "https://www.diskurs.dev", "foo": "just foo"}
 
     with pytest.raises(PromptValidationError) as exc_info:
-        res_prompt_arg = validate_dataclass(parsed_response=response, user_prompt_argument=ExamplePromptArg)
+        res_prompt_arg = validate_dataclass(parsed_response=response, prompt_argument=ExamplePromptArg)
     assert (
         str(exc_info.value)
         == "Extra fields provided: foo. Please remove them. Valid fields are: url, comment, username."
@@ -176,7 +176,7 @@ def test_validate_dataclass_additional_fields():
 
 prompt_config = {
     "location": Path(__file__).parent / "test_files" / "conductor_test_files",
-    "user_prompt_argument_class": "ConductorUserPromptArgument",
+    "prompt_argument_class": "ConductorUserPromptArgument",
     "system_prompt_argument_class": "ConductorSystemPromptArgument",
     "longterm_memory_class": "MyConductorLongtermMemory",
     "can_finalize_name": "can_finalize",
@@ -198,7 +198,7 @@ def test_conductor_custom_system_prompt():
 
 prompt_config_no_finalize = {
     "location": Path(__file__).parent / "test_files" / "conductor_no_finalize_test_files",
-    "user_prompt_argument_class": "ConductorUserPromptArgument",
+    "prompt_argument_class": "ConductorUserPromptArgument",
     "system_prompt_argument_class": "ConductorSystemPromptArgument",
     "longterm_memory_class": "MyConductorLongtermMemory",
     "can_finalize_name": "can_finalize",
@@ -213,17 +213,17 @@ def test_conductor_no_finalize_function():
 
 
 def test_parse_user_prompt_partial_update(prompt_instance, prompt_testing_conversation):
-    old_user_prompt_argument = MyUserPromptArgument(name="Alice", topic="Wonderland")
+    old_prompt_argument = MyUserPromptArgument(name="Alice", topic="Wonderland")
     returned_property = """{
         "user_question": "Am I updated correctly?"
         }"""
-    conversation_with_prompt_args = prompt_testing_conversation.update(user_prompt_argument=old_user_prompt_argument)
-    print(conversation_with_prompt_args.user_prompt_argument)
+    conversation_with_prompt_args = prompt_testing_conversation.update(prompt_argument=old_prompt_argument)
+    print(conversation_with_prompt_args.prompt_argument)
 
     res = prompt_instance.parse_user_prompt(
         name="test_agent",
         llm_response=returned_property,
-        old_user_prompt_argument=conversation_with_prompt_args.user_prompt_argument,
+        old_prompt_argument=conversation_with_prompt_args.prompt_argument,
     )
 
     assert res.name == "Alice"
@@ -235,7 +235,7 @@ def test_parse_user_prompt(prompt_instance, prompt_testing_conversation):
     res = prompt_instance.parse_user_prompt(
         name="test_agent",
         llm_response='"{\\"topic\\": \\"Secure Web Gateway\\", \\"name\\": \\"Hans Ruedi\\", \\"user_question\\": \\"Where is my sandwich?\\"}"',
-        old_user_prompt_argument=prompt_testing_conversation.user_prompt_argument,
+        old_prompt_argument=prompt_testing_conversation.prompt_argument,
     )
 
     assert isinstance(res, PromptArgument)
@@ -248,7 +248,7 @@ def test_parse_user_prompt_json_array(prompt_with_array_instance, prompt_testing
     res = prompt_with_array_instance.parse_user_prompt(
         name="test_agent",
         llm_response='{"steps": [{"topic": "Secure Web Gateway"}, {"topic": "Secure Web Gateway 2"}]}',
-        old_user_prompt_argument=MyUserPromptWithArrayArgument(),
+        old_prompt_argument=MyUserPromptWithArrayArgument(),
     )
 
     # Use are_classes_structurally_similar instead of direct class comparison
@@ -268,7 +268,7 @@ def test_fail():
 
 heuristic_prompt_config = {
     "location": Path(__file__).parent / "test_files" / "heuristic_agent_test_files",
-    "user_prompt_argument_class": "MyHeuristicPromptArgument",
+    "prompt_argument_class": "MyHeuristicPromptArgument",
     "heuristic_sequence_name": "heuristic_sequence",
 }
 
@@ -277,7 +277,7 @@ def test_heuristic_prompt_create():
     prompt = HeuristicPrompt.create(**heuristic_prompt_config)
 
     assert callable(prompt.heuristic_sequence)
-    assert are_classes_structurally_similar(prompt.user_prompt_argument, MyHeuristicPromptArgument)
+    assert are_classes_structurally_similar(prompt.prompt_argument, MyHeuristicPromptArgument)
 
 
 @pytest.fixture
@@ -293,13 +293,13 @@ def heuristic_prompt(conversation):
     # Create an instance of MyHeuristicPromptArgument to be returned
     prompt_arg_instance = MyHeuristicPromptArgument()
 
-    # Configure create_user_prompt_argument to return the specific instance
-    prompt.create_user_prompt_argument.return_value = prompt_arg_instance
+    # Configure create_prompt_argument to return the specific instance
+    prompt.create_prompt_argument.return_value = prompt_arg_instance
 
     # Side effect function for heuristic_sequence
-    async def heuristic_sequence_side_effect(user_prompt_argument, metadata, call_tool):
+    async def heuristic_sequence_side_effect(prompt_argument, metadata, call_tool):
         # Assert that heuristic_sequence is called with the correct Conversation instance
-        assert user_prompt_argument == conversation.user_prompt_argument, "Expected correct user_prompt_argument"
+        assert prompt_argument == conversation.prompt_argument, "Expected correct prompt_argument"
         assert metadata == conversation.metadata, "Expected correct metadata"
         # Return the specific instance
         return prompt_arg_instance
@@ -312,11 +312,11 @@ def heuristic_prompt(conversation):
 
 @pytest.mark.asyncio
 async def test_heuristic_prompt(heuristic_prompt, conversation):
-    result = heuristic_prompt.create_user_prompt_argument()
+    result = heuristic_prompt.create_prompt_argument()
     assert isinstance(result, MyHeuristicPromptArgument)
 
     result = await heuristic_prompt.heuristic_sequence(
-        user_prompt_argument=conversation.user_prompt_argument,
+        prompt_argument=conversation.prompt_argument,
         metadata=conversation.metadata,
         call_tool=lambda x: x,  # Mock or real function as needed
     )
@@ -331,7 +331,7 @@ def test_create_loads_agent_description():
 
     prompt = HeuristicPrompt.create(
         location=location,
-        user_prompt_argument_class="MyHeuristicPromptArgument",
+        prompt_argument_class="MyHeuristicPromptArgument",
     )
 
     assert prompt.agent_description == agent_description
@@ -386,7 +386,7 @@ def test_render_json_formatting_prompt_with_prompt_fields():
         system_template=Template("system"),
         user_template=Template("user"),
         system_prompt_argument_class=TestPromptArg,
-        user_prompt_argument_class=TestPromptArg,
+        prompt_argument_class=TestPromptArg,
         json_formatting_template=template,
     )
 
@@ -413,7 +413,7 @@ def test_render_json_formatting_prompt_empty_args():
         system_template=Template("system"),
         user_template=Template("user"),
         system_prompt_argument_class=EmptyPromptArg,
-        user_prompt_argument_class=EmptyPromptArg,
+        prompt_argument_class=EmptyPromptArg,
         json_formatting_template=template,
     )
 
@@ -427,7 +427,7 @@ def test_render_json_formatting_prompt_missing_template():
         system_template=Template("system"),
         user_template=Template("user"),
         system_prompt_argument_class=PromptArgument,
-        user_prompt_argument_class=PromptArgument,
+        prompt_argument_class=PromptArgument,
         json_formatting_template=None,
     )
 
@@ -454,7 +454,7 @@ def test_render_json_formatting_prompt_inheritance():
         system_template=Template("system"),
         user_template=Template("user"),
         system_prompt_argument_class=ChildPromptArg,
-        user_prompt_argument_class=ChildPromptArg,
+        prompt_argument_class=ChildPromptArg,
         json_formatting_template=template,
     )
 
@@ -475,7 +475,7 @@ def test_generate_json_schema_with_nested_dataclass():
         system_template=Template("system"),
         user_template=Template("user"),
         system_prompt_argument_class=TestPromptArg,
-        user_prompt_argument_class=TestPromptArg,
+        prompt_argument_class=TestPromptArg,
         json_formatting_template=Template("{{ schema | tojson(indent=2) }}"),
     )
 
@@ -506,7 +506,7 @@ def test_generate_json_schema_with_list_of_dataclasses():
         system_template=Template("system"),
         user_template=Template("user"),
         system_prompt_argument_class=TestPromptArg,
-        user_prompt_argument_class=TestPromptArg,
+        prompt_argument_class=TestPromptArg,
         json_formatting_template=Template("{{ schema | tojson(indent=2) }}"),
     )
 
@@ -545,7 +545,7 @@ def test_render_json_formatting_prompt_with_array_type():
         system_template=Template("system"),
         user_template=Template("user"),
         system_prompt_argument_class=TestArrayArgument,
-        user_prompt_argument_class=TestArrayArgument,
+        prompt_argument_class=TestArrayArgument,
         json_formatting_template=template,
     )
 
@@ -573,7 +573,7 @@ def test_json_formatting_with_real_llm_compiler_prompt(prompt_with_array_instanc
         system_template=Template("system"),
         user_template=Template("user"),
         system_prompt_argument_class=PlanningUserPromptArgument,
-        user_prompt_argument_class=PlanningUserPromptArgument,
+        prompt_argument_class=PlanningUserPromptArgument,
         json_formatting_template=template,
     )
 

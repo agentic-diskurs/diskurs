@@ -81,7 +81,7 @@ class Forum:
                 conversation_id=conversation_id,
                 longterm_memory=longterm_memory,
                 conversation_store=store,
-                user_prompt_argument=ForumPromptArgument(user_query=diskurs_input.user_query),
+                prompt_argument=ForumPromptArgument(user_query=diskurs_input.user_query),
             )
 
         if diskurs_input.user_query:

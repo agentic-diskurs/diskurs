@@ -51,22 +51,22 @@ def test_prepare_conversation():
     name = "test_agent"
     prompt = MagicMock()
     conversation = MagicMock(spec=Conversation)
-    user_prompt_argument = MagicMock(spec=PromptArgument)
+    prompt_argument = MagicMock(spec=PromptArgument)
     updated_conversation = MagicMock()
 
     conversation.update.return_value = updated_conversation
 
     agent = HeuristicAgent(name=name, prompt=prompt, llm_client=None)
-    result = agent.prepare_conversation(conversation, user_prompt_argument)
+    result = agent.prepare_conversation(conversation, prompt_argument)
 
-    conversation.update.assert_called_once_with(user_prompt_argument=user_prompt_argument, active_agent=name)
+    conversation.update.assert_called_once_with(prompt_argument=prompt_argument, active_agent=name)
     assert result == updated_conversation
 
 
 @pytest.mark.asyncio
 async def test_invoke(conversation):
     prompt = MagicMock()
-    prompt.create_user_prompt_argument.return_value = conversation.user_prompt_argument
+    prompt.create_prompt_argument.return_value = conversation.prompt_argument
     prompt.heuristic_sequence = AsyncMock()
     prompt.render_user_template.return_value = "rendered_message"
 
@@ -82,12 +82,12 @@ async def test_invoke(conversation):
 
     result = await agent.invoke(conversation)
 
-    prompt.create_user_prompt_argument.assert_called_once()
+    prompt.create_prompt_argument.assert_called_once()
 
     called_conversation = prompt.heuristic_sequence.call_args[1]["conversation"]
 
     assert called_conversation.conversation_id == conversation.conversation_id
-    assert called_conversation.user_prompt_argument == conversation.user_prompt_argument
+    assert called_conversation.prompt_argument == conversation.prompt_argument
     assert called_conversation.chat == conversation.chat
     assert called_conversation.get_agent_longterm_memory(agent.name) == conversation.get_agent_longterm_memory(
         agent.name
@@ -96,7 +96,7 @@ async def test_invoke(conversation):
 
     prompt.render_user_template.assert_called_once_with(
         "test_agent",
-        prompt_args=prompt.heuristic_sequence.return_value.user_prompt_argument,
+        prompt_args=prompt.heuristic_sequence.return_value.prompt_argument,
         message_type=MessageType.CONVERSATION,
     )
 
@@ -106,7 +106,7 @@ async def test_invoke_no_executor():
     # Setup
     prompt = MagicMock()
     conversation = MagicMock(spec=Conversation)
-    prompt.create_user_prompt_argument.return_value = MagicMock()
+    prompt.create_prompt_argument.return_value = MagicMock()
     prompt.heuristic_sequence = AsyncMock()
     prompt.render_user_template.return_value = "rendered_template"
 
@@ -121,7 +121,7 @@ async def test_invoke_no_executor():
 
     result = await agent.invoke(conversation)
 
-    prompt.create_user_prompt_argument.assert_called_once()
+    prompt.create_prompt_argument.assert_called_once()
 
     called_args = prompt.heuristic_sequence.call_args[1]
     called_conversation = called_args["conversation"]
@@ -132,7 +132,7 @@ async def test_invoke_no_executor():
 
     prompt.render_user_template.assert_called_once_with(
         "test_agent",
-        prompt_args=prompt.heuristic_sequence.return_value.user_prompt_argument,
+        prompt_args=prompt.heuristic_sequence.return_value.prompt_argument,
         message_type=MessageType.CONVERSATION,
     )
 
@@ -157,16 +157,16 @@ async def test_process_conversation(conversation):
     dispatcher.publish.assert_awaited_once_with(topic="conductor_name", conversation=updated_conversation)
 
 
-def create_prompt(user_prompt_argument):
+def create_prompt(prompt_argument):
     prompt = AsyncMock(spec=HeuristicPrompt)
-    prompt.create_user_prompt_argument.return_value = user_prompt_argument
+    prompt.create_prompt_argument.return_value = prompt_argument
     prompt.render_user_template.return_value = ChatMessage(
         role=Role.USER,
         name="my_multistep",
         content="rendered template",
         type=MessageType.CONVERSATION,
     )
-    prompt.user_prompt_argument = user_prompt_argument
+    prompt.prompt_argument = prompt_argument
 
     return prompt
 
@@ -217,10 +217,10 @@ async def test_invoke_with_longterm_memory_and_previous_agent(heuristic_agent, e
     result = await heuristic_agent.invoke(extended_conversation)
     assert all(
         [
-            result.user_prompt_argument.field1 == "extended user prompt field 1",
-            result.user_prompt_argument.field2 == "longterm val 2",
-            result.user_prompt_argument.field3 == "user prompt field 3",
-            result.user_prompt_argument.field4 == "user prompt field 4",
+            result.prompt_argument.field1 == "extended user prompt field 1",
+            result.prompt_argument.field2 == "longterm val 2",
+            result.prompt_argument.field3 == "user prompt field 3",
+            result.prompt_argument.field4 == "user prompt field 4",
         ]
     )
 

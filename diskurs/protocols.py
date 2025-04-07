@@ -28,16 +28,13 @@ class PromptValidator(Protocol):
 
     @classmethod
     def validate_dataclass(
-        cls,
-        parsed_response: dict[str, Any],
-        user_prompt_argument: Type[dataclass],
-        strict: bool = False,
+        cls, parsed_response: dict[str, Any], prompt_argument: Type[dataclass], strict: bool = False
     ) -> dataclass:
         """
         Validates a parsed response dictionary against a dataclass type.
 
         :param parsed_response: The dictionary containing the parsed response from the LLM.
-        :param user_prompt_argument: The dataclass type to validate against.
+        :param prompt_argument: The dataclass type to validate against.
         :param strict: If True, enforce strict validation rules.
 
         :return: An instance of the dataclass populated with the validated data.
@@ -71,9 +68,9 @@ class Prompt(Protocol):
     arguments, rendering templates, and parsing responses from a language model (LLM).
     """
 
-    user_prompt_argument: Type[UserPromptArg]
+    prompt_argument: Type[UserPromptArg]
 
-    def create_user_prompt_argument(self, **prompt_args: Any) -> UserPromptArg:
+    def create_prompt_argument(self, **prompt_args: Any) -> UserPromptArg:
         """
         Creates an instance of the user prompt argument dataclass.
 
@@ -109,7 +106,7 @@ class Prompt(Protocol):
         self,
         name: str,
         llm_response: str,
-        old_user_prompt_argument: PromptArgument,
+        old_prompt_argument: PromptArgument,
         message_type: MessageType = MessageType.CONDUCTOR,
     ) -> PromptArgument | ChatMessage:
         """
@@ -121,13 +118,13 @@ class Prompt(Protocol):
 
         :param name: Name of the agent.
         :param llm_response: The response string from the language model.
-        :param old_user_prompt_argument: The previous user prompt argument to be used as a reference.
+        :param old_prompt_argument: The previous user prompt argument to be used as a reference.
         :param message_type: The type of message to be parsed. Defaults to `MessageType.ROUTING`.
         :return: A `PromptArgument` or `ChatMessage` object based on the parsed response.
         """
         ...
 
-    def is_final(self, user_prompt_argument: PromptArgument) -> bool:
+    def is_final(self, prompt_argument: PromptArgument) -> bool:
         """
         Determines if the user prompt argument indicates the final state.
 
@@ -135,12 +132,12 @@ class Prompt(Protocol):
         the final state in the conversation. It is used to decide whether the conversation
         can be concluded based on the user's input.
 
-        :param user_prompt_argument: The user prompt argument to be evaluated.
+        :param prompt_argument: The user prompt argument to be evaluated.
         :return: True if the user prompt argument indicates the final state, False otherwise.
         """
         ...
 
-    def is_valid(self, user_prompt_argument: PromptArgument) -> bool:
+    def is_valid(self, prompt_argument: PromptArgument) -> bool:
         """
         Validates the user prompt argument.
 
@@ -148,7 +145,7 @@ class Prompt(Protocol):
         criteria for validity. It ensures that the user prompt argument is correctly
         structured and contains the necessary information for further processing.
 
-        :param user_prompt_argument: The user prompt argument to be validated.
+        :param prompt_argument: The user prompt argument to be validated.
         :return: True if the user prompt argument is valid, False otherwise.
         """
         ...
@@ -310,7 +307,7 @@ class HeuristicPrompt(Protocol):
     rendering user templates, and executing heuristic sequences to process conversations.
     """
 
-    user_prompt_argument: Type[PromptArgument]
+    prompt_argument: Type[PromptArgument]
 
     async def heuristic_sequence(
         self, conversation: "Conversation", call_tool: CallTool, llm_client: Optional["LLMClient"] = None
@@ -330,7 +327,7 @@ class HeuristicPrompt(Protocol):
         """
         ...
 
-    def create_user_prompt_argument(self, **prompt_args) -> UserPromptArg:
+    def create_prompt_argument(self, **prompt_args) -> UserPromptArg:
         """
         Creates an instance of the user prompt argument dataclass.
 
@@ -430,7 +427,7 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
         ...
 
     @property
-    def user_prompt_argument(self) -> Optional[UserPromptArg]:
+    def prompt_argument(self) -> Optional[UserPromptArg]:
         """
         Retrieves the user prompt arguments.
 
@@ -566,7 +563,7 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
         self,
         chat: Optional[List[ChatMessage]] = None,
         system_prompt_argument: Optional[SystemPromptArg] = None,
-        user_prompt_argument: Optional[UserPromptArg] = None,
+        prompt_argument: Optional[UserPromptArg] = None,
         system_prompt: Optional[ChatMessage] = None,
         user_prompt: Optional[Union[ChatMessage, List[ChatMessage]]] = None,
         longterm_memory: Optional[Dict[str, LongtermMemory]] = None,
@@ -579,7 +576,7 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
 
         :param chat: Optional list of ChatMessage objects representing the conversation's chat history.
         :param system_prompt_argument: Optional system prompt argument to update.
-        :param user_prompt_argument: Optional user prompt argument to update.
+        :param prompt_argument: Optional user prompt argument to update.
         :param system_prompt: Optional system prompt message to update.
         :param user_prompt: Optional user prompt message(s) to update.
         :param longterm_memory: Optional dictionary of long-term memory to update.
@@ -1067,7 +1064,7 @@ class ConductorAgent(Protocol):
         This method first retrieves the agent's existing longterm memory from the conversation,
         or initializes a new one if none exists. It then updates this memory with values from either:
         1. The longterm memory of the previous agent (if it was a conductor), or
-        2. The conversation's user_prompt_argument
+        2. The conversation's prompt_argument
 
         :param conversation: The conversation containing the context for memory updates
         :param overwrite: If True, existing values in longterm memory will be overwritten;
@@ -1082,14 +1079,14 @@ class ConductorAgent(Protocol):
 
         This method first attempts to find a routing destination using rule-based routing.
         If no rule matches and LLM fallback is enabled, it uses the LLM to determine routing.
-        The selected next agent is then stored in the user_prompt_argument and a JSON
+        The selected next agent is then stored in the prompt_argument and a JSON
         representation is appended to the conversation history.
 
         The method follows this sequence:
         1. Prepare the conversation with appropriate prompt arguments
         2. Evaluate routing rules against the conversation
         3. If no rule matches and fallback is enabled, attempt LLM-based routing
-        4. Update the user_prompt_argument with the chosen next_agent
+        4. Update the prompt_argument with the chosen next_agent
         5. Append a structured JSON message to the conversation history
 
         :param conversation: The conversation to process
@@ -1105,7 +1102,7 @@ class ConductorAgent(Protocol):
         This method checks if the conversation has reached a state where it can be
         considered complete. It either:
         1. Delegates the decision to another agent specified by can_finalize_name,
-           which should return a user_prompt_argument with a can_finalize property, or
+           which should return a prompt_argument with a can_finalize property, or
         2. Uses the prompt's own can_finalize method on the longterm memory
 
         If we are using a function i.e. heuristics, this method evaluates the long-term memory of the conversation

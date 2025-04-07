@@ -21,7 +21,7 @@ agents:
     prompt:
       type: "conductor_prompt"
       location: "conductor_test_files/test_conductor"
-      userPromptArgumentClass: "TestUserPromptArgument"
+      promptArgumentClass: "TestUserPromptArgument"
       systemPromptArgumentClass: "TestSystemPromptArgument"
       longtermMemoryClass: "TestLongtermMemory"
       failName: "fail"
@@ -53,7 +53,7 @@ agents:
       type: "multistep_prompt"
       location: "prompt_test_files"
       systemPromptArgumentClass: "MySystemPromptArgument"
-      userPromptArgumentClass: "MyUserPromptArgument"
+      promptArgumentClass: "user_prompt_arg"
       isValidName: "is_valid"
       isFinalName: "is_final"
     topics:
@@ -66,7 +66,7 @@ agents:
       type: "multistep_prompt"
       location: "prompt_test_files"
       systemPromptArgumentClass: "MySystemPromptArgument"
-      userPromptArgumentClass: "MyUserPromptArgument"
+      promptArgumentClass: "user_prompt_arg"
       isValidName: "is_valid"
       isFinalName: "is_final"
     topics:
@@ -79,7 +79,7 @@ agents:
       type: "multistep_prompt"
       location: "prompt_test_files"
       systemPromptArgumentClass: "MySystemPromptArgument"
-      userPromptArgumentClass: "MyUserPromptArgument"
+      promptArgumentClass: "user_prompt_arg"
       isValidName: "is_valid"
       isFinalName: "is_final"
     topics:

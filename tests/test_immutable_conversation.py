@@ -53,9 +53,9 @@ def test_conversation_from_dict(conversation, conductor_mock, conductor_mock2):
         new_conversation._longterm_memory["my_conductor"].user_query
         == conversation._longterm_memory["my_conductor"].user_query
     )
-    assert new_conversation.user_prompt_argument.field1 == conversation.user_prompt_argument.field1
-    assert new_conversation.user_prompt_argument.field2 == conversation.user_prompt_argument.field2
-    assert new_conversation.user_prompt_argument.field3 == conversation.user_prompt_argument.field3
+    assert new_conversation.prompt_argument.field1 == conversation.prompt_argument.field1
+    assert new_conversation.prompt_argument.field2 == conversation.prompt_argument.field2
+    assert new_conversation.prompt_argument.field3 == conversation.prompt_argument.field3
     assert new_conversation.user_prompt == conversation.user_prompt
     assert new_conversation.system_prompt == conversation.system_prompt
     assert new_conversation.active_agent == conversation.active_agent
@@ -79,7 +79,7 @@ def test_conversation_from_dict_missing_system_prompt_argument(conductor_mock):
         "system_prompt": None,
         "user_prompt": None,
         # system_prompt_argument intentionally omitted
-        "user_prompt_argument": None,
+        "prompt_argument": None,
         "chat": [],
         "longterm_memory": {},
         "metadata": {},
@@ -98,7 +98,7 @@ def test_conversation_from_dict_none_values(conductor_mock):
         "system_prompt": None,
         "user_prompt": None,
         "system_prompt_argument": None,
-        "user_prompt_argument": None,
+        "prompt_argument": None,
         "chat": [],
         "longterm_memory": {},
         "metadata": {},
@@ -110,7 +110,7 @@ def test_conversation_from_dict_none_values(conductor_mock):
     assert new_conversation.system_prompt is None
     assert new_conversation.user_prompt is None
     assert new_conversation.system_prompt_argument is None
-    assert new_conversation.user_prompt_argument is None
+    assert new_conversation.prompt_argument is None
     assert new_conversation.chat == []
     assert new_conversation.metadata == {}
 
@@ -123,14 +123,14 @@ class TestImmutableConversationWithEnums:
         """Create a test conversation with enum values"""
         # Create conversation with enum-based prompt arguments and longterm memory
         ltm = EnumLongtermMemory(user_query="Test query", preferred_chat_type=ChatType.GROUP)
-        user_prompt_arg = EnumPromptArgument(
+        prompt_arg = EnumPromptArgument(
             chat_type=ChatType.CHANNEL, priority=Priority.HIGH, message_type=MessageType.CONDUCTOR
         )
 
         conversation = ImmutableConversation(
-            user_prompt_argument=user_prompt_arg,
             system_prompt=ChatMessage(role=Role.SYSTEM, content="System prompt"),
             user_prompt=ChatMessage(role=Role.USER, content="User message"),
+            prompt_argument=prompt_arg,
             active_agent="test_agent",
         )
 
@@ -144,9 +144,9 @@ class TestImmutableConversationWithEnums:
         data = enum_conversation.to_dict()
 
         # Check enum values are serialized correctly
-        assert data["user_prompt_argument"]["chat_type"] == "channel"
-        assert data["user_prompt_argument"]["priority"] == 2
-        assert data["user_prompt_argument"]["message_type"] == "conductor"
+        assert data["prompt_argument"]["chat_type"] == "channel"
+        assert data["prompt_argument"]["priority"] == 2
+        assert data["prompt_argument"]["message_type"] == "conductor"
         assert data["longterm_memory"]["test_conductor"]["preferred_chat_type"] == "group"
 
     def test_conversation_round_trip(self, enum_conversation, monkeypatch):
@@ -161,7 +161,7 @@ class TestImmutableConversationWithEnums:
                     "Prompt",
                     (),
                     {
-                        "user_prompt_argument": EnumPromptArgument,
+                        "prompt_argument": EnumPromptArgument,
                         "system_prompt_argument": None,
                         "longterm_memory": EnumLongtermMemory,
                     },
@@ -174,9 +174,9 @@ class TestImmutableConversationWithEnums:
         restored = ImmutableConversation.from_dict(data=data, agents=mock_agents)
 
         # Verify enum values are correctly deserialized
-        assert restored.user_prompt_argument.chat_type == ChatType.CHANNEL
-        assert restored.user_prompt_argument.priority == Priority.HIGH
-        assert restored.user_prompt_argument.message_type == MessageType.CONDUCTOR
+        assert restored.prompt_argument.chat_type == ChatType.CHANNEL
+        assert restored.prompt_argument.priority == Priority.HIGH
+        assert restored.prompt_argument.message_type == MessageType.CONDUCTOR
         assert restored._longterm_memory["test_conductor"].preferred_chat_type == ChatType.GROUP
 
     def test_special_enum_values(self):
@@ -243,7 +243,7 @@ class TestImmutableConversationWithEnums:
                     "Prompt",
                     (),
                     {
-                        "user_prompt_argument": None,
+                        "prompt_argument": None,
                         "system_prompt_argument": None,
                         "longterm_memory": None,
                     },
@@ -293,7 +293,7 @@ class TestImmutableConversationWithEnums:
                     "Prompt",
                     (),
                     {
-                        "user_prompt_argument": None,
+                        "prompt_argument": None,
                         "system_prompt_argument": None,
                         "longterm_memory": None,
                     },
@@ -316,7 +316,7 @@ class TestImmutableConversationWithEnums:
             "system_prompt": None,
             "user_prompt": None,
             "system_prompt_argument": None,
-            "user_prompt_argument": None,
+            "prompt_argument": None,
             "chat": [],
             "longterm_memory": {},
             "metadata": {
@@ -338,7 +338,7 @@ class TestImmutableConversationWithEnums:
                     "Prompt",
                     (),
                     {
-                        "user_prompt_argument": None,
+                        "prompt_argument": None,
                         "system_prompt_argument": None,
                         "longterm_memory": None,
                     },

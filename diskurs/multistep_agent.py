@@ -89,16 +89,14 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         :param conversation: The conversation object to prepare.
         :return: The updated conversation object.
         """
-        previous_user_prompt_augment = conversation.user_prompt_argument
+        previous_user_prompt_augment = conversation.prompt_argument
         conversation = self.prompt.init_prompt(self.name, conversation)
         if self.init_prompt_arguments_with_longterm_memory:
             conversation = conversation.update_prompt_argument_with_longterm_memory(
                 conductor_name=get_last_conductor_name(conversation.chat)
             )
             conversation = conversation.update(
-                user_prompt=self.prompt.render_user_template(
-                    name=self.name, prompt_args=conversation.user_prompt_argument
-                )
+                user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=conversation.prompt_argument)
             )
         if not is_previous_agent_conductor(conversation) and self.init_prompt_arguments_with_previous_agent:
             conversation = conversation.update_prompt_argument_with_previous_agent(previous_user_prompt_augment)
@@ -124,19 +122,14 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
                 system_prompt=self.prompt.render_system_template(
                     name=self.name, prompt_args=conversation.system_prompt_argument
                 ),
-                user_prompt=self.prompt.render_user_template(
-                    name=self.name, prompt_args=conversation.user_prompt_argument
-                ),
+                user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=conversation.prompt_argument),
             )
 
         for reasoning_step in range(self.max_reasoning_steps):
             self.logger.debug(f"Reasoning step {reasoning_step + 1} for Agent {self.name}")
             conversation = await self.generate_validated_response(conversation=conversation, message_type=message_type)
 
-            if (
-                self.prompt.is_final(conversation.user_prompt_argument)
-                and not conversation.has_pending_tool_response()
-            ):
+            if self.prompt.is_final(conversation.prompt_argument) and not conversation.has_pending_tool_response():
                 self.logger.debug(f"Final response found for Agent {self.name}")
                 break
 
@@ -165,7 +158,7 @@ class MultistepAgentFinalizer(MultiStepAgent, ConversationFinalizer):
 
         await conversation.maybe_persist()
 
-        conversation.final_result = get_fields_as_dict(conversation.user_prompt_argument, self.final_properties)
+        conversation.final_result = get_fields_as_dict(conversation.prompt_argument, self.final_properties)
 
 
 @register_agent("multistep_predicate")

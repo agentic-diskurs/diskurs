@@ -93,9 +93,9 @@ def init_conversation():
     user_prompt = ChatMessage(role=Role.USER, content="What is the capital of france?")
 
     system_prompt_arg = PromptArgument()
-    user_prompt_arg = PromptArgument()
+    prompt_arg = PromptArgument()
 
-    return ImmutableConversation(system_prompt, user_prompt, system_prompt_arg, user_prompt_arg)
+    return ImmutableConversation(system_prompt, user_prompt, system_prompt_arg, prompt_arg)
 
 
 def test_format_for_llm(init_conversation, llm_client):
@@ -163,13 +163,13 @@ def long_history_conversation():
     # Create conversation with history that exceeds token limit
     long_message = "x" * 10000  # Very long message that will exceed token limit
     conversation = ImmutableConversation(
+        prompt_argument=PromptArgument(),
         chat=[
             ChatMessage(role="system", content=long_message),
             ChatMessage(role="user", content=long_message),
             ChatMessage(role="assistant", content=long_message),
         ],
         metadata={"ticket_id": "123"},
-        user_prompt_argument=PromptArgument(),
     )
     return conversation
 
@@ -233,9 +233,9 @@ def test_format_conversation_with_multistep_agent_interaction(llm_client):
     ]
 
     conversation = ImmutableConversation(
-        chat=chat_history,
         system_prompt=ChatMessage(role=Role.SYSTEM, content="You are a helpful assistant."),
         user_prompt=ChatMessage(role=Role.USER, content="What is the capital of france?"),
+        chat=chat_history,
     )
 
     formatted = llm_client.format_conversation_for_llm(conversation=conversation, tools=tools)
@@ -361,9 +361,9 @@ def test_format_conversation_truncates_tool_responses(llm_client):
     ]
 
     conversation = ImmutableConversation(
-        chat=chat_history,
         system_prompt=ChatMessage(role=Role.SYSTEM, content="You are a helpful assistant."),
         user_prompt=[tool_msg1, tool_msg2],
+        chat=chat_history,
     )
 
     formatted = llm_client.format_conversation_for_llm(conversation)
