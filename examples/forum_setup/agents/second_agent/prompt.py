@@ -5,16 +5,11 @@ from diskurs import PromptValidationError
 
 
 @dataclass
-class SecondSystemPromptArgument(PromptArgument):
+class SecondPromptArgument(PromptArgument):
     agent_name: str = "Jane"
     topic: str = "food"
     mode: str = "friendly"
-
-
-@dataclass
-class SecondPromptArgument(PromptArgument):
     name: str = ""
-    topic: str = ""
     user_question: str = ""
     answer: str = ""
 

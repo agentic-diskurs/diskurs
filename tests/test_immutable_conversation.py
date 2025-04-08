@@ -62,10 +62,10 @@ def test_conversation_from_dict(conversation, conductor_mock, conductor_mock2):
 
 
 def test_conversation_from_dict_with_heuristic_agent(heuristic_agent_mock, conversation_dict):
-    """Test that from_dict works correctly with an agent that has no system_prompt_argument."""
-    # Modify conversation_dict to not include system_prompt_argument
+    """Test that from_dict works correctly with an agent that has no prompt_argument."""
+    # Modify conversation_dict to not include prompt_argument
     conversation_dict["active_agent"] = "heuristic_agent"
-    conversation_dict["system_prompt_argument"] = None
+    conversation_dict["prompt_argument"] = None
 
     new_conversation = ImmutableConversation.from_dict(data=conversation_dict, agents=[heuristic_agent_mock])
 
@@ -73,8 +73,8 @@ def test_conversation_from_dict_with_heuristic_agent(heuristic_agent_mock, conve
     assert new_conversation.active_agent == "heuristic_agent"
 
 
-def test_conversation_from_dict_missing_system_prompt_argument(conductor_mock):
-    """Test that from_dict handles missing system_prompt_argument in data dict."""
+def test_conversation_from_dict_missing_prompt_argument(conductor_mock):
+    """Test that from_dict handles missing prompt_argument in data dict."""
     conversation_dict = {
         "system_prompt": None,
         "user_prompt": None,
@@ -96,7 +96,7 @@ def test_conversation_from_dict_none_values(conductor_mock):
     conversation_dict = {
         "system_prompt": None,
         "user_prompt": None,
-        "system_prompt_argument": None,
+        "prompt_argument": None,
         "prompt_argument": None,
         "chat": [],
         "longterm_memory": {},
@@ -160,7 +160,6 @@ class TestImmutableConversationWithEnums:
                     (),
                     {
                         "prompt_argument": EnumPromptArgument,
-                        "system_prompt_argument": None,
                         "longterm_memory": EnumLongtermMemory,
                     },
                 )
@@ -242,7 +241,7 @@ class TestImmutableConversationWithEnums:
                     (),
                     {
                         "prompt_argument": None,
-                        "system_prompt_argument": None,
+                        "prompt_argument": None,
                         "longterm_memory": None,
                     },
                 )
@@ -292,7 +291,7 @@ class TestImmutableConversationWithEnums:
                     (),
                     {
                         "prompt_argument": None,
-                        "system_prompt_argument": None,
+                        "prompt_argument": None,
                         "longterm_memory": None,
                     },
                 )
@@ -313,7 +312,6 @@ class TestImmutableConversationWithEnums:
         conversation_dict = {
             "system_prompt": None,
             "user_prompt": None,
-            "system_prompt_argument": None,
             "prompt_argument": None,
             "chat": [],
             "longterm_memory": {},
@@ -337,7 +335,6 @@ class TestImmutableConversationWithEnums:
                     (),
                     {
                         "prompt_argument": None,
-                        "system_prompt_argument": None,
                         "longterm_memory": None,
                     },
                 )

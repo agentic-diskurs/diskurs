@@ -17,7 +17,6 @@ def create_prompt_config(name: str, agent_type: AgentType) -> dict:
     base_config = {
         "location": f"agents/{name}/prompt.py",
         "userPromptArgumentClass": "UserPromptArgument",
-        "systemPromptArgumentClass": "SystemPromptArgument",
     }
 
     configs = {
@@ -74,7 +73,7 @@ def create_agent_files(name: str, agent_dir: Path) -> None:
     """Create required agent files in the specified directory."""
 
     PROMPT_TEMPLATE = """from typing import Dict, Any, Optional
-    from diskurs.prompts import UserPromptArgument, SystemPromptArgument
+    from diskurs.prompts import UserPromptArgument
 
     def get_prompt_args() -> Dict[str, Any]:
         return {

@@ -5,16 +5,11 @@ from diskurs import PromptValidationError
 
 
 @dataclass
-class FirstSystemPromptArgument(PromptArgument):
+class FirstPromptArgument(PromptArgument):
     agent_name: str = "Jane"
     topic: str = "food"
     mode: str = "friendly"
-
-
-@dataclass
-class FirstPromptArgument(PromptArgument):
     name: str = ""
-    topic: str = ""
     user_question: str = ""
     answer: str = ""
 
@@ -32,3 +27,5 @@ def is_valid(arg: FirstPromptArgument) -> bool:
 def is_final(arg: FirstPromptArgument) -> bool:
     if len(arg.answer) > 10:
         return True
+    else:
+        return False

@@ -251,9 +251,6 @@ def heuristic_agent_mock():
     mock = Mock(spec=HeuristicAgent)
     mock.name = "heuristic_agent"
     prompt_mock = Mock()
-    # Ensure prompt doesn't have system_prompt_argument
-    if hasattr(prompt_mock, "system_prompt_argument"):
-        delattr(prompt_mock, "system_prompt_argument")
     mock.prompt = prompt_mock
     return mock
 
@@ -263,7 +260,6 @@ def conversation_dict():
     return {
         "system_prompt": None,
         "user_prompt": None,
-        "system_prompt_argument": None,
         "prompt_argument": None,
         "chat": [],
         "longterm_memory": {},

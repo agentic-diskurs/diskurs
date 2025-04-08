@@ -22,7 +22,6 @@ from diskurs.utils import load_module_from_path, load_template_from_package, saf
 logger = logging.getLogger(__name__)
 
 PromptArg = TypeVar("PromptArg", bound=PromptArgument)
-SystemPromptArg = TypeVar("SystemPromptArg", bound=PromptArgument)
 
 
 def always_true(*args, **kwargs) -> bool:

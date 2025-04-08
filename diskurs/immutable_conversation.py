@@ -11,7 +11,6 @@ from diskurs.registry import register_conversation
 
 GenericPrompt = TypeVar("GenericPrompt", bound="Prompt")
 GenericPromptArg = TypeVar("GenericPromptArg", bound="PromptArgument")
-GenericSystemPromptArg = TypeVar("GenericSystemPromptArg", bound="PromptArgument")
 
 
 @register_conversation("immutable_conversation")

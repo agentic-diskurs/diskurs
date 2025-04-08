@@ -56,7 +56,6 @@ class PromptValidator(Protocol):
 
 
 PromptArg = TypeVar("PromptArg", bound=PromptArgument)
-SystemPromptArg = TypeVar("SystemPromptArg", bound=PromptArgument)
 
 
 class Prompt(Protocol):
@@ -332,7 +331,7 @@ class HeuristicPrompt(Protocol):
         ...
 
 
-class Conversation(Protocol[SystemPromptArg, PromptArg]):
+class Conversation(Protocol[PromptArg]):
     """
     Protocol for conversation management.
 
