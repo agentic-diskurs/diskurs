@@ -116,7 +116,6 @@ class PromptConfig(YamlSerializable, Registrable):
     type: str
     location: Path
     prompt_argument_class: str
-    system_prompt_argument_class: str
     json_formatting_template: Optional[Path] = None
 
 
@@ -139,7 +138,6 @@ class ConductorPromptConfig(PromptConfig):
 
     type: str = "conductor_prompt"
     prompt_argument_class: Optional[str] = None
-    system_prompt_argument_class: Optional[str] = None
     longterm_memory_class: str
     can_finalize_name: Optional[str] = None
     fail_name: str
@@ -154,7 +152,6 @@ class HeuristicPromptConfig(PromptConfig):
     type: str = "heuristic_prompt"
     heuristic_sequence_name: str
     prompt_argument_class: str
-    system_prompt_argument_class: Optional[str] = None
 
 
 @dataclass(kw_only=True)
@@ -166,7 +163,6 @@ class LLMCompilerPromptConfig(PromptConfig):
     type: str = "llm_compiler_prompt"
     location: Optional[Path] = None
     prompt_argument_class: Optional[str] = None
-    system_prompt_argument_class: Optional[str] = None
     is_valid_name: Optional[str] = None
     is_final_name: Optional[str] = None
 

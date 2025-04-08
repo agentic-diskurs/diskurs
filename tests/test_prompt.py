@@ -19,15 +19,14 @@ from diskurs.prompt import (
 )
 from diskurs.utils import load_template_from_package
 from test_files.heuristic_agent_test_files.prompt import MyHeuristicPromptArgument
-from test_files.prompt_test_files.prompt import MyUserPromptArgument, MyUserPromptWithArrayArgument, Step
+from test_files.prompt_test_files.prompt import MyPromptArgument, MyUserPromptWithArrayArgument, Step
 
 
 @pytest.fixture
 def prompt_instance():
     return MultistepPrompt.create(
         location=Path(__file__).parent / "test_files" / "prompt_test_files",
-        system_prompt_argument_class="MySystemPromptArgument",
-        prompt_argument_class="MyUserPromptArgument",
+        prompt_argument_class="MyPromptArgument",
     )
 
 
@@ -35,7 +34,6 @@ def prompt_instance():
 def prompt_with_array_instance() -> MultistepPrompt:
     return MultistepPrompt.create(
         location=Path(__file__).parent / "test_files" / "prompt_test_files",
-        system_prompt_argument_class="MySystemPromptArgument",
         prompt_argument_class="MyUserPromptWithArrayArgument",
     )
 
@@ -44,7 +42,7 @@ def prompt_with_array_instance() -> MultistepPrompt:
 def prompt_testing_conversation(longterm_memories):
     ltm1, ltm2 = longterm_memories
     conversation = ImmutableConversation(
-        prompt_argument=MyUserPromptArgument(
+        prompt_argument=MyPromptArgument(
             name="",
             topic="",
             user_question="",
@@ -176,8 +174,7 @@ def test_validate_dataclass_additional_fields():
 
 prompt_config = {
     "location": Path(__file__).parent / "test_files" / "conductor_test_files",
-    "prompt_argument_class": "ConductorUserPromptArgument",
-    "system_prompt_argument_class": "ConductorSystemPromptArgument",
+    "prompt_argument_class": "ConductorPromptArgument",
     "longterm_memory_class": "MyConductorLongtermMemory",
     "can_finalize_name": "can_finalize",
     "fail_name": "fail",
@@ -188,7 +185,7 @@ def test_conductor_custom_system_prompt():
     prompt = ConductorPrompt.create(**prompt_config)
     rendered_system_prompt = prompt.render_system_template(
         name="test_conductor",
-        prompt_args=prompt.system_prompt_argument(
+        prompt_argument=prompt.prompt_argument(
             agent_descriptions={"first_agent": "I am the first agent", "second_agen": "I am the second agent"}
         ),
     )
@@ -198,8 +195,7 @@ def test_conductor_custom_system_prompt():
 
 prompt_config_no_finalize = {
     "location": Path(__file__).parent / "test_files" / "conductor_no_finalize_test_files",
-    "prompt_argument_class": "ConductorUserPromptArgument",
-    "system_prompt_argument_class": "ConductorSystemPromptArgument",
+    "prompt_argument_class": "ConductorPromptArgument",
     "longterm_memory_class": "MyConductorLongtermMemory",
     "can_finalize_name": "can_finalize",
     "fail_name": "fail",
@@ -213,7 +209,7 @@ def test_conductor_no_finalize_function():
 
 
 def test_parse_user_prompt_partial_update(prompt_instance, prompt_testing_conversation):
-    old_prompt_argument = MyUserPromptArgument(name="Alice", topic="Wonderland")
+    old_prompt_argument = MyPromptArgument(name="Alice", topic="Wonderland")
     returned_property = """{
         "user_question": "Am I updated correctly?"
         }"""
@@ -385,7 +381,6 @@ def test_render_json_formatting_prompt_with_prompt_fields():
         agent_description="Test Agent",
         system_template=Template("system"),
         user_template=Template("user"),
-        system_prompt_argument_class=TestPromptArg,
         prompt_argument_class=TestPromptArg,
         json_formatting_template=template,
     )
@@ -412,7 +407,6 @@ def test_render_json_formatting_prompt_empty_args():
         agent_description="Test Agent",
         system_template=Template("system"),
         user_template=Template("user"),
-        system_prompt_argument_class=EmptyPromptArg,
         prompt_argument_class=EmptyPromptArg,
         json_formatting_template=template,
     )
@@ -426,7 +420,6 @@ def test_render_json_formatting_prompt_missing_template():
         agent_description="Test Agent",
         system_template=Template("system"),
         user_template=Template("user"),
-        system_prompt_argument_class=PromptArgument,
         prompt_argument_class=PromptArgument,
         json_formatting_template=None,
     )
@@ -453,7 +446,6 @@ def test_render_json_formatting_prompt_inheritance():
         agent_description="Test Agent",
         system_template=Template("system"),
         user_template=Template("user"),
-        system_prompt_argument_class=ChildPromptArg,
         prompt_argument_class=ChildPromptArg,
         json_formatting_template=template,
     )
@@ -474,7 +466,6 @@ def test_generate_json_schema_with_nested_dataclass():
         agent_description="Test Agent",
         system_template=Template("system"),
         user_template=Template("user"),
-        system_prompt_argument_class=TestPromptArg,
         prompt_argument_class=TestPromptArg,
         json_formatting_template=Template("{{ schema | tojson(indent=2) }}"),
     )
@@ -505,7 +496,6 @@ def test_generate_json_schema_with_list_of_dataclasses():
         agent_description="Test Agent",
         system_template=Template("system"),
         user_template=Template("user"),
-        system_prompt_argument_class=TestPromptArg,
         prompt_argument_class=TestPromptArg,
         json_formatting_template=Template("{{ schema | tojson(indent=2) }}"),
     )
@@ -523,7 +513,7 @@ def test_generate_json_schema_with_list_of_dataclasses():
 
 
 def test_render_json_formatting_prompt_with_array_type():
-    # Test with PlanningUserPromptArgument-like class
+    # Test with PlanningPromptArgument-like class
     @dataclass
     class PlanStep:
         step_id: str = ""
@@ -544,7 +534,6 @@ def test_render_json_formatting_prompt_with_array_type():
         agent_description="Test Agent",
         system_template=Template("system"),
         user_template=Template("user"),
-        system_prompt_argument_class=TestArrayArgument,
         prompt_argument_class=TestArrayArgument,
         json_formatting_template=template,
     )
@@ -563,7 +552,7 @@ def test_render_json_formatting_prompt_with_array_type():
 
 
 def test_json_formatting_with_real_llm_compiler_prompt(prompt_with_array_instance):
-    from diskurs.llm_compiler.prompts import PlanningUserPromptArgument
+    from diskurs.llm_compiler.prompts import PlanningPromptArgument
 
     # Create an instance with proper template
     template = load_template_from_package("diskurs.assets", "json_formatting.jinja2")
@@ -572,8 +561,7 @@ def test_json_formatting_with_real_llm_compiler_prompt(prompt_with_array_instanc
         agent_description="LLM Compiler",
         system_template=Template("system"),
         user_template=Template("user"),
-        system_prompt_argument_class=PlanningUserPromptArgument,
-        prompt_argument_class=PlanningUserPromptArgument,
+        prompt_argument_class=PlanningPromptArgument,
         json_formatting_template=template,
     )
 

@@ -69,7 +69,7 @@ def test_conversation_from_dict_with_heuristic_agent(heuristic_agent_mock, conve
 
     new_conversation = ImmutableConversation.from_dict(data=conversation_dict, agents=[heuristic_agent_mock])
 
-    assert new_conversation.system_prompt_argument is None
+    assert new_conversation.prompt_argument is None
     assert new_conversation.active_agent == "heuristic_agent"
 
 
@@ -78,7 +78,6 @@ def test_conversation_from_dict_missing_system_prompt_argument(conductor_mock):
     conversation_dict = {
         "system_prompt": None,
         "user_prompt": None,
-        # system_prompt_argument intentionally omitted
         "prompt_argument": None,
         "chat": [],
         "longterm_memory": {},
@@ -89,7 +88,7 @@ def test_conversation_from_dict_missing_system_prompt_argument(conductor_mock):
 
     new_conversation = ImmutableConversation.from_dict(data=conversation_dict, agents=[conductor_mock])
 
-    assert new_conversation.system_prompt_argument is None
+    assert new_conversation.prompt_argument is None
 
 
 def test_conversation_from_dict_none_values(conductor_mock):
@@ -109,7 +108,6 @@ def test_conversation_from_dict_none_values(conductor_mock):
 
     assert new_conversation.system_prompt is None
     assert new_conversation.user_prompt is None
-    assert new_conversation.system_prompt_argument is None
     assert new_conversation.prompt_argument is None
     assert new_conversation.chat == []
     assert new_conversation.metadata == {}

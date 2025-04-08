@@ -1,7 +1,7 @@
 import pytest
 from dataclasses import asdict
 
-from diskurs.llm_compiler.prompts import PlanningSystemPromptArgument
+from diskurs.llm_compiler.prompts import PlanningPromptArgument
 from diskurs.llm_compiler.entities import PlanStep
 from diskurs.utils import load_template_from_package
 
@@ -44,7 +44,7 @@ class TestLLMCompilerTemplates:
     def test_planning_mode_with_empty_execution_plan(self, planning_system_template, planning_tools):
         """Test rendering in planning mode with empty execution_plan."""
         # Create prompt args for planning mode
-        prompt_args = PlanningSystemPromptArgument(
+        prompt_args = PlanningPromptArgument(
             tools=planning_tools, execution_plan=[], user_query="Whats the meaning of life?"
         )
 
@@ -60,7 +60,7 @@ class TestLLMCompilerTemplates:
 
     def test_planning_mode_with_undefined_execution_plan(self, planning_system_template, planning_tools):
         """Test rendering in planning mode when execution_plan is None."""
-        prompt_args = PlanningSystemPromptArgument(tools=planning_tools, execution_plan=None)
+        prompt_args = PlanningPromptArgument(tools=planning_tools, execution_plan=None)
 
         rendered = planning_system_template.render(**asdict(prompt_args))
 
@@ -75,7 +75,7 @@ class TestLLMCompilerTemplates:
     def test_summary_mode_with_executed_steps(self, planning_system_template, execution_plan):
         """Test rendering in summary mode with executed_steps parameter."""
         # Include user_query in the prompt_args to avoid duplicate parameter
-        prompt_args = PlanningSystemPromptArgument(
+        prompt_args = PlanningPromptArgument(
             tools=[], execution_plan=execution_plan, user_query="Tell me about AI and calculate 2+2"
         )
 

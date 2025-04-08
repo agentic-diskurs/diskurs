@@ -10,7 +10,7 @@ from diskurs.protocols import Conversation, ConversationStore
 from diskurs.registry import register_conversation
 
 GenericPrompt = TypeVar("GenericPrompt", bound="Prompt")
-GenericUserPromptArg = TypeVar("GenericUserPromptArg", bound="PromptArgument")
+GenericPromptArg = TypeVar("GenericPromptArg", bound="PromptArgument")
 GenericSystemPromptArg = TypeVar("GenericSystemPromptArg", bound="PromptArgument")
 
 
@@ -21,8 +21,7 @@ class ImmutableConversation(Conversation):
         self,
         system_prompt: Optional[ChatMessage] = None,
         user_prompt: Optional[ChatMessage] = None,
-        system_prompt_argument: Optional[GenericSystemPromptArg] = None,
-        prompt_argument: Optional[GenericUserPromptArg] = None,
+        prompt_argument: Optional[GenericPromptArg] = None,
         chat=None,
         longterm_memory: Optional[dict[str, "LongtermMemory"]] = None,
         metadata: Optional[dict[str, str | enum.Enum]] = None,
@@ -39,7 +38,6 @@ class ImmutableConversation(Conversation):
         self._system_prompt = copy.deepcopy(system_prompt) if system_prompt else None
         self._user_prompt = copy.deepcopy(user_prompt) if user_prompt else None
         self._prompt_argument = copy.deepcopy(prompt_argument) if prompt_argument else None
-        self._system_prompt_argument = copy.deepcopy(system_prompt_argument) if system_prompt_argument else None
         self._longterm_memory = copy.deepcopy(longterm_memory) or {}
         self._metadata = copy.deepcopy(metadata) or {}
         self._active_agent = active_agent
@@ -100,11 +98,7 @@ class ImmutableConversation(Conversation):
         return self._user_prompt
 
     @property
-    def system_prompt_argument(self) -> GenericSystemPromptArg:
-        return copy.deepcopy(self._system_prompt_argument)
-
-    @property
-    def prompt_argument(self) -> GenericUserPromptArg:
+    def prompt_argument(self) -> GenericPromptArg:
         return copy.deepcopy(self._prompt_argument)
 
     @property
@@ -150,7 +144,7 @@ class ImmutableConversation(Conversation):
         return self.update(prompt_argument=updated_prompt_argument)
 
     def update_prompt_argument_with_previous_agent(
-        self, previous_agent_prompt_argument: GenericUserPromptArg
+        self, previous_agent_prompt_argument: GenericPromptArg
     ) -> "ImmutableConversation":
         updated_prompt_argument = self.update_prompt_argument(
             source_values=previous_agent_prompt_argument,
@@ -162,8 +156,7 @@ class ImmutableConversation(Conversation):
     def update(
         self,
         chat: Optional[list[ChatMessage]] = None,
-        system_prompt_argument: Optional[GenericSystemPromptArg] = None,
-        prompt_argument: Optional[GenericUserPromptArg] = None,
+        prompt_argument: Optional[GenericPromptArg] = None,
         system_prompt: Optional[ChatMessage] = None,
         user_prompt: Optional[ChatMessage | list[ChatMessage]] = None,
         longterm_memory: Optional[dict[str, Any]] = None,
@@ -174,7 +167,6 @@ class ImmutableConversation(Conversation):
         return ImmutableConversation(
             system_prompt=(system_prompt or self._system_prompt),
             user_prompt=user_prompt or self._user_prompt,
-            system_prompt_argument=system_prompt_argument or self._system_prompt_argument,
             prompt_argument=prompt_argument or self._prompt_argument,
             chat=chat or self._chat,
             longterm_memory=longterm_memory or self._longterm_memory,
@@ -253,16 +245,10 @@ class ImmutableConversation(Conversation):
     ) -> "ImmutableConversation":
         active_agent = next(agent for agent in agents if agent.name == data["active_agent"])
 
-        system_prompt_argument_class = getattr(active_agent.prompt, "system_prompt_argument", None)
-        system_prompt_argument = (
-            system_prompt_argument_class.from_dict(data.get("system_prompt_argument"))
-            if system_prompt_argument_class and data.get("system_prompt_argument")
-            else None
-        )
-        system_prompt = ChatMessage.from_dict(data["system_prompt"]) if data["system_prompt"] else None
-
         prompt_argument = active_agent.prompt.prompt_argument
         prompt_argument = prompt_argument.from_dict(data["prompt_argument"]) if data["prompt_argument"] else None
+
+        system_prompt = ChatMessage.from_dict(data["system_prompt"]) if data["system_prompt"] else None
         user_prompt = ChatMessage.from_dict(data["user_prompt"]) if data["user_prompt"] else None
 
         ltm_cls_map = {
@@ -288,7 +274,6 @@ class ImmutableConversation(Conversation):
         return cls(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            system_prompt_argument=system_prompt_argument,
             prompt_argument=prompt_argument,
             chat=[ChatMessage.from_dict(msg) for msg in data.get("chat", [])],
             longterm_memory=longterm_memory,
@@ -318,7 +303,6 @@ class ImmutableConversation(Conversation):
         return {
             "system_prompt": (self.system_prompt.to_dict() if self.system_prompt else None),
             "user_prompt": (self.user_prompt.to_dict() if self.user_prompt else None),
-            "system_prompt_argument": (self.system_prompt_argument.to_dict() if self.system_prompt_argument else None),
             "prompt_argument": (self.prompt_argument.to_dict() if self.prompt_argument else None),
             "chat": [msg.to_dict() for msg in self.chat],
             "longterm_memory": {k: v.to_dict() for k, v in self._longterm_memory.items()},

@@ -32,20 +32,15 @@ class MyLongtermMemory2(LongtermMemory):
 
 
 @dataclass
-class MyUserPromptArgument(PromptArgument):
+class MyPromptArgument(PromptArgument):
     field1: str = ""
     field2: str = ""
     field3: str = ""
 
 
-class MySystemPromptArgument(PromptArgument):
-    field1: str = ""
-    field2: str = ""
-
-
 @pytest.fixture
 def prompt_arguments():
-    return MyUserPromptArgument, MySystemPromptArgument
+    return MyPromptArgument
 
 
 @pytest.fixture
@@ -53,10 +48,9 @@ def longterm_memories():
     return MyLongtermMemory, MyLongtermMemory2
 
 
-def create_conductor_mock(name, system_prompt_argument, prompt_argument, longterm_memory):
+def create_conductor_mock(name, prompt_argument, longterm_memory):
     agent_mock = Mock(spec=ConductorAgent)
     prompt = Mock(spec=ConductorPrompt)
-    prompt.system_prompt_argument = system_prompt_argument
     prompt.prompt_argument = prompt_argument
     prompt.longterm_memory = longterm_memory
     agent_mock.prompt = prompt
@@ -68,27 +62,21 @@ def create_conductor_mock(name, system_prompt_argument, prompt_argument, longter
 @pytest.fixture
 def conductor_mock():
     return create_conductor_mock(
-        name="my_conductor",
-        system_prompt_argument=MySystemPromptArgument(),
-        prompt_argument=MyUserPromptArgument(),
-        longterm_memory=MyLongtermMemory,
+        name="my_conductor", prompt_argument=MyPromptArgument(), longterm_memory=MyLongtermMemory
     )
 
 
 @pytest.fixture()
 def conductor_mock2():
     return create_conductor_mock(
-        name="my_conductor_2",
-        system_prompt_argument=MySystemPromptArgument(),
-        prompt_argument=MyUserPromptArgument(),
-        longterm_memory=MyLongtermMemory2,
+        name="my_conductor_2", prompt_argument=MyPromptArgument(), longterm_memory=MyLongtermMemory2
     )
 
 
 @pytest.fixture
 def conversation():
     conversation = ImmutableConversation(
-        prompt_argument=MyUserPromptArgument(
+        prompt_argument=MyPromptArgument(
             field1="user prompt field 1",
             field2="user prompt field 2",
             field3="user prompt field 3",
@@ -180,7 +168,6 @@ def are_classes_structurally_similar(class_a: Type, class_b: Type) -> bool:
 
 def create_prompt(prompt_argument):
     prompt = AsyncMock(spec=MultistepPrompt)
-    prompt.create_system_prompt_argument.return_value = AsyncMock()
     prompt.create_prompt_argument.return_value = prompt_argument
     prompt.render_user_template.return_value = ChatMessage(
         role=Role.USER,
@@ -196,7 +183,7 @@ def create_prompt(prompt_argument):
 
 @pytest.fixture
 def mock_prompt():
-    return create_prompt(MyUserPromptArgument())
+    return create_prompt(MyPromptArgument())
 
 
 @dataclass
@@ -206,13 +193,13 @@ class MyExtendedLongtermMemory(LongtermMemory):
 
 
 @dataclass
-class MySourceUserPromptArgument(PromptArgument):
+class MySourcePromptArgument(PromptArgument):
     field3: str = ""
     field4: str = ""
 
 
 @dataclass
-class MyExtendedUserPromptArgument(PromptArgument):
+class MyExtendedPromptArgument(PromptArgument):
     field1: str = "extended user prompt field 1"
     field2: str = "extended user prompt field 2"
     field3: str = "extended user prompt field 3"
@@ -221,13 +208,13 @@ class MyExtendedUserPromptArgument(PromptArgument):
 
 @pytest.fixture
 def mock_extended_prompt():
-    return create_prompt(MyExtendedUserPromptArgument())
+    return create_prompt(MyExtendedPromptArgument())
 
 
 @pytest.fixture
 def extended_conversation():
     conversation = ImmutableConversation(
-        prompt_argument=MySourceUserPromptArgument(
+        prompt_argument=MySourcePromptArgument(
             field3="user prompt field 3",
             field4="user prompt field 4",
         ),
@@ -248,7 +235,7 @@ def extended_conversation():
 @pytest.fixture
 def finalizer_conversation():
     conversation = ImmutableConversation(
-        prompt_argument=MyUserPromptArgument(field1="user prompt field 1", field2="user prompt field 2"),
+        prompt_argument=MyPromptArgument(field1="user prompt field 1", field2="user prompt field 2"),
         chat=[ChatMessage(role=Role.USER, content="Hello, world!", name="Alice")],
         longterm_memory={
             "my_conductor": MyLongtermMemory(user_query="longterm user query"),

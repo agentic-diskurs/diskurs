@@ -11,21 +11,10 @@ from diskurs.utils import load_template_from_package
 
 
 @dataclass
-class PlanningSystemPromptArgument(PromptArgument):
-    """System prompt arguments for planning."""
-
-    tools: list[dict[str, Any]] = field(default_factory=list)
-    execution_plan: Optional[list[PlanStep]] = field(default_factory=list)
-    user_query: str = ""
-    replan: bool = False
-    replan_explanation: str = ""
-    evaluate_replanning: Annotated[bool, PromptField(include=False)] = False
-
-
-@dataclass
-class PlanningUserPromptArgument(PromptArgument):
+class PlanningPromptArgument(PromptArgument):
     """User prompt arguments for planning."""
 
+    tools: list[dict[str, Any]] = field(default_factory=list)
     user_query: str = ""
     execution_plan: Optional[list[PlanStep]] = field(default_factory=list)
     answer: str = ""
@@ -38,8 +27,7 @@ class PlanningUserPromptArgument(PromptArgument):
 class LLMCompilerPrompt(BasePrompt):
     """Prompt implementation for the LLM Compiler agent."""
 
-    prompt_argument = PlanningUserPromptArgument
-    system_prompt_argument = PlanningSystemPromptArgument
+    prompt_argument = PlanningPromptArgument
 
     @classmethod
     def create(cls, **kwargs) -> Self:
@@ -53,8 +41,7 @@ class LLMCompilerPrompt(BasePrompt):
         location = kwargs.get("location", None)
         json_formatting_filename = kwargs.get("json_formatting_filename", "")
 
-        user_arg_cls = PlanningUserPromptArgument
-        system_arg_cls = PlanningSystemPromptArgument
+        prompt_argument_cls = PlanningPromptArgument
 
         agent_description = ""
         if location:
@@ -81,23 +68,19 @@ class LLMCompilerPrompt(BasePrompt):
             agent_description=agent_description,
             system_template=planning_system_template,
             user_template=planning_user_template,
-            system_prompt_argument_class=system_arg_cls,
             json_formatting_template=json_render_template,
-            prompt_argument_class=user_arg_cls,
+            prompt_argument_class=prompt_argument_cls,
         )
 
         return instance
 
-    def create_system_prompt_argument(self, **prompt_args) -> PlanningSystemPromptArgument:
-        return PlanningSystemPromptArgument(**prompt_args)
+    def create_prompt_argument(self, **prompt_args) -> PlanningPromptArgument:
+        return PlanningPromptArgument(**prompt_args)
 
-    def create_prompt_argument(self, **prompt_args) -> PlanningUserPromptArgument:
-        return PlanningUserPromptArgument(**prompt_args)
-
-    def is_valid(self, prompt_argument: PlanningUserPromptArgument) -> bool:
+    def is_valid(self, prompt_argument: PlanningPromptArgument) -> bool:
         """Check if the prompt argument is valid."""
         return True
 
-    def is_final(self, prompt_argument: PlanningUserPromptArgument) -> bool:
+    def is_final(self, prompt_argument: PlanningPromptArgument) -> bool:
         """Check if the prompt argument represents a final state."""
         return prompt_argument.execution_plan is not None

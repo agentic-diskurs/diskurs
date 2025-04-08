@@ -7,10 +7,9 @@ from diskurs import ImmutableConversation, ConductorAgent
 from diskurs.filesystem_conversation_store import AsyncFilesystemConversationStore
 
 
-def setup_agent(agent, longterm_memory, system_pargs, pargs, agent_name):
+def setup_agent(agent, longterm_memory, pargs, agent_name):
     agent.name = agent_name
     prompt = Mock()
-    prompt.system_prompt_argument = system_pargs
     prompt.prompt_argument = pargs
     prompt.longterm_memory = longterm_memory
     agent.prompt = prompt
@@ -18,15 +17,14 @@ def setup_agent(agent, longterm_memory, system_pargs, pargs, agent_name):
 
 @pytest_asyncio.fixture
 async def conversation_store(tmp_path, prompt_arguments, longterm_memories, conversation):
-    pargs, system_pargs = prompt_arguments
     ltm1, ltm2 = longterm_memories
 
     directory = tmp_path / "store_test_files"
     directory.mkdir(parents=True, exist_ok=True)
 
     agents = [Mock(spec=ConductorAgent) for _ in range(2)]
-    setup_agent(agents[0], ltm1, system_pargs, pargs, agent_name="my_conductor")
-    setup_agent(agents[1], ltm2, system_pargs, pargs, agent_name="my_conductor_2")
+    setup_agent(agents[0], ltm1, prompt_arguments, agent_name="my_conductor")
+    setup_agent(agents[1], ltm2, prompt_arguments, agent_name="my_conductor_2")
 
     store = AsyncFilesystemConversationStore.create(
         base_path=directory, agents=agents, conversation_class=ImmutableConversation, is_persistent=True

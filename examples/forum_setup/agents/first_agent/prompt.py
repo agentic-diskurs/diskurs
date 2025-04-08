@@ -12,14 +12,14 @@ class FirstSystemPromptArgument(PromptArgument):
 
 
 @dataclass
-class FirstUserPromptArgument(PromptArgument):
+class FirstPromptArgument(PromptArgument):
     name: str = ""
     topic: str = ""
     user_question: str = ""
     answer: str = ""
 
 
-def is_valid(arg: FirstUserPromptArgument) -> bool:
+def is_valid(arg: FirstPromptArgument) -> bool:
     if not arg.name:
         raise PromptValidationError("Please extract the user's name")
     if not arg.topic:
@@ -29,6 +29,6 @@ def is_valid(arg: FirstUserPromptArgument) -> bool:
     return True
 
 
-def is_final(arg: FirstUserPromptArgument) -> bool:
+def is_final(arg: FirstPromptArgument) -> bool:
     if len(arg.answer) > 10:
         return True

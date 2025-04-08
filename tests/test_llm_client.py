@@ -92,10 +92,9 @@ def init_conversation():
     system_prompt = ChatMessage(role=Role.SYSTEM, content="You are a helpful assistant.")
     user_prompt = ChatMessage(role=Role.USER, content="What is the capital of france?")
 
-    system_prompt_arg = PromptArgument()
     prompt_arg = PromptArgument()
 
-    return ImmutableConversation(system_prompt, user_prompt, system_prompt_arg, prompt_arg)
+    return ImmutableConversation(system_prompt, user_prompt, prompt_arg)
 
 
 def test_format_for_llm(init_conversation, llm_client):

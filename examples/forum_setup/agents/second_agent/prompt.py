@@ -12,14 +12,14 @@ class SecondSystemPromptArgument(PromptArgument):
 
 
 @dataclass
-class SecondUserPromptArgument(PromptArgument):
+class SecondPromptArgument(PromptArgument):
     name: str = ""
     topic: str = ""
     user_question: str = ""
     answer: str = ""
 
 
-def is_valid(arg: SecondUserPromptArgument) -> bool:
+def is_valid(arg: SecondPromptArgument) -> bool:
     if not arg.name:
         raise PromptValidationError("Please extract the user's name")
     if not arg.topic:
@@ -29,6 +29,6 @@ def is_valid(arg: SecondUserPromptArgument) -> bool:
     return True
 
 
-def is_final(arg: SecondUserPromptArgument) -> bool:
+def is_final(arg: SecondPromptArgument) -> bool:
     if len(arg.answer) > 10:
         return True

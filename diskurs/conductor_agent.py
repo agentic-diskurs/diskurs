@@ -164,7 +164,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             self.name,
             conversation,
             message_type=MessageType.CONDUCTOR,
-            system_prompt_argument={"agent_descriptions": self.agent_descriptions},
+            prompt_argument={"agent_descriptions": self.agent_descriptions},
         )
 
         if next_agent := self.evaluate_rules(conversation):
@@ -207,7 +207,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
                 self.name,
                 conversation,
                 message_type=MessageType.CONDUCTOR,
-                system_prompt_argument={"agent_descriptions": self.agent_descriptions},
+                prompt_argument={"agent_descriptions": self.agent_descriptions},
             )
 
         if self.supervisor:

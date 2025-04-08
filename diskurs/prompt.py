@@ -21,7 +21,7 @@ from diskurs.utils import load_module_from_path, load_template_from_package, saf
 
 logger = logging.getLogger(__name__)
 
-UserPromptArg = TypeVar("UserPromptArg", bound=PromptArgument)
+PromptArg = TypeVar("PromptArg", bound=PromptArgument)
 SystemPromptArg = TypeVar("SystemPromptArg", bound=PromptArgument)
 
 
@@ -278,15 +278,13 @@ class BasePrompt(PromptProtocol):
         agent_description: str,
         system_template: Template,
         user_template: Template,
-        system_prompt_argument_class: Type[SystemPromptArg],
-        prompt_argument_class: Type[UserPromptArg],
+        prompt_argument_class: Type[PromptArg],
         return_json: bool = True,
         json_formatting_template: Optional[Template] = None,
         is_valid: Optional[Callable[[Any], bool]] = None,
         is_final: Optional[Callable[[Any], bool]] = None,
     ):
         self.agent_description = agent_description
-        self.system_prompt_argument = system_prompt_argument_class
         self.prompt_argument = prompt_argument_class
         self.system_template = system_template
         self.user_template = user_template
@@ -296,11 +294,11 @@ class BasePrompt(PromptProtocol):
         self._is_final = is_final
 
     @classmethod
-    def create_default_is_valid(cls, **kwargs) -> Callable[[UserPromptArg], bool]:
+    def create_default_is_valid(cls, **kwargs) -> Callable[[PromptArg], bool]:
         raise NotImplementedError
 
     @classmethod
-    def create_default_is_final(cls, **kwargs) -> Callable[[UserPromptArg], bool]:
+    def create_default_is_final(cls, **kwargs) -> Callable[[PromptArg], bool]:
         raise NotImplementedError
 
     @classmethod
@@ -308,10 +306,10 @@ class BasePrompt(PromptProtocol):
         is_final_name = is_final_name or "is_final"
         is_valid_name = is_valid_name or "is_valid"
 
-        is_valid: Callable[[UserPromptArg], bool] = safe_load_symbol(
+        is_valid: Callable[[PromptArg], bool] = safe_load_symbol(
             symbol_name=is_valid_name, module=module, default_factory=cls.create_default_is_valid, **kwargs
         )
-        is_final: Callable[[UserPromptArg], bool] = safe_load_symbol(
+        is_final: Callable[[PromptArg], bool] = safe_load_symbol(
             symbol_name=is_final_name, module=module, default_factory=cls.create_default_is_final, **kwargs
         )
 
@@ -333,7 +331,6 @@ class BasePrompt(PromptProtocol):
 
     @classmethod
     def create(cls, location: Path, **kwargs) -> Self:
-        system_prompt_argument_class: str = kwargs.get("system_prompt_argument_class")
         prompt_argument_class: str = kwargs.get("prompt_argument_class")
         agent_description_filename: str = kwargs.get("agent_description_filename", "agent_description.txt")
         code_filename: str = kwargs.get("code_filename", "prompt.py")
@@ -353,10 +350,7 @@ class BasePrompt(PromptProtocol):
 
         module = load_module_from_path(module_path=module_path)
 
-        system_prompt_argument_class: Type[SystemPromptArg] = safe_load_symbol(
-            symbol_name=system_prompt_argument_class, module=module
-        )
-        prompt_argument_class: Type[UserPromptArg] = safe_load_symbol(symbol_name=prompt_argument_class, module=module)
+        prompt_argument_class: Type[PromptArg] = safe_load_symbol(symbol_name=prompt_argument_class, module=module)
 
         is_final, is_valid = cls.safe_load_predicates(
             is_final_name=is_final_name, is_valid_name=is_valid_name, module=module, topics=kwargs.get("topics", [])
@@ -382,7 +376,6 @@ class BasePrompt(PromptProtocol):
             "system_template": system_template,
             "user_template": user_template,
             "json_formatting_template": json_render_template,
-            "system_prompt_argument_class": system_prompt_argument_class,
             "prompt_argument_class": prompt_argument_class,
             "is_valid": is_valid,
             "is_final": is_final,
@@ -392,8 +385,8 @@ class BasePrompt(PromptProtocol):
 
         return cls(**all_args)
 
-    def render_system_template(self, name: str, prompt_args: PromptArgument) -> ChatMessage:
-        content = self.system_template.render(**asdict(prompt_args))
+    def render_system_template(self, name: str, prompt_argument: PromptArgument) -> ChatMessage:
+        content = self.system_template.render(**asdict(prompt_argument))
 
         if self.return_json:
             content += "\n" + self.render_json_formatting_prompt(asdict(self.prompt_argument()))
@@ -437,10 +430,7 @@ class BasePrompt(PromptProtocol):
     def is_valid(self, prompt_argument: PromptArgument) -> bool:
         return self._is_valid(prompt_argument)
 
-    def create_system_prompt_argument(self, **prompt_args: dict) -> SystemPromptArg:
-        return self.system_prompt_argument(**prompt_args)
-
-    def create_prompt_argument(self, **prompt_args: dict) -> UserPromptArg:
+    def create_prompt_argument(self, **prompt_args: dict) -> PromptArg:
         return self.prompt_argument(**prompt_args)
 
     def init_prompt(
@@ -454,14 +444,12 @@ class BasePrompt(PromptProtocol):
         Initialize the prompt before starting an agent's turn.
         This method sets fresh values for prompt arguments and renders prompts
         """
-        system_prompt_argument = self.create_system_prompt_argument(**kwargs.get("system_prompt_argument", {}))
         prompt_argument = self.create_prompt_argument(**kwargs.get("prompt_argument", {}))
 
-        system_prompt = self.render_system_template(agent_name, prompt_args=system_prompt_argument)
+        system_prompt = self.render_system_template(agent_name, prompt_argument=prompt_argument)
         user_prompt = self.render_user_template(agent_name, prompt_args=prompt_argument, message_type=message_type)
 
         return conversation.update(
-            system_prompt_argument=system_prompt_argument,
             prompt_argument=prompt_argument,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
@@ -585,8 +573,7 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
         agent_description: str,
         system_template: Template,
         user_template: Template,
-        system_prompt_argument_class: Type[SystemPromptArg],
-        prompt_argument_class: Type[UserPromptArg],
+        prompt_argument_class: Type[PromptArg],
         return_json: bool = True,
         json_formatting_template: Optional[Template] = None,
         is_valid: Optional[Callable[[Any], bool]] = None,
@@ -596,7 +583,6 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
             agent_description=agent_description,
             system_template=system_template,
             user_template=user_template,
-            system_prompt_argument_class=system_prompt_argument_class,
             prompt_argument_class=prompt_argument_class,
             return_json=return_json,
             json_formatting_template=json_formatting_template,
@@ -605,24 +591,18 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
         )
 
     @classmethod
-    def create_default_is_valid(cls, **kwargs) -> Callable[[UserPromptArg], bool]:
+    def create_default_is_valid(cls, **kwargs) -> Callable[[PromptArg], bool]:
         return always_true
 
     @classmethod
-    def create_default_is_final(cls, **kwargs) -> Callable[[UserPromptArg], bool]:
+    def create_default_is_final(cls, **kwargs) -> Callable[[PromptArg], bool]:
         return always_true
 
 
 @dataclass
-class DefaultConductorUserPromptArgument(PromptArgument):
-    next_agent: Optional[str] = None
-
-
-@dataclass
-class DefaultConductorSystemPromptArgument(PromptArgument):
-    """Default system prompt argument for conductor with minimal required fields."""
-
+class DefaultConductorPromptArgument(PromptArgument):
     agent_descriptions: Optional[dict[str, str]] = field(default_factory=dict)
+    next_agent: Optional[str] = None
 
 
 GenericConductorLongtermMemory = TypeVar("GenericConductorLongtermMemory", bound="ConductorLongtermMemory")
@@ -635,8 +615,7 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
         agent_description: str,
         system_template: Template,
         user_template: Template,
-        system_prompt_argument_class: Type[SystemPromptArg],
-        prompt_argument_class: Type[UserPromptArg],
+        prompt_argument_class: Type[PromptArg],
         json_formatting_template: Optional[Template] = None,
         is_valid: Optional[Callable[[Any], bool]] = None,
         is_final: Optional[Callable[[Any], bool]] = None,
@@ -649,7 +628,6 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
             agent_description=agent_description,
             system_template=system_template,
             user_template=user_template,
-            system_prompt_argument_class=system_prompt_argument_class,
             prompt_argument_class=prompt_argument_class,
             json_formatting_template=json_formatting_template,
             is_valid=is_valid,
@@ -662,10 +640,10 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
         self.longterm_memory = longterm_memory
 
     @staticmethod
-    def create_default_is_valid(**kwargs) -> Callable[[UserPromptArg], bool]:
+    def create_default_is_valid(**kwargs) -> Callable[[PromptArg], bool]:
         topics: list[str] = kwargs.get("topics", [])
 
-        def is_valid(prompt_args: UserPromptArg) -> bool:
+        def is_valid(prompt_args: PromptArg) -> bool:
             if not prompt_args.next_agent:
                 return True
             if prompt_args.next_agent in topics:
@@ -678,10 +656,10 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
         return is_valid
 
     @staticmethod
-    def create_default_is_final(**kwargs) -> Callable[[UserPromptArg], bool]:
+    def create_default_is_final(**kwargs) -> Callable[[PromptArg], bool]:
         topics: list[str] = kwargs.get("topics", [])
 
-        def is_final(prompt_args: UserPromptArg) -> bool:
+        def is_final(prompt_args: PromptArg) -> bool:
             if not prompt_args.next_agent:
                 return False
             else:
@@ -762,7 +740,6 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
     @classmethod
     def create(cls, location: Path, **kwargs) -> Self:
         """Override BasePrompt.create to use default conductor prompt argument classes when needed."""
-        system_prompt_argument_class: str = kwargs.get("system_prompt_argument_class")
         prompt_argument_class: str = kwargs.get("prompt_argument_class")
         agent_description_filename: str = kwargs.get("agent_description_filename", "agent_description.txt")
         code_filename: str = kwargs.get("code_filename", "prompt.py")
@@ -789,22 +766,14 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
             module = None
             logger.warning(f"Module file {module_path} not found, using default values")
 
-        system_prompt_class = None
         user_prompt_class = None
-
-        if system_prompt_argument_class and module:
-            system_prompt_class = safe_load_symbol(symbol_name=system_prompt_argument_class, module=module)
 
         if prompt_argument_class and module:
             user_prompt_class = safe_load_symbol(symbol_name=prompt_argument_class, module=module)
 
-        if not system_prompt_class:
-            system_prompt_class = DefaultConductorSystemPromptArgument
-            logger.info("Using DefaultConductorSystemPromptArgument")
-
         if not user_prompt_class:
-            user_prompt_class = DefaultConductorUserPromptArgument
-            logger.info("Using ConductorUserPromptArgument")
+            user_prompt_class = DefaultConductorPromptArgument
+            logger.info("Using ConductorPromptArgument")
 
         is_final, is_valid = cls.safe_load_predicates(
             is_final_name=is_final_name, is_valid_name=is_valid_name, module=module, topics=kwargs.get("topics", [])
@@ -836,7 +805,6 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
             "system_template": system_template,
             "user_template": user_template,
             "json_formatting_template": json_render_template,
-            "system_prompt_argument_class": system_prompt_class,
             "prompt_argument_class": user_prompt_class,
             "is_valid": is_valid,
             "is_final": is_final,
@@ -892,7 +860,7 @@ class HeuristicPrompt(HeuristicPromptProtocol):
 
         module = load_module_from_path(module_path=module_path)
 
-        prompt_argument_class: Type[UserPromptArg] = safe_load_symbol(symbol_name=prompt_argument_class, module=module)
+        prompt_argument_class: Type[PromptArg] = safe_load_symbol(symbol_name=prompt_argument_class, module=module)
 
         template_location = location / user_template_filename
 
@@ -917,7 +885,7 @@ class HeuristicPrompt(HeuristicPromptProtocol):
     ) -> Conversation:
         return await self._heuristic_sequence(conversation=conversation, call_tool=call_tool, llm_client=llm_client)
 
-    def create_prompt_argument(self, **prompt_args) -> UserPromptArg:
+    def create_prompt_argument(self, **prompt_args) -> PromptArg:
         return self.prompt_argument(**prompt_args)
 
     def render_user_template(

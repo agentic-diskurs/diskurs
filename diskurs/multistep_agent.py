@@ -120,7 +120,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         else:
             conversation = conversation.update(
                 system_prompt=self.prompt.render_system_template(
-                    name=self.name, prompt_args=conversation.system_prompt_argument
+                    name=self.name, prompt_args=conversation.prompt_argument
                 ),
                 user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=conversation.prompt_argument),
             )

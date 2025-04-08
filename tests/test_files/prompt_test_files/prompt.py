@@ -1,25 +1,20 @@
 from dataclasses import dataclass, field
 
-from diskurs.entities import JsonSerializable, PromptArgument
 from diskurs import PromptValidationError
+from diskurs.entities import JsonSerializable, PromptArgument
 
 
 @dataclass
-class MySystemPromptArgument(PromptArgument):
+class MyPromptArgument(PromptArgument):
     agent_name: str = "Jane"
     topic: str = "food"
     mode: str = "friendly"
-
-
-@dataclass
-class MyUserPromptArgument(PromptArgument):
     name: str = ""
-    topic: str = ""
     user_question: str = ""
     answer: str = ""
 
 
-def is_valid(arg: MyUserPromptArgument) -> bool:
+def is_valid(arg: MyPromptArgument) -> bool:
     if not arg.name:
         raise PromptValidationError("Please extract the user's name")
     if not arg.topic:
@@ -29,7 +24,7 @@ def is_valid(arg: MyUserPromptArgument) -> bool:
     return True
 
 
-def is_final(arg: MyUserPromptArgument) -> bool:
+def is_final(arg: MyPromptArgument) -> bool:
     if len(arg.answer) > 10:
         return True
 

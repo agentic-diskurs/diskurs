@@ -4,7 +4,7 @@ from diskurs.agent import get_last_conductor_name, is_previous_agent_conductor
 from diskurs.entities import MessageType, ToolDescription
 from diskurs.llm_compiler.entities import ExecutionPlan
 from diskurs.llm_compiler.parallel_executor import ParallelExecutor
-from diskurs.llm_compiler.prompts import LLMCompilerPrompt, PlanningSystemPromptArgument, PlanningUserPromptArgument
+from diskurs.llm_compiler.prompts import LLMCompilerPrompt, PlanningPromptArgument, PlanningPromptArgument
 from diskurs.multistep_agent import MultiStepAgent
 from diskurs.protocols import Conversation, ConversationDispatcher, LLMClient, ToolExecutor
 from diskurs.registry import register_agent
@@ -73,13 +73,13 @@ class LLMCompilerAgent(MultiStepAgent):
         if not is_previous_agent_conductor(conversation) and self.init_prompt_arguments_with_previous_agent:
             conversation = conversation.update_prompt_argument_with_previous_agent(previous_user_prompt_augment)
 
-        system_prompt_argument: PlanningSystemPromptArgument = conversation.system_prompt_argument
-        system_prompt_argument.tools = self.tools
-        system_prompt_argument.user_query = conversation.prompt_argument.user_query
+        prompt_argument: PlanningPromptArgument = conversation.prompt_argument
+        prompt_argument.tools = self.tools
+        prompt_argument.user_query = conversation.prompt_argument.user_query
 
         conversation = conversation.update(
-            system_prompt_argument=system_prompt_argument,
-            system_prompt=self.prompt.render_system_template(name=self.name, prompt_args=system_prompt_argument),
+            prompt_argument=prompt_argument,
+            system_prompt=self.prompt.render_system_template(name=self.name, prompt_args=prompt_argument),
             user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=conversation.prompt_argument),
         )
 
@@ -90,13 +90,9 @@ class LLMCompilerAgent(MultiStepAgent):
 
             # Generate a validated response from the LLM
             conversation = await self.generate_validated_response(conversation)
-            system_prompt_argument: PlanningSystemPromptArgument = conversation.system_prompt_argument
-            prompt_argument: PlanningUserPromptArgument = conversation.prompt_argument
-
-            system_prompt_argument = conversation.update_prompt_argument(prompt_argument, system_prompt_argument)
+            prompt_argument: PlanningPromptArgument = conversation.prompt_argument
 
             if evaluate_replanning:
-                system_prompt_argument.evaluate_replanning = False
                 prompt_argument.evaluate_replanning = False
                 evaluate_replanning = False
             else:
@@ -104,27 +100,25 @@ class LLMCompilerAgent(MultiStepAgent):
                 executed_plan = await self.executor.execute_plan(
                     plan=prompt_argument.execution_plan, metadata=conversation.metadata
                 )
-                system_prompt_argument.execution_plan = executed_plan
+                prompt_argument.execution_plan = executed_plan
                 prompt_argument.execution_plan = executed_plan
 
                 if not all(item.status == "completed" for item in executed_plan):
                     self.logger.info("Not all steps completed successfully in the plan.")
-                    system_prompt_argument.replan = True
+                    prompt_argument.replan = True
                     prompt_argument.replan = True
                     explanation = "Not all steps completed successfully in the plan."
-                    system_prompt_argument.replan_explanation = explanation
+                    prompt_argument.replan_explanation = explanation
                     prompt_argument.replan_explanation = explanation
                 else:
                     self.logger.info("Successfully executed all tools in plan.")
-                    system_prompt_argument.evaluate_replanning = True
                     prompt_argument.evaluate_replanning = True
                     evaluate_replanning = True
 
             # Update conversation with new prompt values.
             conversation = conversation.update(
-                system_prompt_argument=system_prompt_argument,
                 prompt_argument=prompt_argument,
-                system_prompt=self.prompt.render_system_template(self.name, prompt_args=system_prompt_argument),
+                system_prompt=self.prompt.render_system_template(self.name, prompt_args=prompt_argument),
                 user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=prompt_argument),
             )
 

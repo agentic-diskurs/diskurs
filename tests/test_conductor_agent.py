@@ -15,7 +15,7 @@ from diskurs.entities import (
     RoutingRule,
 )
 from diskurs.prompt import (
-    DefaultConductorUserPromptArgument,
+    DefaultConductorPromptArgument,
 )
 from diskurs.protocols import (
     LLMClient,
@@ -38,7 +38,7 @@ class MyLongTermMemory(LongtermMemory):
 
 
 @dataclass
-class MyUserPromptArgument(PromptArgument):
+class MyPromptArgument(PromptArgument):
     field1: Optional[str] = ""
     field2: Optional[str] = ""
     field3: Optional[str] = ""
@@ -46,13 +46,13 @@ class MyUserPromptArgument(PromptArgument):
 
 
 @dataclass
-class TestUserPromptArgument(PromptArgument):
+class TestPromptArgument(PromptArgument):
     content: str = ""
     next_agent: str = ""
 
 
 @dataclass
-class DefaultCanFinalizeUserPromptArgument(PromptArgument):
+class DefaultCanFinalizePromptArgument(PromptArgument):
     can_finalize: Optional[bool] = None
 
 
@@ -95,7 +95,7 @@ def create_conductor_prompt(
 
     prompt = Mock(spec=ConductorPrompt)
     prompt.init_longterm_memory.return_value = MyLongTermMemory()
-    prompt.create_system_prompt_argument.return_value = Mock()
+    prompt.create_prompt_argument.return_value = Mock()
     prompt.create_prompt_argument.return_value = Mock()
 
     finalize_mock = AsyncMock(side_effect=finalize)
@@ -180,14 +180,14 @@ def mock_rules():
 
 @pytest.fixture
 def mock_conversation():
-    return ImmutableConversation(prompt_argument=TestUserPromptArgument()).append(
+    return ImmutableConversation(prompt_argument=TestPromptArgument()).append(
         ChatMessage(role=Role.USER, content="test message", name="user")
     )
 
 
 @pytest.fixture
 def mock_conversation_with_keyword():
-    return ImmutableConversation(prompt_argument=TestUserPromptArgument()).append(
+    return ImmutableConversation(prompt_argument=TestPromptArgument()).append(
         ChatMessage(role=Role.USER, content="test message with keyword", name="user")
     )
 
@@ -274,7 +274,7 @@ def conductor_agent_rules_only(mock_prompt, mock_dispatcher, mock_rules):
 
 def test_update_longterm_memory(conductor_agent):
     conversation = ImmutableConversation(
-        prompt_argument=MyUserPromptArgument(field1="value1", field2="value2", field3="value3")
+        prompt_argument=MyPromptArgument(field1="value1", field2="value2", field3="value3")
     )
     longterm_memory = MyLongTermMemory()
 
@@ -293,7 +293,7 @@ def test_update_longterm_memory(conductor_agent):
 
 def test_update_longterm_memory_existing_fields(conductor_agent):
     conversation = ImmutableConversation(
-        prompt_argument=MyUserPromptArgument(field1="value1", field2="value2", field3="value3")
+        prompt_argument=MyPromptArgument(field1="value1", field2="value2", field3="value3")
     )
     longterm_memory = MyLongTermMemory(field1="existing_value1")
 
@@ -311,7 +311,7 @@ def test_update_longterm_memory_existing_fields(conductor_agent):
 
 
 def test_update_longterm_memory_with_overwrite(conductor_agent):
-    conversation = ImmutableConversation(prompt_argument=MyUserPromptArgument(field1="new_value1"))
+    conversation = ImmutableConversation(prompt_argument=MyPromptArgument(field1="new_value1"))
     longterm_memory = MyLongTermMemory(field1="existing_value1")
 
     conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
@@ -329,7 +329,7 @@ def test_update_longterm_memory_with_overwrite(conductor_agent):
 @pytest.mark.asyncio
 async def test_process_conversation_updates_longterm_memory(conductor_agent):
     conversation = ImmutableConversation(
-        prompt_argument=MyUserPromptArgument(field1="value1", field2="value2", field3="value3")
+        prompt_argument=MyPromptArgument(field1="value1", field2="value2", field3="value3")
     ).append(ChatMessage(Role.ASSISTANT, content='{"next_agent": "agent1"}'))
     longterm_memory = MyLongTermMemory()
 
@@ -341,11 +341,9 @@ async def test_process_conversation_updates_longterm_memory(conductor_agent):
         conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
         conductor_agent.prompt.init_longterm_memory.return_value = longterm_memory
         conductor_agent.prompt.can_finalize.return_value = False
-        conductor_agent.prompt.create_system_prompt_argument.return_value = MyUserPromptArgument(
-            field1="sys1", field2="sys2"
-        )
+        conductor_agent.prompt.create_prompt_argument.return_value = MyPromptArgument(field1="sys1", field2="sys2")
 
-        prompt_argument = MyUserPromptArgument(field1="value1", field2="value2")
+        prompt_argument = MyPromptArgument(field1="value1", field2="value2")
         conductor_agent.prompt.create_prompt_argument.return_value = prompt_argument
 
         conductor_agent.generate_validated_response = AsyncMock(return_value=conversation)
@@ -359,7 +357,7 @@ async def test_process_conversation_updates_longterm_memory(conductor_agent):
 
 @pytest.mark.asyncio
 async def test_process_conversation_finalize(conductor_agent):
-    conversation = ImmutableConversation(prompt_argument=MyUserPromptArgument())
+    conversation = ImmutableConversation(prompt_argument=MyPromptArgument())
     longterm_memory = MyLongTermMemory()
 
     conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
@@ -379,7 +377,7 @@ async def test_process_conversation_finalize(conductor_agent):
 @pytest.mark.asyncio
 async def test_max_dispatches(conductor_cannot_finalize):
     conductor_cannot_finalize.n_dispatches = 49
-    conversation = ImmutableConversation(prompt_argument=MyUserPromptArgument()).append(
+    conversation = ImmutableConversation(prompt_argument=MyPromptArgument()).append(
         ChatMessage(Role.ASSISTANT, content='{"next_agent": "agent1"}')
     )
     longterm_memory = MyLongTermMemory()
@@ -397,7 +395,7 @@ async def test_max_dispatches(conductor_cannot_finalize):
 @pytest.mark.asyncio
 async def test_conductor_agent_valid_next_agent(conductor_cannot_finalize, mock_llm_client):
     # Setup initial conversation with longterm memory
-    conversation = ImmutableConversation(prompt_argument=MyUserPromptArgument())
+    conversation = ImmutableConversation(prompt_argument=MyPromptArgument())
     longterm_memory = MyLongTermMemory()
     conversation = conversation.update_agent_longterm_memory(
         agent_name=conductor_cannot_finalize.name, longterm_memory=longterm_memory
@@ -410,7 +408,7 @@ async def test_conductor_agent_valid_next_agent(conductor_cannot_finalize, mock_
 
     mock_llm_client.generate = AsyncMock(side_effect=stub_generate_validated_response)
 
-    parsed_prompt_argument = DefaultConductorUserPromptArgument(next_agent="agent1")
+    parsed_prompt_argument = DefaultConductorPromptArgument(next_agent="agent1")
     conductor_cannot_finalize.prompt.parse_user_prompt.return_value = parsed_prompt_argument
     conductor_cannot_finalize.prompt.can_finalize.return_value = False
     conductor_cannot_finalize.prompt.init_prompt = (
@@ -453,7 +451,7 @@ async def test_conductor_agent_fail_on_max_dispatches(
 async def test_process_conversation_finalize_with_agent_calls_dispatcher(
     conductor_agent_with_finalizer,
 ):
-    conversation = ImmutableConversation(prompt_argument=MyUserPromptArgument())
+    conversation = ImmutableConversation(prompt_argument=MyPromptArgument())
     longterm_memory = MyLongTermMemory()
 
     conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
@@ -514,7 +512,7 @@ async def test_can_finalize(mock_conversation, conductor_agent):
     conductor_agent.prompt.can_finalize.return_value = True
     conductor_agent.finalize = AsyncMock()
 
-    parsed_prompt_argument = DefaultCanFinalizeUserPromptArgument(can_finalize=True)
+    parsed_prompt_argument = DefaultCanFinalizePromptArgument(can_finalize=True)
     conductor_agent.prompt.parse_user_prompt.return_value = parsed_prompt_argument
 
     await conductor_agent.process_conversation(mock_conversation)
@@ -568,8 +566,8 @@ async def test_invoke_with_rule_match(conductor_agent_with_rules, mock_conversat
     # Set up the prompt to properly create a prompt_argument with next_agent
     def mock_create_prompt_arg(**kwargs):
         if "next_agent" in kwargs:
-            return TestUserPromptArgument(next_agent=kwargs["next_agent"])
-        return TestUserPromptArgument()
+            return TestPromptArgument(next_agent=kwargs["next_agent"])
+        return TestPromptArgument()
 
     conductor_agent_with_rules.prompt.create_prompt_argument = Mock(side_effect=mock_create_prompt_arg)
 
@@ -600,7 +598,7 @@ async def test_invoke_fallback_to_llm(conductor_agent_with_rules, mock_conversat
     conductor_agent_with_rules.llm_client.generate = AsyncMock(side_effect=mock_llm_generate)
 
     # Mock the prompt parsing to return a valid prompt argument
-    conductor_agent_with_rules.prompt.parse_user_prompt.return_value = DefaultConductorUserPromptArgument(
+    conductor_agent_with_rules.prompt.parse_user_prompt.return_value = DefaultConductorPromptArgument(
         next_agent="llm_agent"
     )
     conductor_agent_with_rules.prompt.is_final.return_value = True
@@ -623,7 +621,7 @@ async def test_process_conversation_with_rules(conductor_agent_with_rules, mock_
     # 1. prompt_argument
     # 2. A properly formatted JSON message
     async def mock_invoke(conversation, message_type=None):
-        updated = conversation.update(prompt_argument=TestUserPromptArgument(next_agent="agent1"))
+        updated = conversation.update(prompt_argument=TestPromptArgument(next_agent="agent1"))
         # Add a JSON message that can be parsed
         return updated.append(
             ChatMessage(
@@ -650,15 +648,13 @@ async def test_rule_only_conductor_no_llm_fallback(conductor_agent_rules_only, m
         rule.condition = rule_always_false
 
     # Clear any existing next_agent value
-    clean_conversation = mock_conversation.update(prompt_argument=TestUserPromptArgument(next_agent=None))
+    clean_conversation = mock_conversation.update(prompt_argument=TestPromptArgument(next_agent=None))
     conductor_agent_rules_only.prompt.init_prompt = (
         lambda agent_name, conversation, message_type, **kwargs: conversation
     )
 
     # Also mock prompt.create_prompt_argument to ensure it returns a clean object
-    conductor_agent_rules_only.prompt.create_prompt_argument = Mock(
-        return_value=TestUserPromptArgument(next_agent=None)
-    )
+    conductor_agent_rules_only.prompt.create_prompt_argument = Mock(return_value=TestPromptArgument(next_agent=None))
 
     # Call invoke
     result = await conductor_agent_rules_only.invoke(clean_conversation, MessageType.CONDUCTOR)
@@ -676,11 +672,11 @@ async def test_rule_based_routing_with_update(conductor_agent_with_rules, mock_c
     )
 
     # Create a prompt argument with existing values to preserve
-    prompt_arg = DefaultConductorUserPromptArgument(next_agent=None)
+    prompt_arg = DefaultConductorPromptArgument(next_agent=None)
     mock_conversation = mock_conversation.update(prompt_argument=prompt_arg)
 
     # Create a new user prompt argument to return
-    updated_prompt_arg = DefaultConductorUserPromptArgument(next_agent="agent1")
+    updated_prompt_arg = DefaultConductorPromptArgument(next_agent="agent1")
     conductor_agent_with_rules.prompt.create_prompt_argument.return_value = updated_prompt_arg
 
     # Call invoke
@@ -766,8 +762,8 @@ async def test_invoke_rule_match_one_message(conductor_agent_with_rules, mock_co
     # Set up the prompt to properly create a prompt_argument with next_agent
     def mock_create_prompt_arg(**kwargs):
         if "next_agent" in kwargs:
-            return TestUserPromptArgument(next_agent=kwargs["next_agent"])
-        return TestUserPromptArgument()
+            return TestPromptArgument(next_agent=kwargs["next_agent"])
+        return TestPromptArgument()
 
     conductor_agent_with_rules.prompt.create_prompt_argument = Mock(side_effect=mock_create_prompt_arg)
 

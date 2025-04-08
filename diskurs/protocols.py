@@ -55,7 +55,7 @@ class PromptValidator(Protocol):
         pass
 
 
-UserPromptArg = TypeVar("UserPromptArg", bound=PromptArgument)
+PromptArg = TypeVar("PromptArg", bound=PromptArgument)
 SystemPromptArg = TypeVar("SystemPromptArg", bound=PromptArgument)
 
 
@@ -68,9 +68,9 @@ class Prompt(Protocol):
     arguments, rendering templates, and parsing responses from a language model (LLM).
     """
 
-    prompt_argument: Type[UserPromptArg]
+    prompt_argument: Type[PromptArg]
 
-    def create_prompt_argument(self, **prompt_args: Any) -> UserPromptArg:
+    def create_prompt_argument(self, **prompt_args: Any) -> PromptArg:
         """
         Creates an instance of the user prompt argument dataclass.
 
@@ -165,20 +165,6 @@ class Prompt(Protocol):
 
 
 class MultistepPrompt(Prompt):
-    system_prompt_argument: Type[SystemPromptArg]
-
-    def create_system_prompt_argument(self, **prompt_args: Any) -> SystemPromptArg:
-        """
-        Creates an instance of the system prompt argument dataclass.
-
-        This method is responsible for generating the system prompt argument
-        based on the provided keyword arguments. The system prompt argument
-        is used to configure the initial state and context for the conversation.
-
-        :param prompt_args: Keyword arguments used to initialize the system prompt argument.
-        :return: An instance of the system prompt argument dataclass.
-        """
-        ...
 
     def render_system_template(self, name: str, prompt_args: PromptArgument, return_json: bool = True) -> ChatMessage:
         """
@@ -204,21 +190,7 @@ class ConductorPrompt(Prompt):
     determining the final state of the conversation.
     """
 
-    system_prompt_argument: Type[SystemPromptArg]
     longterm_memory: Type[LongtermMemory]
-
-    def create_system_prompt_argument(self, **prompt_args: Any) -> SystemPromptArg:
-        """
-        Creates an instance of the system prompt argument dataclass.
-
-        This method is responsible for generating the system prompt argument
-        based on the provided keyword arguments. The system prompt argument
-        is used to configure the initial state and context for the conversation.
-
-        :param prompt_args: Keyword arguments used to initialize the system prompt argument.
-        :return: An instance of the system prompt argument dataclass.
-        """
-        ...
 
     def render_system_template(self, name: str, prompt_args: PromptArgument, return_json: bool = True) -> ChatMessage:
         """
@@ -327,7 +299,7 @@ class HeuristicPrompt(Protocol):
         """
         ...
 
-    def create_prompt_argument(self, **prompt_args) -> UserPromptArg:
+    def create_prompt_argument(self, **prompt_args) -> PromptArg:
         """
         Creates an instance of the user prompt argument dataclass.
 
@@ -343,7 +315,7 @@ class HeuristicPrompt(Protocol):
     def render_user_template(
         self,
         name: str,
-        prompt_args: UserPromptArg,
+        prompt_args: PromptArg,
         message_type: MessageType = MessageType.CONVERSATION,
     ) -> ChatMessage:
         """
@@ -360,7 +332,7 @@ class HeuristicPrompt(Protocol):
         ...
 
 
-class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
+class Conversation(Protocol[SystemPromptArg, PromptArg]):
     """
     Protocol for conversation management.
 
@@ -415,19 +387,7 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
         ...
 
     @property
-    def system_prompt_argument(self) -> Optional[SystemPromptArg]:
-        """
-        Retrieves the system prompt arguments.
-
-        The system prompt argument is used to render the system prompt message.
-        Each time an agent takes a turn in the conversation, it updates the system prompt argument.
-
-        :return: The system prompt arguments if available, otherwise None.
-        """
-        ...
-
-    @property
-    def prompt_argument(self) -> Optional[UserPromptArg]:
+    def prompt_argument(self) -> Optional[PromptArg]:
         """
         Retrieves the user prompt arguments.
 
@@ -546,7 +506,7 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
         """
         ...
 
-    def update_prompt_argument_with_previous_agent(self, prompt_argument: UserPromptArg) -> "Conversation":
+    def update_prompt_argument_with_previous_agent(self, prompt_argument: PromptArg) -> "Conversation":
         """
         Updates the provided prompt arguments with the previous agent's prompt argument.
 
@@ -562,8 +522,7 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
     def update(
         self,
         chat: Optional[List[ChatMessage]] = None,
-        system_prompt_argument: Optional[SystemPromptArg] = None,
-        prompt_argument: Optional[UserPromptArg] = None,
+        prompt_argument: Optional[PromptArg] = None,
         system_prompt: Optional[ChatMessage] = None,
         user_prompt: Optional[Union[ChatMessage, List[ChatMessage]]] = None,
         longterm_memory: Optional[Dict[str, LongtermMemory]] = None,
@@ -575,7 +534,6 @@ class Conversation(Protocol[SystemPromptArg, UserPromptArg]):
         Returns a new instance of Conversation with updated fields, preserving immutability.
 
         :param chat: Optional list of ChatMessage objects representing the conversation's chat history.
-        :param system_prompt_argument: Optional system prompt argument to update.
         :param prompt_argument: Optional user prompt argument to update.
         :param system_prompt: Optional system prompt message to update.
         :param user_prompt: Optional user prompt message(s) to update.

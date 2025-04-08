@@ -5,12 +5,8 @@ from diskurs.entities import PromptArgument, LongtermMemory
 
 
 @dataclass
-class ConductorSystemPromptArgument(PromptArgument):
-    agent_descriptions: dict[str, str]
-
-
-@dataclass
-class ConductorUserPromptArgument(PromptArgument):
+class ConductorPromptArgument(PromptArgument):
+    agent_descriptions: Optional[dict[str, str]] = None
     content: Optional[str] = None
     next_agent: Optional[str] = None
 

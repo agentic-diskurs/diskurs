@@ -11,7 +11,7 @@ from diskurs.entities import (
     PromptField,
 )
 from diskurs.immutable_conversation import ImmutableConversation
-from conftest import MyLongtermMemory, MyUserPromptArgument, EnumPromptArgument, ChatType, Priority
+from conftest import MyLongtermMemory, MyPromptArgument, EnumPromptArgument, ChatType, Priority
 from typing import Annotated, get_type_hints
 
 
@@ -24,7 +24,7 @@ def test_basic_update():
         agent_name="my_conductor", longterm_memory=longterm_memory
     )
 
-    conversation = conversation.update(prompt_argument=MyUserPromptArgument())
+    conversation = conversation.update(prompt_argument=MyPromptArgument())
 
     updated_conversation = conversation.update_prompt_argument_with_longterm_memory("my_conductor")
 
@@ -41,7 +41,7 @@ def test_partial_update():
     )
 
     conversation = conversation.update(
-        prompt_argument=MyUserPromptArgument(field1="initial_prompt_argument1", field2="initial_prompt_argument2")
+        prompt_argument=MyPromptArgument(field1="initial_prompt_argument1", field2="initial_prompt_argument2")
     )
 
     updated_conversation = conversation.update_prompt_argument_with_longterm_memory("my_conductor")
@@ -59,7 +59,7 @@ def test_empty_longterm_memory():
     )
 
     conversation = conversation.update(
-        prompt_argument=MyUserPromptArgument(field1="initial_prompt_argument1", field2="initial_prompt_argument2")
+        prompt_argument=MyPromptArgument(field1="initial_prompt_argument1", field2="initial_prompt_argument2")
     )
 
     updated_conversation = conversation.update_prompt_argument_with_longterm_memory("my_conductor")

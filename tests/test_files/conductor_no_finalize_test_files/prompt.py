@@ -10,7 +10,7 @@ class ConductorSystemPromptArgument(PromptArgument):
 
 
 @dataclass
-class ConductorUserPromptArgument(PromptArgument):
+class ConductorPromptArgument(PromptArgument):
     content: Optional[str] = None
     next_agent: Optional[str] = None
 

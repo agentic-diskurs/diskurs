@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 from jinja2 import Template
 
-from conftest import MyExtendedUserPromptArgument, MySystemPromptArgument
+from conftest import MyExtendedPromptArgument
 from diskurs import MultiStepAgent, LLMClient, ToolExecutor
 from diskurs.prompt import MultistepPrompt
 from diskurs.entities import ChatMessage, Role, MessageType
@@ -92,9 +92,8 @@ def real_prompt():
         agent_description="Some agent",
         system_template=Template("System Template"),
         user_template=Template("User Template"),
+        prompt_argument_class=MyExtendedPromptArgument,
         return_json=False,
-        system_prompt_argument_class=MySystemPromptArgument,
-        prompt_argument_class=MyExtendedUserPromptArgument,
         is_valid=lambda x: True,
         is_final=lambda x: True,
     )

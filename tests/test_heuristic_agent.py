@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, AsyncMock
 
 import pytest
 
-from conftest import MyExtendedUserPromptArgument
+from conftest import MyExtendedPromptArgument
 from diskurs import Conversation, PromptArgument, ToolExecutor, ImmutableConversation
 from diskurs.entities import MessageType, ChatMessage, Role
 from diskurs.heuristic_agent import HeuristicAgent, HeuristicAgentFinalizer
@@ -173,7 +173,7 @@ def create_prompt(prompt_argument):
 
 @pytest.fixture
 def mock_heuristic_prompt():
-    return create_prompt(MyExtendedUserPromptArgument())
+    return create_prompt(MyExtendedPromptArgument())
 
 
 def create_heuristic_agent(mock_heuristic_prompt):

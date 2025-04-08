@@ -182,12 +182,9 @@ class SalesAgentPromptArgument(PromptArgument):
     management_summary: Annotated[str, prompt_field(include=True)] = ""
 
 
-sales_agent_prompt = MultistepPrompt(
-    agent_description=sales_agent_description,
-    system_template=sales_agent_system_template,
-    user_template=sales_agent_user_template,
-    prompt_argument=SalesAgentPromptArgument,
-)
+sales_agent_prompt = MultistepPrompt(agent_description=sales_agent_description,
+                                     system_template=sales_agent_system_template,
+                                     user_template=sales_agent_user_template, prompt_argument_class=)
 
 
 sales_agent = MultiStepAgent(
@@ -227,12 +224,9 @@ class CustomerSuccessAgentPromptArgument(PromptArgument):
     detailed_company_information: Annotated[str, prompt_field(include=True)] = ""
 
 
-customer_success_agent_prompt = MultistepPrompt(
-    agent_description=customer_success_agent_description,
-    system_template=customer_success_system_template,
-    user_template=customer_success_user_template,
-    prompt_argument=CustomerSuccessAgentPromptArgument,
-)
+customer_success_agent_prompt = MultistepPrompt(agent_description=customer_success_agent_description,
+                                                system_template=customer_success_system_template,
+                                                user_template=customer_success_user_template, prompt_argument_class=)
 
 
 customer_success_agent = MultiStepAgent(
@@ -278,12 +272,9 @@ class CustomerAnalystAgentPromptArgument(PromptArgument):
     growth_index: Annotated[float, prompt_field(include=False)] = ""
 
 
-customer_analyst_agent_prompt = MultistepPrompt(
-    agent_description=customer_analyst_agent_description,
-    system_template=customer_analyst_system_template,
-    user_template=customer_analyst_user_template,
-    prompt_argument=CustomerSuccessAgentPromptArgument,
-)
+customer_analyst_agent_prompt = MultistepPrompt(agent_description=customer_analyst_agent_description,
+                                                system_template=customer_analyst_system_template,
+                                                user_template=customer_analyst_user_template, prompt_argument_class=)
 
 
 customer_analyst_agent = MultiStepAgent(
@@ -399,15 +390,12 @@ def is_valid(prompt_argument: MyConductorPromptArgument) -> bool:
         raise PromptValidationError(f"next_agent must be one of {valid_next_agents}")
 
 
-my_conductor_prompt = ConductorPrompt(
-    agent_description=my_conductor_agent_description,
-    system_template=my_conductor_system_template,
-    user_template=my_conductor_user_template,
-    prompt_argument_class=MyConductorPromptArgument,
-    longterm_memory=MyConductorLongtermMemory,
-    json_formatting_template=json_formatting_template,
-    is_valid=is_valid,
-)
+my_conductor_prompt = ConductorPrompt(agent_description=my_conductor_agent_description,
+                                      system_template=my_conductor_system_template,
+                                      user_template=my_conductor_user_template,
+                                      prompt_argument_class=MyConductorPromptArgument,
+                                      json_formatting_template=json_formatting_template, is_valid=is_valid,
+                                      longterm_memory=MyConductorLongtermMemory)
 
 
 def can_conclude(conversation: Conversation) -> bool:
