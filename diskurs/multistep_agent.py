@@ -66,15 +66,31 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
 
         tool_responses = []
         for tool in response.last_message.tool_calls:
-            tool_call_result = await self.tool_executor.execute_tool(tool, response.metadata)
-            tool_responses.append(
-                ChatMessage(
-                    role=Role.TOOL,
-                    tool_call_id=tool_call_result.tool_call_id,
-                    content=tool_call_result.result,
-                    name=self.name,
+            try:
+                tool_call_result = await self.tool_executor.execute_tool(tool, response.metadata)
+                tool_responses.append(
+                    ChatMessage(
+                        role=Role.TOOL,
+                        tool_call_id=tool_call_result.tool_call_id,
+                        content=tool_call_result.result,
+                        name=self.name,
+                    )
                 )
-            )
+            except Exception as e:
+                # Convert the exception to a PromptValidationError with an instructive message
+                error_message = f"Tool '{tool.function_name}' execution failed: {str(e)}"
+                self.logger.error(error_message, exc_info=True)
+
+                # Return a formatted error message as a tool response
+                # This maintains the expected message sequence (tool call -> tool response)
+                tool_responses.append(
+                    ChatMessage(
+                        role=Role.TOOL,
+                        tool_call_id=tool.tool_call_id,
+                        content=f"ERROR: {error_message}. Please correct your input and try again.",
+                        name=self.name,
+                    )
+                )
         return tool_responses
 
     async def handle_tool_call(self, conversation, response):

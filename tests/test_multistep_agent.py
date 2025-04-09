@@ -1,19 +1,23 @@
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from jinja2 import Template
 
-from conftest import MyExtendedPromptArgument
 from diskurs import MultiStepAgent, LLMClient, ToolExecutor
-from diskurs.prompt import MultistepPrompt
 from diskurs.entities import ChatMessage, Role, MessageType
+from diskurs.entities import ToolCall
 from diskurs.heuristic_agent import HeuristicAgentFinalizer
+from diskurs.immutable_conversation import ImmutableConversation
 from diskurs.multistep_agent import MultistepAgentFinalizer
-from test_files.tool_test_files.data_analysis_tools import (
+from diskurs.prompt import MultistepPrompt
+from diskurs.tools import ToolExecutor
+from tests.conftest import MyExtendedPromptArgument
+from tests.test_files.tool_test_files.data_analysis_tools import (
     analyze_sales_data,
     analyze_employee_performance,
     generate_budget_projection,
 )
+from tests.test_files.tool_test_files.data_analysis_tools import failing_tool
 
 CONDUCTOR_NAME = "my_conductor"
 
@@ -253,3 +257,199 @@ class TestHeuristicAgentFinalizer:
 
         await agent.finalize_conversation(extended_conversation)
         assert extended_conversation.final_result == {}
+
+
+class TestToolExecutionErrorHandling:
+    @pytest.mark.asyncio
+    async def test_compute_tool_response_catches_exceptions(self, monkeypatch):
+        """Test that compute_tool_response catches exceptions from tool execution and converts them to error messages."""
+
+        # Create a real tool executor and register our failing tool
+        tool_executor = ToolExecutor()
+        tool_executor.register_tools(failing_tool)
+
+        # Create an agent that uses this tool executor
+        agent = MultiStepAgent(
+            name="test_error_agent",
+            prompt=MultistepPrompt(
+                agent_description="Test Agent",
+                system_template=Template("System template"),
+                user_template=Template("User template"),
+                prompt_argument_class=MyExtendedPromptArgument,
+                return_json=False,
+                is_valid=lambda x: True,
+                is_final=lambda x: True,
+            ),
+            llm_client=AsyncMock(spec=LLMClient),
+            tool_executor=tool_executor,
+        )
+
+        conversation = ImmutableConversation(
+            chat=[],
+            metadata={},
+            prompt_argument=MyExtendedPromptArgument(),
+        )
+
+        # Add a failing tool call to the conversation
+        conversation = conversation.append(
+            message=ChatMessage(
+                role=Role.ASSISTANT,
+                content="",
+                tool_calls=[
+                    ToolCall(
+                        tool_call_id="123",
+                        function_name="failing_tool",
+                        arguments={"param": "test"},
+                    )
+                ],
+            )
+        )
+
+        result = await agent.compute_tool_response(conversation)
+
+        # Check that we got a tool response even though the tool failed
+        assert len(result) == 1
+        assert result[0].role == Role.TOOL
+        assert result[0].tool_call_id == "123"
+        assert "ERROR" in result[0].content
+        assert "failing_tool" in result[0].content
+        assert "This tool always fails" in result[0].content
+
+    @pytest.mark.asyncio
+    async def test_conversation_flow_continues_despite_tool_error(self):
+        """Test that the conversation flow continues even when a tool raises an exception."""
+
+        mock_tool_executor = AsyncMock(spec=ToolExecutor)
+
+        # Set up the tool responses - one with an error, one successful
+        async def mock_execute_tool(tool_call, metadata):
+            if tool_call.function_name == "failing_tool":
+                # Simulate that execute_tool was called but handle the error within our mock
+                return MagicMock(
+                    tool_call_id=tool_call.tool_call_id,
+                    function_name=tool_call.function_name,
+                    result="ERROR: Tool 'failing_tool' execution failed: This tool always fails",
+                )
+            else:
+                # Return a successful result for the other tool
+                return MagicMock(
+                    tool_call_id=tool_call.tool_call_id,
+                    function_name=tool_call.function_name,
+                    result="17.65",  # Sample value for analyze_sales_data
+                )
+
+        mock_tool_executor.execute_tool.side_effect = mock_execute_tool
+
+        # Create the agent with our mock tool executor
+        agent = MultiStepAgent(
+            name="test_error_agent",
+            prompt=MultistepPrompt(
+                agent_description="Test Agent",
+                system_template=Template("System template"),
+                user_template=Template("User template"),
+                prompt_argument_class=MyExtendedPromptArgument,
+                return_json=False,
+                is_valid=lambda x: True,
+                is_final=lambda x: True,  # Mark as final to avoid multiple steps
+            ),
+            llm_client=AsyncMock(spec=LLMClient),
+            tool_executor=mock_tool_executor,
+        )
+
+        conversation = ImmutableConversation(
+            chat=[],
+            metadata={},
+            prompt_argument=MyExtendedPromptArgument(),
+        )
+
+        # Add a message with two tool calls
+        conversation = conversation.append(
+            message=ChatMessage(
+                role=Role.ASSISTANT,
+                content="I'll call both tools",
+                tool_calls=[
+                    ToolCall(
+                        tool_call_id="123",
+                        function_name="failing_tool",
+                        arguments={"param": "test"},
+                    ),
+                    ToolCall(
+                        tool_call_id="456",
+                        function_name="analyze_sales_data",
+                        arguments={"quarter": "Q1"},
+                    ),
+                ],
+            )
+        )
+
+        # Call compute_tool_response directly to get the tool responses
+        tool_responses = await agent.compute_tool_response(conversation)
+
+        # Verify we got two tool responses - both the error and the successful one
+        assert len(tool_responses) == 2
+
+        # Instead of using update, append each tool response message to the conversation
+        # for tool_response in tool_responses:
+        #     conversation_with_tools = conversation_with_tools.append(message=tool_response)
+        conversation_with_tools = conversation.update(user_prompt=tool_responses)
+
+        # Verify the conversation has the expected structure
+        assert len([msg for msg in conversation_with_tools.user_prompt if msg.role == Role.TOOL]) == 2
+
+        # Check that we have both a failing tool response and a successful one
+        tool_msgs = [msg for msg in conversation_with_tools.user_prompt if msg.role == Role.TOOL]
+        assert any("ERROR" in str(msg.content) for msg in tool_msgs)
+        assert any("ERROR" not in str(msg.content) for msg in tool_msgs)
+
+        # Verify the mock tool executor was called twice (once for each tool)
+        assert mock_tool_executor.execute_tool.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_specific_error_message_is_preserved(self):
+        """Test that specific error messages from tools are preserved in the response."""
+
+        tool_executor = ToolExecutor()
+        tool_executor.register_tools(failing_tool)
+
+        agent = MultiStepAgent(
+            name="test_error_agent",
+            prompt=MultistepPrompt(
+                agent_description="Test Agent",
+                system_template=Template("System template"),
+                user_template=Template("User template"),
+                prompt_argument_class=MyExtendedPromptArgument,
+                return_json=False,
+                is_valid=lambda x: True,
+                is_final=lambda x: True,
+            ),
+            llm_client=AsyncMock(spec=LLMClient),
+            tool_executor=tool_executor,
+        )
+
+        # Create a conversation with a tool call that will raise a specific ValueError
+        conversation = ImmutableConversation(
+            chat=[],
+            metadata={},
+            prompt_argument=MyExtendedPromptArgument(),
+        )
+
+        conversation = conversation.append(
+            message=ChatMessage(
+                role=Role.ASSISTANT,
+                content="",
+                tool_calls=[
+                    ToolCall(
+                        tool_call_id="123",
+                        function_name="failing_tool",
+                        arguments={"param": "specific_error"},  # This will raise a specific ValueError
+                    )
+                ],
+            )
+        )
+
+        # Call compute_tool_response
+        result = await agent.compute_tool_response(conversation)
+
+        # Check that the specific error message is preserved
+        assert len(result) == 1
+        assert "This is a specific value error" in result[0].content

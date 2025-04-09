@@ -181,7 +181,10 @@ def create_func_with_closure(func: Callable, config: ToolConfig, dependencies: l
             raise ValueError(f"Missing configurations for dependencies: {', '.join(missing_deps)}")
 
     try:
-        return func(config.configs, **func_args)
+        if config.configs is None:
+            return func(**func_args)
+        else:
+            return func(config.configs, **func_args)
 
     except AttributeError as e:
         raise ImportError(f"Could not load '{config.function_name}'" + f"from '{config.module_path.name}': {e}")

@@ -102,6 +102,20 @@ def generate_strategic_recommendations(financial_metric: float, employee_satisfa
     return recommendation
 
 
+@tool
+def failing_tool(param: str) -> str:
+    """
+    A tool that intentionally fails for testing exception handling.
+
+    :param param: Any parameter, will always raise an exception.
+    :return: Never returns, always raises an exception.
+    """
+    if param == "specific_error":
+        raise ValueError("This is a specific value error")
+    else:
+        raise Exception("This tool always fails")
+
+
 def main():
     """
     Main function to test the execution of the simplified functions in a sequential manner.
