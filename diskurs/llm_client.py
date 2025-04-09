@@ -162,9 +162,14 @@ class BaseOaiApiLLMClient(LLMClient):
         available = self.max_tokens - total_tokens
         marker = "[Content truncated due to token limits...]"
         marker_tokens = self.count_tokens(marker)
+        min_content_tokens = 10  # Minimum tokens of original content to preserve
 
-        # If no available tokens, replace every response with the marker.
-        if available <= 0:
+        # Add a small buffer to ensure we stay under the limit, even with encoding differences
+        buffer_tokens = 1
+        effective_available = max(0, available - buffer_tokens)
+
+        # If no available tokens, replace every response with the marker
+        if effective_available <= 0:
             for msg in user_prompt_tool_responses:
                 msg.content = marker
             return user_prompt_tool_responses
@@ -173,23 +178,46 @@ class BaseOaiApiLLMClient(LLMClient):
         total_tool_tokens = sum(self.count_tokens(msg.content) for msg in user_prompt_tool_responses)
 
         # If current responses already fit into available tokens, return them unchanged.
-        if total_tool_tokens <= available:
+        if total_tool_tokens <= effective_available:
             return user_prompt_tool_responses
 
         # Proportionally compute allowed tokens per message.
         for msg in user_prompt_tool_responses:
             orig_tokens = self.count_tokens(msg.content)
             # Allocate tokens proportionally ensuring room for marker if truncation is needed.
-            new_max = int(orig_tokens * available / total_tool_tokens)
-            if new_max < marker_tokens:
-                new_max = marker_tokens
+            new_max = int(orig_tokens * effective_available / total_tool_tokens)
+
+            # Ensure we have enough space for minimum content + marker
+            min_required = min_content_tokens + marker_tokens
+            if new_max < min_required:
+                new_max = min(min_required, effective_available)
+
             # If message exceeds the allowed token count, truncate and append marker.
             if orig_tokens > new_max:
-                effective_max = new_max - marker_tokens
-                if effective_max < 0:
-                    effective_max = 0
+                # Reserve space for the marker but ensure at least min_content_tokens
+                effective_max = max(min_content_tokens, new_max - marker_tokens)
                 truncated = self._truncate_text(msg.content, effective_max)
                 msg.content = truncated + marker
+
+        # Final check to ensure we're under the limit
+        final_tokens = sum(self.count_tokens(msg.content) for msg in user_prompt_tool_responses)
+        if final_tokens > effective_available:
+            # If still over limit, do another pass with more aggressive truncation
+            over_by = final_tokens - effective_available
+            for msg in user_prompt_tool_responses:
+                if over_by <= 0:
+                    break
+                current_tokens = self.count_tokens(msg.content)
+                if current_tokens > marker_tokens + min_content_tokens:
+                    # Calculate how much to reduce this message by
+                    to_reduce = min(over_by + 1, current_tokens - marker_tokens - min_content_tokens)
+                    if to_reduce > 0:
+                        new_content_tokens = current_tokens - to_reduce - marker_tokens
+                        if new_content_tokens >= min_content_tokens:
+                            truncated = self._truncate_text(msg.content, new_content_tokens)
+                            msg.content = truncated + marker
+                            over_by -= to_reduce
+
         return user_prompt_tool_responses
 
     @staticmethod
@@ -250,9 +278,9 @@ class BaseOaiApiLLMClient(LLMClient):
                     user_prompt_tool_responses=conversation.user_prompt,
                     total_tokens=tokens_in_conversation + n_tokens_tool_descriptions,
                 )
-                messages = self.format_messages_for_llm(
-                    conversation=conversation.update(user_prompt=truncated_tool_responses), message_type=message_type
-                )
+                # Rebuild messages by replacing tool messages with truncated versions
+                new_conversation = conversation.update(user_prompt=truncated_tool_responses)
+                messages = self.format_messages_for_llm(conversation=new_conversation, message_type=message_type)
             else:
                 messages = self.truncate_chat_history(messages, n_tokens_tool_descriptions)
 

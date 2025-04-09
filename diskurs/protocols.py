@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Protocol, Self, Type, TypeVar, Union, runtime_checkable
 
+from jinja2 import Template
+
 from diskurs.entities import (
     ChatMessage,
     LongtermMemory,
