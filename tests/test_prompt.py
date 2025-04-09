@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from jinja2 import Template
 
-from conftest import are_classes_structurally_similar
+from tests.conftest import are_classes_structurally_similar  # Changed import path
 from diskurs import ImmutableConversation, ToolExecutor, PromptValidationError
 from diskurs.entities import ChatMessage, Role, PromptArgument, prompt_field
 from diskurs.prompt import (
@@ -18,8 +18,8 @@ from diskurs.prompt import (
     BasePrompt,
 )
 from diskurs.utils import load_template_from_package
-from test_files.heuristic_agent_test_files.prompt import MyHeuristicPromptArgument
-from test_files.prompt_test_files.prompt import MyPromptArgument, MyUserPromptWithArrayArgument, Step
+from tests.test_files.heuristic_agent_test_files.prompt import MyHeuristicPromptArgument
+from tests.test_files.prompt_test_files.prompt import MyPromptArgument, MyUserPromptWithArrayArgument, Step
 
 
 @pytest.fixture
@@ -170,6 +170,47 @@ def test_validate_dataclass_additional_fields():
         str(exc_info.value)
         == "Extra fields provided: foo. Please remove them. Valid fields are: url, comment, username."
     )
+
+
+@dataclass
+class BooleanTestPromptArg(PromptArgument):
+    is_enabled: bool = False
+    is_valid: bool = True
+    is_active: Optional[bool] = None
+
+
+def test_validate_dataclass_boolean_string_values():
+    """Test that string representations of booleans are correctly converted to boolean values."""
+    # Test case for string "true"/"false" values (lowercase)
+    response = {"is_enabled": "true", "is_valid": "false"}
+    result = validate_dataclass(parsed_response=response, prompt_argument=BooleanTestPromptArg)
+    assert result.is_enabled is True
+    assert result.is_valid is False
+
+    # Test case for string "True"/"False" values (capitalized)
+    response = {"is_enabled": "True", "is_valid": "False"}
+    result = validate_dataclass(parsed_response=response, prompt_argument=BooleanTestPromptArg)
+    assert result.is_enabled is True
+    assert result.is_valid is False
+
+    # Test case for string "TRUE"/"FALSE" values (uppercase)
+    response = {"is_enabled": "TRUE", "is_valid": "FALSE"}
+    result = validate_dataclass(parsed_response=response, prompt_argument=BooleanTestPromptArg)
+    assert result.is_enabled is True
+    assert result.is_valid is False
+
+
+def test_validate_dataclass_mixed_boolean_values():
+    """Test handling of mixed boolean value types."""
+    response = {
+        "is_enabled": True,  # Python boolean
+        "is_valid": "false",  # String representation
+        "is_active": False,  # Python boolean for optional field
+    }
+    result = validate_dataclass(parsed_response=response, prompt_argument=BooleanTestPromptArg)
+    assert result.is_enabled is True
+    assert result.is_valid is False
+    assert result.is_active is False
 
 
 prompt_config = {

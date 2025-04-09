@@ -240,7 +240,10 @@ def validate_dataclass(parsed_response: dict[str, Any], prompt_argument: Type[Ge
             if field_type is Any:
                 converted[field_name] = value
             elif field_type == bool and isinstance(value, str):
-                converted[field_name] = value.lower() == "true"
+                # Fix: Properly handle different string representations of booleans
+                # True values: "true", "True", "TRUE", "1", "yes", "Yes", "YES"
+                # False values: "false", "False", "FALSE", "0", "no", "No", "NO"
+                converted[field_name] = value.lower() in ("true", "1", "yes")
             elif field_type == dict or (hasattr(field_type, "__origin__") and field_type.__origin__ is dict):
                 # Handle dictionaries - if the value is already a dict, use it directly
                 if isinstance(value, dict):
