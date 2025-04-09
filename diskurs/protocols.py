@@ -62,23 +62,32 @@ class Prompt(Protocol):
     """
     Protocol for prompt implementations.
 
-    This protocol defines the structure and methods required for creating and handling prompts
-    in a conversation. Implementations of this protocol are responsible for generating prompt
-    arguments, rendering templates, and parsing responses from a language model (LLM).
+    This protocol defines the interface for creating and handling prompts in a conversation.
+    Prompt implementations are responsible for:
+    - Creating and validating prompt arguments
+    - Rendering system and user templates
+    - Parsing responses from language models
+    - Determining when a conversation has reached its final state
+
+    Prompts serve as the bridge between raw LLM responses and structured data that agents
+    can use to reason about conversations and make decisions.
     """
 
     prompt_argument: Type[PromptArg]
+    agent_description: str
+    system_template: Any  # Jinja2 Template
+    user_template: Any  # Jinja2 Template
+    json_formatting_template: Optional[Any]  # Jinja2 Template
 
     def create_prompt_argument(self, **prompt_args: Any) -> PromptArg:
         """
-        Creates an instance of the user prompt argument dataclass.
+        Creates an instance of the prompt argument dataclass.
 
-        This method is responsible for generating the user prompt argument
-        based on the provided keyword arguments. The user prompt argument
-        is used to configure the user's input and context for the conversation.
+        This method instantiates a prompt argument dataclass with the provided keyword arguments,
+        which will be used to render templates and structure conversation data.
 
-        :param prompt_args: Keyword arguments used to initialize the user prompt argument.
-        :return: An instance of the user prompt argument dataclass.
+        :param prompt_args: Keyword arguments used to initialize the prompt argument.
+        :return: An instance of the prompt argument dataclass.
         """
         ...
 
@@ -91,13 +100,47 @@ class Prompt(Protocol):
         """
         Renders the user template with the provided prompt arguments.
 
-        This method is responsible for rendering the user template using the given prompt arguments.
-        It generates a `ChatMessage` object that represents the rendered template.
+        This method generates a ChatMessage using prompt arguments to populate the user template.
+        The rendered template becomes part of the conversation flow, representing either
+        a system instruction or user input.
 
-        :param name: The name of the template to be rendered.
-        :param prompt_args: The prompt arguments to be used for rendering the template.
-        :param message_type: The type of the message to be rendered. Defaults to `MessageType.CONVERSATION`.
-        :return: A `ChatMessage` object containing the rendered template.
+        :param name: The name of the agent for which the template is being rendered.
+        :param prompt_args: The prompt arguments to use for rendering.
+        :param message_type: The type of message to generate (defaults to CONVERSATION).
+        :return: A ChatMessage object containing the rendered content.
+        """
+        ...
+
+    def render_system_template(
+        self,
+        name: str,
+        prompt_argument: PromptArgument,
+        return_json: bool = True,
+    ) -> ChatMessage:
+        """
+        Renders the system template with the provided prompt arguments.
+
+        This method generates a system message that provides context and instructions
+        to guide the language model's responses. It can optionally append JSON formatting
+        instructions to help the model produce structured outputs.
+
+        :param name: The name of the agent for which the template is being rendered.
+        :param prompt_argument: The prompt arguments to use for rendering.
+        :param return_json: Whether to include JSON formatting instructions.
+        :return: A ChatMessage object containing the rendered system prompt.
+        """
+        ...
+
+    def render_json_formatting_prompt(self, prompt_args: dict[str, Any]) -> str:
+        """
+        Renders JSON formatting instructions for the LLM.
+
+        This method generates a string containing JSON format instructions that help
+        the language model produce responses in a valid, structured JSON format matching
+        the expected prompt argument structure.
+
+        :param prompt_args: Dictionary of prompt arguments to shape the formatting instructions.
+        :return: A string containing the JSON formatting instructions.
         """
         ...
 
@@ -109,43 +152,41 @@ class Prompt(Protocol):
         message_type: MessageType = MessageType.CONDUCTOR,
     ) -> PromptArgument | ChatMessage:
         """
-        Parses the LLM response into a prompt argument or ChatMessage.
+        Parses an LLM response into either a prompt argument or error message.
 
-        This method takes the response from a language model (LLM) and parses it into either a
-        `PromptArgument` or a `ChatMessage` object. It uses the old user prompt argument and
-        the message type to guide the parsing process.
+        This method attempts to parse the LLM's raw text response into a structured prompt
+        argument. If successful, the resulting prompt argument is returned. If the response
+        fails validation, a ChatMessage with an error description is returned instead.
 
-        :param name: Name of the agent.
-        :param llm_response: The response string from the language model.
-        :param old_prompt_argument: The previous user prompt argument to be used as a reference.
-        :param message_type: The type of message to be parsed. Defaults to `MessageType.ROUTING`.
-        :return: A `PromptArgument` or `ChatMessage` object based on the parsed response.
+        :param name: Name of the agent parsing the response.
+        :param llm_response: Raw text response from the language model.
+        :param old_prompt_argument: Previous prompt argument, used for merging partial updates.
+        :param message_type: Message type to use if creating an error message.
+        :return: Either a valid PromptArgument or a ChatMessage containing an error message.
         """
         ...
 
     def is_final(self, prompt_argument: PromptArgument) -> bool:
         """
-        Determines if the user prompt argument indicates the final state.
+        Determines if the prompt argument represents the final state of a conversation.
 
-        This method checks the provided user prompt argument to determine if it represents
-        the final state in the conversation. It is used to decide whether the conversation
-        can be concluded based on the user's input.
+        This method evaluates whether the current prompt argument indicates that the
+        conversation has reached its conclusion and no further processing is needed.
 
-        :param prompt_argument: The user prompt argument to be evaluated.
-        :return: True if the user prompt argument indicates the final state, False otherwise.
+        :param prompt_argument: The prompt argument to evaluate.
+        :return: True if the conversation should be considered complete, False otherwise.
         """
         ...
 
     def is_valid(self, prompt_argument: PromptArgument) -> bool:
         """
-        Validates the user prompt argument.
+        Validates the prompt argument against expected criteria.
 
-        This method checks if the provided user prompt argument meets the required
-        criteria for validity. It ensures that the user prompt argument is correctly
-        structured and contains the necessary information for further processing.
+        This method checks if the prompt argument contains all required fields with
+        appropriate values. It may raise a PromptValidationError if validation fails.
 
-        :param prompt_argument: The user prompt argument to be validated.
-        :return: True if the user prompt argument is valid, False otherwise.
+        :param prompt_argument: The prompt argument to validate.
+        :return: True if the prompt argument is valid, False otherwise.
         """
         ...
 
@@ -157,25 +198,49 @@ class Prompt(Protocol):
         **kwargs
     ) -> "Conversation":
         """
-        Initialize the prompt before starting an agent's turn.
-        This method sets fresh values for prompt arguments and renders prompts
+        Initializes a conversation with fresh prompt arguments and templates.
+
+        This method prepares a conversation for processing by an agent by:
+        1. Creating a new prompt argument instance
+        2. Rendering a system prompt
+        3. Rendering a user prompt
+        4. Updating the conversation with these elements
+
+        :param agent_name: Name of the agent initializing the prompt.
+        :param conversation: The conversation to initialize.
+        :param message_type: Message type to use when rendering templates.
+        :param kwargs: Additional parameters, may include 'prompt_argument' dict.
+        :return: Updated conversation with initialized prompt components.
         """
         ...
 
 
 class MultistepPrompt(Prompt):
+    """
+    Protocol for multi-step prompts.
+
+    MultistepPrompt extends the base Prompt protocol to provide structured handling of
+    conversations that require multiple steps or follow a specific progression. It's designed
+    for agent interactions that follow a defined sequence rather than free-form conversation.
+
+    This type of prompt is particularly useful when:
+    - Conversations need to follow a specific workflow or decision tree
+    - Information needs to be collected in a structured, sequential manner
+    - The agent needs to maintain a clear state progression through the conversation
+    """
 
     def render_system_template(self, name: str, prompt_args: PromptArgument, return_json: bool = True) -> ChatMessage:
         """
         Renders the system template with the provided prompt arguments.
 
-        This method is responsible for rendering the system template using the given prompt arguments.
-        It can optionally return the rendered template as a JSON object.
+        This method generates a system message that provides context and instructions
+        to guide the language model's responses. It can optionally append JSON formatting
+        instructions to help the model produce structured outputs.
 
-        :param name: The name of the template to be rendered.
-        :param prompt_args: The prompt arguments to be used for rendering the template.
-        :param return_json: If True, the rendered template will be returned as a JSON object. Defaults to True.
-        :return: A ChatMessage object containing the rendered template.
+        :param name: The name of the agent for which the template is being rendered.
+        :param prompt_args: The prompt arguments to use for rendering the template.
+        :param return_json: Whether to include JSON formatting instructions.
+        :return: A ChatMessage object containing the rendered system prompt.
         """
         ...
 
@@ -186,21 +251,24 @@ class ConductorPrompt(Prompt):
 
     This protocol defines the methods required for handling conductor prompts in a conversation.
     It includes methods for initializing, finalizing, and validating long-term memory, as well as
-    determining the final state of the conversation.
+    determining the final state of the conversation. Conductor prompts are central to the routing
+    and orchestration of agents in multi-agent conversations.
     """
 
     longterm_memory: Type[LongtermMemory]
 
-    def render_system_template(self, name: str, prompt_args: PromptArgument, return_json: bool = True) -> ChatMessage:
+    def render_system_template(
+        self, name: str, prompt_argument: PromptArgument, return_json: bool = True
+    ) -> ChatMessage:
         """
         Renders the system template with the provided prompt arguments.
 
         This method is responsible for rendering the system template using the given prompt arguments.
-        It can optionally return the rendered template as a JSON object.
+        It can optionally append JSON formatting instructions to the rendered template.
 
-        :param name: The name of the template to be rendered.
-        :param prompt_args: The prompt arguments to be used for rendering the template.
-        :param return_json: If True, the rendered template will be returned as a JSON object. Defaults to True.
+        :param name: The name of the agent for which the template is being rendered.
+        :param prompt_argument: The prompt arguments to be used for rendering the template.
+        :param return_json: Whether to include JSON formatting instructions.
         :return: A ChatMessage object containing the rendered template.
         """
         ...
@@ -218,7 +286,7 @@ class ConductorPrompt(Prompt):
         """
         ...
 
-    async def finalize(self, longterm_memory: LongtermMemory) -> dict[str, Any]:
+    def finalize(self, longterm_memory: LongtermMemory) -> dict[str, Any]:
         """
         Finalizes the conversation based on the long-term memory.
 
@@ -233,7 +301,7 @@ class ConductorPrompt(Prompt):
 
     def fail(self, longterm_memory: LongtermMemory) -> dict[str, Any]:
         """
-        Handles the case failure i.e. when the long-term memory does not meet the criteria defined
+        Handles the case of failure when the long-term memory does not meet the criteria defined
         for finalization.
 
         This method processes the provided long-term memory to generate a failure response
@@ -276,24 +344,30 @@ class HeuristicPrompt(Protocol):
     This protocol defines the structure and methods required for creating and handling heuristic prompts
     in a conversation. Implementations of this protocol are responsible for generating user prompt arguments,
     rendering user templates, and executing heuristic sequences to process conversations.
+
+    Heuristic prompts provide a way to implement custom logic for processing conversations rather than
+    relying solely on LLM responses. They enable programmatic control of conversation flow with detailed
+    step-by-step processing.
     """
 
     prompt_argument: Type[PromptArgument]
+    agent_description: str
+    user_template: Optional[Template]
 
     async def heuristic_sequence(
-        self, conversation: "Conversation", call_tool: CallTool, llm_client: Optional["LLMClient"] = None
+        self, conversation: "Conversation", call_tool: Optional[CallTool], llm_client: Optional["LLMClient"] = None
     ) -> "Conversation":
         """
         Executes a heuristic sequence on the given conversation.
 
         This method processes the conversation using a series of heuristic steps,
-        optionally utilizing a tool for specific operations. The heuristic sequence
+        utilizing a tool caller and optionally an LLM client. The heuristic sequence
         is designed to guide the conversation towards a desired outcome based on
         predefined rules and logic.
 
         :param conversation: The conversation object to be processed.
-        :param call_tool: An optional callable tool that can be used during the heuristic sequence.
-        :param llm_client: The LLM client used for generating responses.
+        :param call_tool: A callable tool function that can be used during the heuristic sequence.
+        :param llm_client: Optional LLM client that can be used for generating responses within the sequence.
         :return: The updated conversation object after processing the heuristic sequence.
         """
         ...
@@ -335,11 +409,16 @@ class Conversation(Protocol[PromptArg]):
     """
     Protocol for conversation management.
 
-    This protocol defines the structure and methods required for handling conversations
-    between agents and users. It includes properties and methods for accessing and updating
-    chat messages, prompt arguments, long-term memory, and metadata. Implementations of this
-    protocol are responsible for managing the state and flow of conversations, ensuring
-    immutability, and providing mechanisms for rendering and parsing prompts.
+    This protocol defines the interface for immutable conversation objects that maintain
+    the state of a conversation between agents. Conversations contain:
+    - Chat history (messages exchanged)
+    - Prompt arguments (structured data used by agents)
+    - System and user prompts (context for LLMs)
+    - Long-term memory (persistent state across conversation turns)
+    - Metadata (additional conversation context)
+
+    All operations on conversation objects return new instances rather than modifying
+    the original, ensuring immutability and enabling safe concurrent processing.
     """
 
     final_result: dict[str, Any]
@@ -349,61 +428,62 @@ class Conversation(Protocol[PromptArg]):
     @property
     def chat(self) -> List[ChatMessage]:
         """
-        Provides a deep copy of the chat messages to ensure immutability.
+        Returns a deep copy of the chat history.
 
-        This method returns a list of `ChatMessage` objects representing the conversation's chat history.
-        The returned list is a deep copy, ensuring that the original chat messages remain unchanged.
+        The chat history consists of all messages exchanged during the conversation,
+        including messages from users, assistants, and system messages.
 
-        :return: A deep copy of the list of chat messages.
-        :rtype: List[ChatMessage]
+        :return: A deep copy of the chat message list.
         """
         ...
 
     @property
     def system_prompt(self) -> Optional[ChatMessage]:
         """
-        Retrieves the system prompt of the conversation.
+        Returns the current system prompt.
 
-        The system prompt is a message that sets the initial context or instructions for the conversation.
-        It is typically used to guide the conversation's flow and provide necessary background information.
-        Each time an agent takes a turn in the conversation, it updates the system prompt accordingly.
+        The system prompt provides context and instructions to the LLM about how to
+        process and respond to the conversation. It's typically updated by each agent
+        that processes the conversation.
 
-        :return: The system prompt message if available, otherwise None.
+        :return: The current system prompt if available, otherwise None.
         """
         ...
 
     @property
     def user_prompt(self) -> Optional[ChatMessage]:
         """
-        Retrieves the user prompt of the conversation.
+        Returns the current user prompt.
 
-        The user prompt is a message that represents the user's input or query in the conversation.
-        It is typically used to direct the agent's next response.
-        Each time an agent takes a turn in the conversation, it updates the user prompt accordingly.
+        The user prompt represents the immediate query or input that needs to be
+        addressed by the LLM. It's typically updated by each agent that processes
+        the conversation.
 
-        :return: The user prompt message if available, otherwise None.
+        :return: The current user prompt if available, otherwise None.
         """
         ...
 
     @property
     def prompt_argument(self) -> Optional[PromptArg]:
         """
-        Retrieves the user prompt arguments.
+        Returns the current prompt argument.
 
-        The user prompt argument is used to render the user prompt message.
-        Each time an agent takes a turn in the conversation, it updates the user prompt argument.
+        The prompt argument is a structured dataclass containing the information
+        required to render templates and process the conversation. It serves as
+        a shared data structure between agents.
 
-        :return: The user prompt arguments if available, otherwise None.
+        :return: The current prompt argument if available, otherwise None.
         """
         ...
 
     @property
     def metadata(self) -> Dict[str, str]:
         """
-        Provides a deep copy of the metadata dictionary to ensure immutability.
+        Returns a deep copy of the conversation metadata.
 
-        The metadata dictionary contains additional information about the conversation,
-        and can be freely defined and updated by the implementing system.
+        Metadata provides additional context about the conversation that isn't part
+        of the core conversation flow, such as user identifiers, session information,
+        or processing flags.
 
         :return: A deep copy of the metadata dictionary.
         """
@@ -412,170 +492,129 @@ class Conversation(Protocol[PromptArg]):
     @property
     def last_message(self) -> ChatMessage:
         """
-        Retrieves the last message in the conversation.
+        Returns the last message in the chat history.
 
-        This property returns the most recent `ChatMessage` object from the conversation's chat history.
-        It is used to access the latest message exchanged in the conversation, which can be useful for
-        determining the current state or context of the conversation.
+        This is a convenience property for accessing the most recent message, which
+        is often needed to determine the current state of the conversation.
 
-        :return: The last message in the chat.
-        :rtype: ChatMessage
+        :return: The last message in the chat history.
+        :raises: IndexError if the chat history is empty.
         """
         ...
 
     @property
     def active_agent(self) -> str:
         """
-        Retrieves the name of the active agent.
+        Returns the name of the agent currently processing the conversation.
 
-        The active agent is the agent currently responsible for processing the conversation.
-        This method returns the name of the active agent as a string.
+        This property indicates which agent is currently responsible for handling
+        the conversation, which is important for routing and processing decisions.
 
         :return: The name of the active agent.
-        :rtype: str
-        """
-        ...
-
-    @property
-    def conversation_id(self) -> str:
-        """
-        Retrieves the unique identifier for the conversation.
-
-        This method returns the conversation ID, which is a unique string
-        used to identify the conversation instance. The conversation ID
-        is typically used for tracking and managing conversations within
-        the system.
-
-        :return: The unique identifier for the conversation.
-        """
-        ...
-
-    def append(
-        self,
-        message: ChatMessage | list[ChatMessage],
-        role: Optional[Role] = "",
-        name: Optional[str] = "",
-    ) -> "Conversation":
-        """
-        Appends a new chat message and returns a new instance of Conversation.
-
-        :param message: The ChatMessage object to be added to the conversation, alternatively a string can be provided.
-        :param role: Only needed if message is str, the role (system, user, assistant)
-        :param name: Only needed if message is str, name of the agent
-        :return: A new instance of Conversation with the appended message.
-        """
-
-    def get_agent_longterm_memory(self, agent_name: str) -> Optional[LongtermMemory]:
-        """
-        Provides a deep copy of the long-term memory for the specified agent.
-
-        This method retrieves the long-term memory associated with a given agent name.
-        Allowing the caller to safely modify the returned memory without affecting the original.
-
-        :param agent_name: The name of the agent whose long-term memory is to be retrieved.
-        :return: A deep copy of the agent's long-term memory, or None if no memory is found.
-        """
-        ...
-
-    def update_agent_longterm_memory(self, agent_name: str, longterm_memory: LongtermMemory) -> "Conversation":
-        """
-        Updates the long-term memory for a specific agent.
-
-        This method updates the long-term memory associated with the given agent name.
-        It returns a new instance of the Conversation with the updated long-term memory,
-        ensuring immutability of the conversation state.
-
-        :param agent_name: The name of the agent whose long-term memory is to be updated.
-        :param longterm_memory: The new long-term memory for the agent.
-        :return: A new instance of the Conversation with updated long-term memory.
-        """
-        ...
-
-    def update_prompt_argument_with_longterm_memory(self, conductor_name: str) -> "Conversation":
-        """
-        Updates the prompt arguments with the long-term memory of the conductor agent.
-
-        This method retrieves the long-term memory associated with the specified conductor agent
-        and updates the prompt arguments of the conversation accordingly. It ensures that the
-        conversation's state is updated with the relevant long-term memory data, preserving
-        immutability by returning a new instance of the Conversation.
-
-        :param conductor_name: The name of the conductor agent whose long-term memory is to be used.
-        :return: A new instance of the Conversation with updated prompt arguments.
-        """
-        ...
-
-    def update_prompt_argument_with_previous_agent(self, prompt_argument: PromptArg) -> "Conversation":
-        """
-        Updates the provided prompt arguments with the previous agent's prompt argument.
-
-        This method uses the prompt argument of the last agent from the conversation
-        and updates the provided prompt argument with the relevant data. It ensures that the
-        conversation's state is updated with the necessary information, preserving immutability
-
-        :param prompt_argument: The prompt argument to be updated.
-        :return: A new instance of the Conversation with updated prompt arguments.
-        """
-        ...
-
-    def update(
-        self,
-        chat: Optional[List[ChatMessage]] = None,
-        prompt_argument: Optional[PromptArg] = None,
-        system_prompt: Optional[ChatMessage] = None,
-        user_prompt: Optional[Union[ChatMessage, List[ChatMessage]]] = None,
-        longterm_memory: Optional[Dict[str, LongtermMemory]] = None,
-        metadata: Optional[Dict[str, str]] = None,
-        active_agent: Optional[str] = None,
-        conversation_id=None,
-    ) -> "Conversation":
-        """
-        Returns a new instance of Conversation with updated fields, preserving immutability.
-
-        :param chat: Optional list of ChatMessage objects representing the conversation's chat history.
-        :param prompt_argument: Optional user prompt argument to update.
-        :param system_prompt: Optional system prompt message to update.
-        :param user_prompt: Optional user prompt message(s) to update.
-        :param longterm_memory: Optional dictionary of long-term memory to update.
-        :param metadata: Optional dictionary of metadata to update.
-        :param active_agent: Optional name of the active agent to update.
-        :return: A new instance of the Conversation class with updated fields.
         """
         ...
 
     def append(
         self,
         message: Union[ChatMessage, List[ChatMessage], str],
-        role: Optional[str] = "",
+        role: Optional[Role] = "",
         name: Optional[str] = "",
     ) -> "Conversation":
         """
-        Appends a new chat message and returns a new instance of Conversation.
+        Creates a new conversation with the specified message(s) appended.
 
-        :param message: The message to be added.
-        :param role: The role of the message sender.
-        :param name: The name of the message sender.
-        :return: A new instance of Conversation with the appended message.
+        This method adds one or more new messages to the chat history and returns
+        a new Conversation instance. If a string is provided instead of a ChatMessage,
+        a new ChatMessage is created using the provided role and name.
+
+        :param message: The message(s) to append (ChatMessage, list of ChatMessages, or string).
+        :param role: The role of the message sender (used only when message is a string).
+        :param name: The name of the message sender (used only when message is a string).
+        :return: A new Conversation instance with the appended message(s).
+        """
+        ...
+
+    def get_agent_longterm_memory(self, agent_name: str) -> Optional[LongtermMemory]:
+        """
+        Returns a deep copy of an agent's long-term memory.
+
+        Long-term memory allows agents to maintain state across conversation turns.
+        This method retrieves the memory associated with a specific agent.
+
+        :param agent_name: The name of the agent whose memory to retrieve.
+        :return: A deep copy of the agent's longterm memory, or None if not found.
+        """
+        ...
+
+    def update_agent_longterm_memory(self, agent_name: str, longterm_memory: LongtermMemory) -> "Conversation":
+        """
+        Creates a new conversation with updated long-term memory for an agent.
+
+        This method updates the long-term memory associated with an agent and returns
+        a new Conversation instance with the updated memory.
+
+        :param agent_name: The name of the agent whose memory to update.
+        :param longterm_memory: The new long-term memory for the agent.
+        :return: A new Conversation with the updated long-term memory.
+        """
+        ...
+
+    def update_prompt_argument_with_longterm_memory(self, conductor_name: str) -> "Conversation":
+        """
+        Creates a new conversation with prompt argument updated from long-term memory.
+
+        This method copies fields from a conductor agent's long-term memory into the
+        prompt argument, allowing memory state to influence the current conversation.
+
+        :param conductor_name: The name of the conductor agent whose memory to use.
+        :return: A new Conversation with the updated prompt argument.
+        """
+        ...
+
+    def update_prompt_argument_with_previous_agent(self, prompt_argument: PromptArg) -> "Conversation":
+        """
+        Creates a new conversation with prompt argument updated from previous agent.
+
+        This method merges values from the provided prompt argument with the
+        conversation's existing prompt argument, typically used when transitioning
+        from one agent to another to preserve context.
+
+        :param prompt_argument: The prompt argument to update.
+        :return: A new Conversation with the updated prompt argument.
+        """
+        ...
+
+    def update(self, **kwargs) -> "Conversation":
+        """
+        Creates a new conversation with updated fields.
+
+        This method creates a new Conversation instance with specified fields updated,
+        while preserving immutability of the original instance.
+
+        :param kwargs: Key-value pairs of fields to update (chat, prompt_argument, system_prompt,
+                      user_prompt, longterm_memory, metadata, active_agent, conversation_id).
+        :return: A new Conversation instance with the updated fields.
         """
         ...
 
     def render_chat(self, message_type: MessageType = MessageType.CONVERSATION) -> List[ChatMessage]:
         """
-        Returns the complete chat with the system prompt prepended and the user prompt appended.
+        Returns a rendered view of the complete chat history.
 
-        This method generates a list of `ChatMessage` objects representing the full chat history.
-        It includes the system prompt at the beginning and the user prompt at the end of the chat.
+        This method assembles the full chat stream for sending to an LLM, including
+        the system prompt, chat history, and user prompt. It can filter messages
+        based on the specified message type.
 
-        :param message_type: The type of message to be rendered. Defaults to `MessageType.CONVERSATION`.
-        :return: A list representing the full chat.
+        :param message_type: Filter for messages to include (default: CONVERSATION).
+        :return: List of ChatMessage objects representing the complete rendered chat.
         """
         ...
 
     def is_empty(self) -> bool:
         """
-        Checks if the chat is empty.
+        Checks if the conversation's chat history is empty.
 
-        :return: True if the chat is empty, False otherwise.
+        :return: True if the chat history contains no messages, False otherwise.
         """
         ...
 
@@ -583,49 +622,60 @@ class Conversation(Protocol[PromptArg]):
         """
         Checks if there is a pending tool call in the conversation.
 
-        :return: True if there is a pending tool call, False otherwise.
+        This method determines whether the last message in the conversation contains
+        a tool call that needs to be executed before the conversation can continue.
+
+        :return: True if a tool call is pending, False otherwise.
         """
         ...
 
     def has_pending_tool_response(self) -> bool:
         """
-        Checks if there is a pending tool response in the conversation,
-        this would be the case if the last message was a tool call from
-        the LLM.
+        Checks if the conversation is awaiting a tool response.
 
-        :return: True if there is a pending tool response, False otherwise.
-        """
-        ...
+        This method determines whether the last message was a tool call from the LLM
+        that needs to be responded to before the conversation can continue.
 
-    @classmethod
-    def from_dict(
-        cls, data: dict[str, Any], agents: list[Any], conversation_store: Optional["ConversationStore"]
-    ) -> "Conversation":
-        """
-        Creates a Conversation instance from a dictionary.
-
-        :param data: The data dictionary.
-        :param agents: A list of agent instances.
-        :param conversation_store: The conversation store instance.
-        :return: A new instance of Conversation.
-        """
-        ...
-
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Converts the Conversation instance to a dictionary.
-
-        :return: A dictionary representation of the Conversation.
+        :return: True if awaiting a tool response, False otherwise.
         """
         ...
 
     async def maybe_persist(self) -> None:
         """
-        Persists the conversation to the conversation store.
+        Persists the conversation to the associated conversation store if available.
 
-        This method saves the conversation to the conversation store, ensuring that
-        the conversation data is stored and can be retrieved later.
+        This method safely saves the conversation state if a conversation store is
+        configured, allowing for conversation history to be retrieved later.
 
+        :return: None
+        """
+        ...
+
+    @classmethod
+    def from_dict(
+        cls, data: dict[str, Any], agents: list[Any], conversation_store: Optional["ConversationStore"] = None
+    ) -> "Conversation":
+        """
+        Creates a Conversation instance from a dictionary representation.
+
+        This factory method reconstructs a conversation from a serialized dictionary
+        representation, typically used when loading conversations from storage.
+
+        :param data: Dictionary containing the serialized conversation.
+        :param agents: List of agent instances needed for context reconstruction.
+        :param conversation_store: Optional store for persistence operations.
+        :return: A new Conversation instance.
+        """
+        ...
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Converts the Conversation instance to a dictionary representation.
+
+        This method serializes the conversation into a dictionary structure that can
+        be stored or transmitted, typically used when persisting conversations.
+
+        :return: Dictionary representation of the Conversation.
         """
         ...
 
@@ -633,20 +683,45 @@ class Conversation(Protocol[PromptArg]):
 class LLMClient(Protocol):
     """
     Protocol for interacting with a Language Model (LLM) client.
-    This protocol defines the methods required for creating and generating responses
-    from a language model within a conversation. Implementations of this protocol
-    are responsible for initializing the LLM client and generating responses based
-    on the current state of the conversation and optional tools.
+
+    This protocol defines the interface for communicating with language model services.
+    Implementations handle:
+    - Initializing connections to LLM providers (OpenAI, Azure, local models, etc.)
+    - Managing token counting and context limits
+    - Generating responses to conversation prompts
+    - Supporting tool usage within conversations
+    - Handling error conditions and retries
+
+    The protocol ensures consistent interaction with different LLM providers
+    through a unified interface, allowing the system to work with any compatible
+    language model service.
     """
 
     max_tokens: int
 
     @classmethod
-    def create(cls, **kwargs) -> Self: ...
+    def create(cls, **kwargs) -> Self:
+        """
+        Creates a new instance of the LLM client.
+
+        This factory method initializes a new LLM client with the provided configuration.
+        It handles authentication, connection setup, and any other initialization needed
+        to establish a working connection to the language model service.
+
+        :param kwargs: Configuration parameters for the client, such as API keys,
+                      endpoint URLs, model names, and other provider-specific settings.
+        :return: A properly initialized instance of the LLM client.
+        """
+        ...
 
     def count_tokens(self, text: str) -> int:
         """
         Counts the number of tokens in a text string.
+
+        This method uses provider-specific tokenization to determine how many tokens
+        would be consumed by the given text. This is crucial for managing context
+        windows and calculating costs for API calls.
+
         :param text: The text string to tokenize.
         :return: The number of tokens in the text string.
         """
@@ -654,11 +729,16 @@ class LLMClient(Protocol):
 
     async def use_as_tool(self, prompt: str, content: str) -> str:
         """
-        Summarizes content to fit within token limit.
+        Uses the LLM as a tool for processing content.
 
-        :param prompt: Prompt to use
-        :param content: Content to summarize
-        :return: Summarized content
+        This method leverages the language model to process content according to
+        a specific prompt, often for summarization, reformatting, or extraction tasks.
+        It's particularly useful for handling large content that needs to be condensed
+        to fit within token limits.
+
+        :param prompt: Instructions for how to process the content.
+        :param content: The content to be processed.
+        :return: The processed content from the LLM.
         """
         ...
 
@@ -669,16 +749,23 @@ class LLMClient(Protocol):
         message_type=MessageType.CONVERSATION,
     ) -> Conversation:
         """
-        Generates a response from the language model (LLM) based on the current state of the conversation.
+        Generates a response from the language model based on conversation context.
 
-        This method takes the current conversation and optionally a list of tools, and generates a response
-        from the language model. The response is integrated into the conversation, updating its state.
+        This core method sends the conversation history to the LLM and retrieves a response,
+        which is then integrated into the conversation. When tools are provided, the LLM
+        may choose to call them rather than generating a direct text response.
 
-        :param conversation: The current state of the conversation, represented as a `Conversation` object.
-        :param tools: An optional list of `ToolDescription` objects that can be used by the LLM to generate the response.
-        :param message_type: The message type used to filter the chat history. If MessageType.CONDUCTOR,
-          all messages will be rendered
-        :return: An updated `Conversation` object with the generated response.
+        The method handles:
+        - Preparing the conversation history for the LLM
+        - Managing token limits and context windows
+        - Sending the request to the LLM provider
+        - Processing the response (text or tool calls)
+        - Updating the conversation with the result
+
+        :param conversation: The current conversation state.
+        :param tools: Optional list of tools the LLM can use in its response.
+        :param message_type: Type of messages to include from the conversation history.
+        :return: Updated conversation with the LLM's response.
         """
         ...
 
@@ -725,10 +812,14 @@ class ConversationFinalizer(Protocol):
     """
     Protocol for finalizing conversations.
 
-    This protocol defines the methods and properties required for an entity to finalize a conversation.
-    Implementations of this protocol are responsible for generating the final response to a conversation.
+    This protocol defines the interface for components that generate the final output of a conversation.
+    Finalizers are responsible for:
+    - Extracting relevant information from the conversation state
+    - Formatting this information into a coherent final response
+    - Setting the final_result property on the conversation
 
-    :param final_properties: Specify the fields from the prompt argument that should be included in the final response.
+    Finalizers typically run at the end of a conversation flow and prepare the conversation
+    output for delivery to the end user or calling application.
     """
 
     name: str
@@ -736,11 +827,14 @@ class ConversationFinalizer(Protocol):
 
     async def finalize_conversation(self, conversation: Conversation) -> None:
         """
-        Finalizes the conversation by setting the final response property on the conversation.
-        This method is meant to be the last method called in a conversation.
+        Finalizes the conversation by setting the final_result property.
+
+        This method extracts the relevant properties from the conversation's prompt_argument
+        based on the final_properties list, and sets them as the final_result on the conversation.
+        It represents the last step in the conversation processing pipeline.
 
         :param conversation: The conversation to be finalized.
-        :return: A dictionary containing the final response data.
+        :return: None - The method modifies the conversation in-place by setting final_result.
         """
         ...
 
@@ -749,9 +843,15 @@ class ConversationResponder(Protocol):
     """
     Protocol for responding to a conversation request.
 
-    This protocol defines the methods required for responding to a conversation request.
-    Implementations of this protocol are responsible for processing the request, generating a response,
-    and returning the response to the requester.
+    This protocol defines the interface for components that respond directly to conversation requests.
+    Responders are responsible for:
+    - Processing incoming conversation requests
+    - Generating appropriate responses based on the conversation context
+    - Returning updated conversations with the response included
+
+    Unlike conversation participants that may modify and publish conversations to other agents,
+    responders focus on providing direct responses to specific requests, often used in synchronous
+    communication patterns where an immediate response is expected.
     """
 
     name: str
@@ -760,11 +860,12 @@ class ConversationResponder(Protocol):
         """
         Responds to a conversation request.
 
-        This method processes the given request and generates a response to be sent back to the requester.
-        It is responsible for handling the request and generating the appropriate response data.
+        This method processes the given conversation and generates a direct response.
+        It's designed for scenarios where a synchronous response is needed, such as
+        when one agent needs information from another agent to proceed with processing.
 
-        :param conversation: The request data to be processed.
-        :return: A dictionary containing the response data.
+        :param conversation: The conversation to process and respond to.
+        :return: The updated conversation with the response included.
         """
         ...
 
@@ -958,6 +1059,8 @@ class Agent(Protocol):
         and returns an updated `Conversation` object after processing.
 
         :param conversation: The current state of the conversation, represented as a `Conversation` object
+        :param message_type: The type of message to use when rendering templates and processing the conversation
+        :param init_prompt: Whether to initialize the prompt before processing the conversation
         :return: An updated `Conversation` object with the processed state.
         """
         ...
@@ -967,15 +1070,23 @@ class Agent(Protocol):
 class ConductorAgent(Protocol):
     """
     The `ConductorAgent` protocol defines the interface for agents that manage and coordinate conversations.
-    Conductor agents are responsible for creating or updating long-term memory, invoking conversation logic,
-    and ensuring the conversation progresses smoothly. They are responsible for dispatching conversation to the
-    most appropriate agents to maintain context and generate responses. This protocol ensures that any
-    implementing class can effectively manage and direct conversations.
+
+    Conductor agents are responsible for orchestrating conversations by:
+    - Creating and updating long-term memory to maintain conversation context
+    - Routing conversations to appropriate specialized agents
+    - Evaluating conversation state to determine when finalization is appropriate
+    - Coordinating the finalization process when a conversation is complete
+
+    This protocol ensures that implementing classes can effectively manage conversation flow,
+    maintain state across multiple turns, and direct conversations to specialized agents based
+    on content or user needs.
     """
 
     name: str
     prompt: ConductorPrompt
     can_finalize_name: Optional[str]
+    finalizer_name: Optional[str]
+    supervisor: Optional[str]
 
     def evaluate_rules(self, conversation: Conversation) -> Optional[str]:
         """
@@ -1025,8 +1136,22 @@ class ConductorAgent(Protocol):
 
         :param conversation: The conversation containing the context for memory updates
         :param overwrite: If True, existing values in longterm memory will be overwritten;
-                         if False, only empty/None values will be updated
+                         if False, only empty/None values in target will be updated
         :return: Updated conversation with the new/updated longterm memory
+        """
+        ...
+
+    async def add_routing_message_to_chat(self, conversation: Conversation, next_agent: str) -> Conversation:
+        """
+        Adds a routing message to the conversation chat history.
+
+        This method updates the prompt_argument with the next agent and adds a JSON
+        message to the conversation history to ensure consistency. This creates a clear
+        record of routing decisions in the conversation history.
+
+        :param conversation: The conversation to update
+        :param next_agent: The name of the next agent to route to
+        :return: The updated conversation with routing information
         """
         ...
 
@@ -1062,14 +1187,61 @@ class ConductorAgent(Protocol):
            which should return a prompt_argument with a can_finalize property, or
         2. Uses the prompt's own can_finalize method on the longterm memory
 
-        If we are using a function i.e. heuristics, this method evaluates the long-term memory of the conversation
-        to decide whether it can be finalized. It checks if the necessary conditions are met for finalizing the conversation.
+        If we are using a function i.e. heuristics, this method evaluates the long-term memory
+        of the conversation to decide whether it can be finalized.
 
-        If we are using an LLM i.e. agent based can_finalize, this method evaluates the chat history of the conversation
-        to decide whether it can be finalized. This allows for free-form questions as observed in open chat.
+        If we are using an LLM i.e. agent based can_finalize, this method evaluates the chat history
+        of the conversation to decide whether it can be finalized. This allows for free-form
+        questions as observed in open chat.
 
         :param conversation: The conversation to check for finalization
         :return: True if the conversation can be finalized, False otherwise
+        """
+        ...
+
+    async def finalize(self, conversation: Conversation) -> None:
+        """
+        Finalizes the conversation based on current routing configuration.
+
+        This method handles the finalization process for a conversation based on the
+        agent's configuration:
+
+        1. If a supervisor is configured, routes the conversation to that agent
+        2. If a finalizer_name is configured, publishes the conversation to that finalizer
+        3. Otherwise, sets the final_result directly using the prompt's finalize method
+
+        The method ensures that every conversation is properly concluded and that the
+        appropriate finalization logic is applied.
+
+        :param conversation: The conversation to finalize
+        """
+        ...
+
+    def fail(self, conversation: Conversation) -> dict[str, Any]:
+        """
+        Handles conversation failure cases.
+
+        This method is called when a conversation cannot be successfully completed,
+        such as when maximum dispatch attempts are exceeded or other failure conditions
+        are met. It generates an appropriate failure response.
+
+        :param conversation: The conversation that has failed
+        :return: A dictionary containing the failure response data
+        """
+        ...
+
+    async def process_conversation(self, conversation: Conversation) -> None:
+        """
+        Main entry point for processing a conversation by the conductor agent.
+
+        This method orchestrates the full conversation processing workflow:
+        1. Updates longterm memory with conversation context
+        2. Checks if the conversation can be finalized
+        3. If ready for finalization, calls finalize()
+        4. If max dispatches exceeded, calls fail()
+        5. Otherwise, invokes routing logic and publishes to the next agent
+
+        :param conversation: The conversation to be processed
         """
         ...
 
@@ -1077,10 +1249,15 @@ class ConductorAgent(Protocol):
 class ToolExecutor(Protocol):
     """
     The `ToolExecutor` protocol defines the interface for executing tools within the Diskurs framework.
-    Implementations of this protocol are responsible for registering tools, executing them based on tool calls,
-    and providing a mechanism to directly call specific tool functions. This protocol ensures that any implementing
-    class can manage and execute tools effectively, facilitating the integration of various tools into the conversation
-    processing workflow.
+
+    Tool executors are responsible for managing and executing tools that agents can use during
+    conversation processing. They handle:
+    - Tool registration and dependency management
+    - Tool execution based on agent requests
+    - Managing the lifecycle of tool dependencies
+
+    This protocol ensures that any implementing class can provide a consistent interface for
+    tool management and execution across the Diskurs framework.
     """
 
     tools: dict[str, Callable]
@@ -1090,9 +1267,9 @@ class ToolExecutor(Protocol):
         """
         Registers one or more tools with the executor.
 
-        This method allows the registration of a single tool or a list of tools
-        that can be executed by the executor. Each tool is a callable that can
-        be invoked with specific arguments.
+        This method allows the registration of a single tool function or a list of tool functions
+        that can be executed by the executor. Tool functions are registered with their function
+        name as the key in the tools dictionary.
 
         :param tools: A single callable or a list of callables representing the tools to be registered.
         """
@@ -1102,41 +1279,39 @@ class ToolExecutor(Protocol):
         """
         Registers tool dependencies with the executor.
 
-        This method allows the registration of tool dependencies that are required for the execution of tools.
-        This is the prefered way to handle things like DB connection pools, as it allows for central creation of
-        a single connection pool that can be shared across multiple tools.
+        This method registers dependencies that tools may need for execution, such as database
+        connections or external service clients. This is the preferred way to handle shared
+        resources like DB connection pools, allowing them to be created once and shared across tools.
 
-        :param dependencies: A list of ToolDependency objects representing the dependencies to be registered.
+        :param dependencies: A list of ToolDependency objects to be registered.
         """
         ...
 
     async def execute_tool(self, tool_call: ToolCall, metadata: Dict[str, Any]) -> ToolCallResult:
         """
-        Executes a registered tool based on the provided tool call and metadata.
+        Executes a tool based on a tool call specification.
 
-        This method is responsible for invoking a specific tool using the details
-        provided in the `tool_call` object. It utilizes the metadata to provide
-        additional context or parameters required for the tool execution. The result
-        of the tool execution is returned as a `ToolCallResult` object.
+        This method handles the execution of a tool specified by a ToolCall object. It looks up the
+        appropriate tool function, prepares arguments, executes the tool, and wraps the result
+        in a ToolCallResult object.
 
-        :param tool_call: The `ToolCall` object containing the details of the tool to be executed.
-        :param metadata: A dictionary containing additional context or parameters for the tool execution.
-        :return: A `ToolCallResult` object containing the result of the tool execution.
+        :param tool_call: The ToolCall object specifying which tool to execute and with what arguments.
+        :param metadata: Additional context information for tool execution.
+        :return: A ToolCallResult object containing the execution result.
         """
         ...
 
     def call_tool(self, function_name: str, arguments: Dict[str, Any]) -> Any:
         """
-        Calls a registered tool with the specified function name and arguments.
+        Directly calls a registered tool with the specified arguments.
 
-        This method is responsible for invoking a tool that has been registered with the executor.
-        It uses the provided function name and arguments to execute the tool and returns the result.
-        It is meant to be used by a developer to directly call a specific tool function withing a
-        heuristic sequence.
+        This method provides a simplified interface for calling tools directly from code rather
+        than through the LLM-based tool call mechanism. It's particularly useful in heuristic
+        sequences where programmatic tool calls are needed.
 
-        :param function_name: The name of the tool function to be called.
-        :param arguments: A dictionary containing the arguments to be passed to the tool function.
-        :return: The result of the tool function execution.
+        :param function_name: The name of the tool function to call.
+        :param arguments: A dictionary of arguments to pass to the tool.
+        :return: The result returned by the tool function.
         """
         ...
 
@@ -1144,23 +1319,33 @@ class ToolExecutor(Protocol):
 class ToolDependency(Protocol):
     """
     The `ToolDependency` protocol defines the interface for tool dependencies within the Diskurs framework.
-    Implementations of this protocol are responsible for managing the lifecycle of tool dependencies,
-    such as database connections or external services. This protocol ensures that any implementing class
-    can effectively handle tool dependencies and provide a mechanism for registering and accessing them.
+
+    Tool dependencies provide a way to manage shared resources that tools may need for execution.
+    Examples include:
+    - Database connection pools
+    - External API clients
+    - Configuration managers
+    - Cache systems
+
+    This approach ensures efficient resource utilization by allowing multiple tools to share
+    the same underlying resources rather than creating new connections for each tool call.
+    It also provides lifecycle management for proper resource cleanup.
     """
 
     name: str
 
-    def create(self, **kwargs) -> Self:
+    @classmethod
+    def create(cls, **kwargs) -> Self:
         """
         Creates a new instance of the tool dependency.
 
-        This method is responsible for creating a new instance of the tool dependency
-        based on the provided keyword arguments. It ensures that the dependency is
-        properly initialized and ready for use by the tool executor.
+        This factory method is responsible for creating and properly initializing a new
+        instance of the tool dependency with the provided configuration. It handles any
+        setup tasks such as establishing connections, loading configurations, or initializing
+        resources.
 
-        :param kwargs: Additional keyword arguments used to configure the tool dependency.
-        :return: An instance of the tool dependency.
+        :param kwargs: Configuration parameters for the dependency.
+        :return: A properly initialized instance of the tool dependency.
         """
         ...
 
@@ -1168,9 +1353,9 @@ class ToolDependency(Protocol):
         """
         Closes the tool dependency and releases any associated resources.
 
-        This method is responsible for closing the tool dependency and releasing any
-        resources that are associated with it. It ensures that the dependency is properly
-        cleaned up and ready for disposal.
+        This method ensures proper cleanup of resources when the tool dependency is no longer
+        needed. This might include closing database connections, freeing memory, or releasing
+        other system resources.
 
         :return: None
         """
