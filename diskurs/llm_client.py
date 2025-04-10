@@ -126,9 +126,7 @@ class BaseOaiApiLLMClient(LLMClient):
             **tool_call_id,
         }
 
-    def count_tokens_tool_responses(
-        self, total_tokens, user_prompt_tool_responses
-    ) -> tuple[int, list[tuple[ChatMessage, int]]]:
+    def count_tokens_tool_responses(self, user_prompt_tool_responses) -> tuple[int, list[tuple[ChatMessage, int]]]:
         # Ensure user_prompt_tool_responses is iterable
         if not isinstance(user_prompt_tool_responses, list):
             user_prompt_tool_responses = [user_prompt_tool_responses]
@@ -227,7 +225,10 @@ class BaseOaiApiLLMClient(LLMClient):
         """
         if isinstance(conversation.user_prompt, list):
             return any(msg.role == Role.TOOL for msg in conversation.user_prompt)
-        return False
+        elif isinstance(conversation.user_prompt, ChatMessage):
+            return conversation.user_prompt.role == Role.TOOL
+        else:
+            raise ValueError("Invalid user prompt type. Expected list or ChatMessage.")
 
     def format_messages_for_llm(self, conversation, message_type):
         messages = []
@@ -269,7 +270,7 @@ class BaseOaiApiLLMClient(LLMClient):
         tokens_in_conversation = self.count_tokens_in_conversation(messages)
 
         if (tokens_in_conversation + n_tokens_tool_descriptions) > self.max_tokens:
-            n_tokens_tool_response, _ = self.count_tokens_tool_responses(self.max_tokens, conversation.user_prompt)
+            n_tokens_tool_response, _ = self.count_tokens_tool_responses(conversation.user_prompt)
             if (
                 self.is_last_msg_tool_response(conversation)
                 and n_tokens_tool_response > self.max_tokens // TOOL_RESPONSE_MAX_FRACTION

@@ -93,7 +93,7 @@ class ImmutableConversation(Conversation):
         return self._system_prompt
 
     @property
-    def user_prompt(self) -> ChatMessage:
+    def user_prompt(self) -> ChatMessage | list[ChatMessage]:
         return self._user_prompt
 
     @property

@@ -350,10 +350,10 @@ def test_format_conversation_truncates_tool_responses(llm_client):
     from diskurs import ImmutableConversation
 
     # Force truncation by setting a low max_tokens
-    llm_client.max_tokens = 150
+    llm_client.max_tokens = 120
     # Create two tool response messages with large content
-    tool_msg1 = ChatMessage(role=Role.TOOL, content="x" * 3000, tool_call_id="tool1")
-    tool_msg2 = ChatMessage(role=Role.TOOL, content="y" * 3000, tool_call_id="tool2")
+    tool_msg1 = ChatMessage(role=Role.TOOL, content="x" * 300, tool_call_id="tool1")
+    tool_msg2 = ChatMessage(role=Role.TOOL, content="y" * 300, tool_call_id="tool2")
 
     chat_history = [
         ChatMessage(role=Role.USER, content="What should I do next?"),

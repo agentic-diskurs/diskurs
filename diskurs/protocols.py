@@ -453,7 +453,7 @@ class Conversation(Protocol[PromptArg]):
         ...
 
     @property
-    def user_prompt(self) -> Optional[ChatMessage]:
+    def user_prompt(self) -> Optional[ChatMessage | list[ChatMessage]]:
         """
         Returns the current user prompt.
 
