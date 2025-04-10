@@ -127,7 +127,6 @@ class BaseOaiApiLLMClient(LLMClient):
         }
 
     def count_tokens_tool_responses(self, user_prompt_tool_responses) -> tuple[int, list[tuple[ChatMessage, int]]]:
-        # Ensure user_prompt_tool_responses is iterable
         if not isinstance(user_prompt_tool_responses, list):
             user_prompt_tool_responses = [user_prompt_tool_responses]
 
@@ -138,7 +137,6 @@ class BaseOaiApiLLMClient(LLMClient):
                 tool_tokens = self.count_tokens(str(msg.content))
                 tool_responses.append((msg, tool_tokens))
                 tool_responses_tokens += tool_tokens
-        tool_responses.sort(key=lambda x: x[1], reverse=True)
 
         return tool_responses_tokens, tool_responses
 
@@ -150,83 +148,223 @@ class BaseOaiApiLLMClient(LLMClient):
         truncated_tokens = tokens[:max_tokens]
         return self.tokenizer.decode(truncated_tokens)
 
+    def water_filling_truncate_responses(
+        self, tool_responses_with_counts, total_allowed_tokens, truncation_message: str = "\n[Response truncated]"
+    ):
+        """
+        Given a list of tuples (message, token_count), return a new list of messages where the
+        token counts have been reduced using a water-filling / iterative thresholding approach
+        to meet a total_allowed_tokens budget.
+
+        This function doesn't directly alter the text. It assumes that you have a function
+        like _truncate_text(content, new_token_count) that returns a version of the content
+        limited to new_token_count tokens.
+
+        :param tool_responses_with_counts: List of tuples (ChatMessage, token_count)
+        :param total_allowed_tokens: The total number of tokens allowed after reduction
+        :param truncation_message: Message to append to truncated responses
+        :return: List of truncated ChatMessages
+        """
+        truncated_responses_token_count = self.count_tokens(truncation_message)
+        min_message_tokens = 5  # Minimum tokens to keep a message meaningful
+
+        # Sort responses by token count (largest first)
+        sorted_responses = sorted(tool_responses_with_counts, key=lambda x: x[1], reverse=True)
+
+        total_tokens = sum(token_count for _, token_count in sorted_responses)
+        excess = total_tokens - total_allowed_tokens
+
+        # If within limit, no need to truncate.
+        if excess <= 0:
+            return [msg for msg, _ in sorted_responses]
+
+        # Special case: protect very small messages from truncation
+        original_tokens = [token_count for _, token_count in sorted_responses]
+        very_small_indices = [i for i, count in enumerate(original_tokens) if count <= min_message_tokens]
+        very_small_tokens = sum(original_tokens[i] for i in very_small_indices)
+
+        # For minimal truncation scenario, consider preserving the smallest message as well
+        if excess < total_tokens * 0.1:  # If we need to truncate less than 10%
+            if len(sorted_responses) > 1 and not very_small_indices:
+                # Add the smallest message to the protected list if it's not already there
+                smallest_idx = len(sorted_responses) - 1
+                very_small_indices.append(smallest_idx)
+                very_small_tokens += original_tokens[smallest_idx]
+
+        # Adjust the total allowed tokens to account for preserving very small messages
+        remaining_allowed = total_allowed_tokens - very_small_tokens if very_small_tokens > 0 else total_allowed_tokens
+
+        # If remaining allowed tokens is negative, we have to truncate something
+        if remaining_allowed <= 0:
+            # In this extreme case, preserve just the smallest message
+            if very_small_indices:
+                smallest_idx = max(very_small_indices)  # Get the smallest message index
+                preserved_tokens = original_tokens[smallest_idx]
+                remaining_allowed = total_allowed_tokens - preserved_tokens
+                # Remove all other small indices except the smallest one
+                very_small_indices = [smallest_idx]
+            else:
+                remaining_allowed = total_allowed_tokens
+
+        # Create a list to hold the new token allocations
+        # Initially, each response is allocated its original token count
+        new_token_alloc = list(original_tokens)
+
+        # Remove small messages from the waterfall calculation
+        remaining_indices = [i for i in range(len(sorted_responses)) if i not in very_small_indices]
+        if not remaining_indices:
+            # All messages are very small, can't do waterfall algorithm
+            return [msg for msg, _ in sorted_responses]
+
+        remaining_excess = excess - (total_tokens - very_small_tokens - remaining_allowed)
+
+        # If remaining excess is negative, we've already solved the problem by preserving small messages
+        if remaining_excess <= 0:
+            truncated_messages = []
+            for idx, (message, original_token_count) in enumerate(sorted_responses):
+                if idx in very_small_indices:
+                    # Keep small messages as they are
+                    truncated_messages.append(message)
+                else:
+                    # Truncate larger messages
+                    new_limit = max(1, remaining_allowed // len(remaining_indices))
+                    truncated_text = self._truncate_text(
+                        str(message.content), new_limit - truncated_responses_token_count
+                    )
+                    content = f"{truncated_text}{truncation_message}"
+                    truncated_message = ChatMessage(
+                        role=message.role,
+                        content=content,
+                        type=message.type,
+                        name=message.name,
+                        tool_call_id=message.tool_call_id,
+                    )
+                    truncated_messages.append(truncated_message)
+            return truncated_messages
+
+        # Apply waterfall algorithm only to non-small messages
+        i = 0  # Start with the largest message
+        while remaining_excess > 0 and i < len(remaining_indices):
+            group_start_idx = i
+            current_idx = remaining_indices[i]
+            current_count = new_token_alloc[current_idx]
+
+            # Find group of equal-sized messages
+            while i < len(remaining_indices) and new_token_alloc[remaining_indices[i]] == current_count:
+                i += 1
+
+            group_end_idx = i  # The group is [group_start_idx, group_end_idx)
+            group_indices = remaining_indices[group_start_idx:group_end_idx]
+            group_size = len(group_indices)
+
+            # Determine the next lower level among remaining responses
+            if i < len(remaining_indices):
+                next_idx = remaining_indices[i]
+                next_level = new_token_alloc[next_idx]
+            else:
+                # Don't go below minimum meaningful token count
+                next_level = min_message_tokens + truncated_responses_token_count
+
+            # Maximum tokens that can be removed without reducing below next level
+            potential_removal_per_message = current_count - next_level
+            total_possible_removal = potential_removal_per_message * group_size
+
+            if total_possible_removal <= remaining_excess:
+                # Remove the full potential amount from each message in the group
+                for idx in group_indices:
+                    new_token_alloc[idx] -= potential_removal_per_message
+                remaining_excess -= total_possible_removal
+            else:
+                # Not enough excess to remove down to next_level
+                # Remove an equal share from each message
+                removal_each = remaining_excess // group_size
+                remainder = remaining_excess % group_size
+
+                for j, idx in enumerate(group_indices):
+                    new_token_alloc[idx] -= removal_each
+                    if j < remainder:  # Distribute remainder evenly
+                        new_token_alloc[idx] -= 1
+
+                remaining_excess = 0  # Budget exhausted
+
+        # Create truncated messages with the new token allocations
+        truncated_messages = []
+        for idx, (message, original_token_count) in enumerate(sorted_responses):
+            original_content = str(message.content)
+
+            if idx in very_small_indices:
+                # Keep small messages as they are
+                truncated_messages.append(message)
+                continue
+
+            new_limit = new_token_alloc[idx]
+            was_truncated = new_limit < original_token_count
+
+            # Ensure we have enough tokens for meaningful content plus truncation message
+            if was_truncated:
+                if new_limit <= truncated_responses_token_count + 1:
+                    # If allocation is too small, just keep a minimal part of the message
+                    truncated_text = self._truncate_text(original_content, min_message_tokens)
+                else:
+                    truncated_text = self._truncate_text(original_content, new_limit - truncated_responses_token_count)
+                content = f"{truncated_text}{truncation_message}"
+            else:
+                content = original_content
+
+            truncated_message = ChatMessage(
+                role=message.role,
+                content=content,
+                type=message.type,
+                name=message.name,
+                tool_call_id=message.tool_call_id,
+            )
+            truncated_messages.append(truncated_message)
+
+        return truncated_messages
+
     def truncate_tool_responses(
-        self, user_prompt_tool_responses: list[ChatMessage], total_tokens: int
+        self, tool_responses: ChatMessage | list[ChatMessage], fraction: int = 2
     ) -> list[ChatMessage]:
         """
-        Truncate all tool responses such that the combined tokens of the responses and total_tokens
-        is less than self.max_tokens.
+        Truncates tool responses to fit within the maximum token limit.
+        We first obtain the token count for each tool response sorted by size.
+        Then we truncate the largest tool responses until we fit within the limit.
+        We intelligently estimate the number of tokens that can be removed in each turn.
+        :param tool_responses: The tool responses to truncate
+        :param fraction: The fraction the tool response should be reduced by in relation to the max tokens
         """
-        available = self.max_tokens - total_tokens
-        marker = "[Content truncated due to token limits...]"
-        marker_tokens = self.count_tokens(marker)
-        min_content_tokens = 10  # Minimum tokens of original content to preserve
+        _, tool_responses_with_counts = self.count_tokens_tool_responses(user_prompt_tool_responses=tool_responses)
+        total_allowed_tokens = self.max_tokens // fraction
+        return self.water_filling_truncate_responses(
+            tool_responses_with_counts=tool_responses_with_counts, total_allowed_tokens=total_allowed_tokens
+        )
 
-        # Add a small buffer to ensure we stay under the limit, even with encoding differences
-        buffer_tokens = 1
-        effective_available = max(0, available - buffer_tokens)
+    def should_truncate_tool_response(self, tool_responses: ChatMessage | list[ChatMessage], fraction=4) -> bool:
+        """
+        Determine if we should attempt to truncate a tool response as a first strategy.
+        Only applies when over token limits and the tool responses contain significant tokens.
 
-        # If no available tokens, replace every response with the marker
-        if effective_available <= 0:
-            for msg in user_prompt_tool_responses:
-                msg.content = marker
-            return user_prompt_tool_responses
+        :param tool_responses: The tool response messages to check
+        :param fraction: The fraction of max tokens to use as a threshold for truncation
+        :return: True if the tool responses contain enough tokens to make truncation worthwhile
+        """
+        if self.is_tool_response(tool_responses):
+            responses = tool_responses if isinstance(tool_responses, list) else [tool_responses]
+            total_tokens = sum(self.count_tokens(str(msg.content)) for msg in responses if msg.role == Role.TOOL)
 
-        # Calculate total tokens in tool responses.
-        total_tool_tokens = sum(self.count_tokens(msg.content) for msg in user_prompt_tool_responses)
+            return total_tokens > (self.max_tokens / fraction)
 
-        # If current responses already fit into available tokens, return them unchanged.
-        if total_tool_tokens <= effective_available:
-            return user_prompt_tool_responses
-
-        # Proportionally compute allowed tokens per message.
-        for msg in user_prompt_tool_responses:
-            orig_tokens = self.count_tokens(msg.content)
-            # Allocate tokens proportionally ensuring room for marker if truncation is needed.
-            new_max = int(orig_tokens * effective_available / total_tool_tokens)
-
-            # Ensure we have enough space for minimum content + marker
-            min_required = min_content_tokens + marker_tokens
-            if new_max < min_required:
-                new_max = min(min_required, effective_available)
-
-            # If message exceeds the allowed token count, truncate and append marker.
-            if orig_tokens > new_max:
-                # Reserve space for the marker but ensure at least min_content_tokens
-                effective_max = max(min_content_tokens, new_max - marker_tokens)
-                truncated = self._truncate_text(msg.content, effective_max)
-                msg.content = truncated + marker
-
-        # Final check to ensure we're under the limit
-        final_tokens = sum(self.count_tokens(msg.content) for msg in user_prompt_tool_responses)
-        if final_tokens > effective_available:
-            # If still over limit, do another pass with more aggressive truncation
-            over_by = final_tokens - effective_available
-            for msg in user_prompt_tool_responses:
-                if over_by <= 0:
-                    break
-                current_tokens = self.count_tokens(msg.content)
-                if current_tokens > marker_tokens + min_content_tokens:
-                    # Calculate how much to reduce this message by
-                    to_reduce = min(over_by + 1, current_tokens - marker_tokens - min_content_tokens)
-                    if to_reduce > 0:
-                        new_content_tokens = current_tokens - to_reduce - marker_tokens
-                        if new_content_tokens >= min_content_tokens:
-                            truncated = self._truncate_text(msg.content, new_content_tokens)
-                            msg.content = truncated + marker
-                            over_by -= to_reduce
-
-        return user_prompt_tool_responses
+        return False
 
     @staticmethod
-    def is_last_msg_tool_response(conversation: Conversation) -> bool:
+    def is_tool_response(user_prompt: ChatMessage | list[ChatMessage]) -> bool:
         """
         Check if the conversation contains tool responses.
         """
-        if isinstance(conversation.user_prompt, list):
-            return any(msg.role == Role.TOOL for msg in conversation.user_prompt)
-        elif isinstance(conversation.user_prompt, ChatMessage):
-            return conversation.user_prompt.role == Role.TOOL
+        if isinstance(user_prompt, list):
+            return any(msg.role == Role.TOOL for msg in user_prompt)
+        elif isinstance(user_prompt, ChatMessage):
+            return user_prompt.role == Role.TOOL
         else:
             raise ValueError("Invalid user prompt type. Expected list or ChatMessage.")
 
@@ -270,20 +408,12 @@ class BaseOaiApiLLMClient(LLMClient):
         tokens_in_conversation = self.count_tokens_in_conversation(messages)
 
         if (tokens_in_conversation + n_tokens_tool_descriptions) > self.max_tokens:
-            n_tokens_tool_response, _ = self.count_tokens_tool_responses(conversation.user_prompt)
-            if (
-                self.is_last_msg_tool_response(conversation)
-                and n_tokens_tool_response > self.max_tokens // TOOL_RESPONSE_MAX_FRACTION
-            ):
-                truncated_tool_responses = self.truncate_tool_responses(
-                    user_prompt_tool_responses=conversation.user_prompt,
-                    total_tokens=tokens_in_conversation + n_tokens_tool_descriptions,
-                )
-                # Rebuild messages by replacing tool messages with truncated versions
-                new_conversation = conversation.update(user_prompt=truncated_tool_responses)
-                messages = self.format_messages_for_llm(conversation=new_conversation, message_type=message_type)
-            else:
-                messages = self.truncate_chat_history(messages, n_tokens_tool_descriptions)
+            if self.should_truncate_tool_response(conversation.user_prompt):
+                truncated_tool_responses = self.truncate_tool_responses(tool_responses=conversation.user_prompt)
+                conversation = conversation.update(user_prompt=truncated_tool_responses)
+                messages = self.format_messages_for_llm(conversation=conversation, message_type=message_type)
+
+            messages = self.truncate_chat_history(messages, n_tokens_tool_descriptions)
 
         return {
             **formatted_tools,
