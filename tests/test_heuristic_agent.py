@@ -2,8 +2,8 @@ from unittest.mock import MagicMock, AsyncMock
 
 import pytest
 
-from conftest import MyExtendedPromptArgument
-from diskurs import Conversation, PromptArgument, ToolExecutor, ImmutableConversation
+from .conftest import MyExtendedPromptArgument
+from diskurs import Conversation, PromptArgument, ToolExecutor
 from diskurs.entities import MessageType, ChatMessage, Role
 from diskurs.heuristic_agent import HeuristicAgent, HeuristicAgentFinalizer
 from diskurs.prompt import HeuristicPrompt
@@ -67,8 +67,13 @@ def test_prepare_conversation():
 async def test_invoke(conversation):
     prompt = MagicMock()
     prompt.create_prompt_argument.return_value = conversation.prompt_argument
-    prompt.heuristic_sequence = AsyncMock()
-    prompt.render_user_template.return_value = "rendered_message"
+    mock_sequence_result = conversation.update()
+    prompt.heuristic_sequence = AsyncMock(return_value=mock_sequence_result)
+
+    # Return a proper ChatMessage instead of a string
+    prompt.render_user_template.return_value = ChatMessage(
+        role=Role.USER, content="rendered_message", type=MessageType.CONVERSATION
+    )
 
     agent = HeuristicAgent(
         name="test_agent",
@@ -84,6 +89,8 @@ async def test_invoke(conversation):
 
     prompt.create_prompt_argument.assert_called_once()
 
+    # Properly assert that the AsyncMock was awaited
+    prompt.heuristic_sequence.assert_awaited_once()
     called_conversation = prompt.heuristic_sequence.call_args[1]["conversation"]
 
     assert called_conversation.conversation_id == conversation.conversation_id
@@ -106,9 +113,18 @@ async def test_invoke_no_executor():
     # Setup
     prompt = MagicMock()
     conversation = MagicMock(spec=Conversation)
-    prompt.create_prompt_argument.return_value = MagicMock()
-    prompt.heuristic_sequence = AsyncMock()
-    prompt.render_user_template.return_value = "rendered_template"
+    prompt_arg = MagicMock()
+    prompt.create_prompt_argument.return_value = prompt_arg
+
+    # Create a mock result for the async function
+    mock_result = MagicMock()
+    mock_result.prompt_argument = prompt_arg
+    prompt.heuristic_sequence = AsyncMock(return_value=mock_result)
+
+    # Return a proper ChatMessage instead of a string
+    prompt.render_user_template.return_value = ChatMessage(
+        role=Role.USER, content="rendered_template", type=MessageType.CONVERSATION
+    )
 
     agent = HeuristicAgent(
         name="test_agent",
@@ -123,6 +139,8 @@ async def test_invoke_no_executor():
 
     prompt.create_prompt_argument.assert_called_once()
 
+    # Assert the async mock was properly awaited
+    prompt.heuristic_sequence.assert_awaited_once()
     called_args = prompt.heuristic_sequence.call_args[1]
     called_conversation = called_args["conversation"]
 

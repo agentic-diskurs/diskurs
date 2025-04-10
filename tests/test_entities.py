@@ -11,7 +11,7 @@ from diskurs.entities import (
     PromptField,
 )
 from diskurs.immutable_conversation import ImmutableConversation
-from conftest import MyLongtermMemory, MyPromptArgument, EnumPromptArgument, ChatType, Priority
+from .conftest import MyLongtermMemory, MyPromptArgument, EnumPromptArgument, ChatType, Priority
 from typing import Annotated, get_type_hints
 
 

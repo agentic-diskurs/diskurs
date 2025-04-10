@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from conftest import EnumPromptArgument, EnumLongtermMemory, ChatType, Priority
+from .conftest import EnumPromptArgument, EnumLongtermMemory, ChatType, Priority
 from diskurs import ImmutableConversation
 from diskurs.entities import Role, ChatMessage, MessageType, PromptArgument
 

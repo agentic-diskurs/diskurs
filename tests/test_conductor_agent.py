@@ -387,8 +387,12 @@ async def test_max_dispatches(conductor_cannot_finalize):
         longterm_memory=longterm_memory,
     )
 
+    # The ConductorAgent.fail method is synchronous, not async, so use regular Mock
+    conductor_cannot_finalize.prompt.fail = Mock(return_value={})
+
     await conductor_cannot_finalize.process_conversation(conversation)
 
+    # Use assert_called_once instead of assert_awaited_once
     conductor_cannot_finalize.prompt.fail.assert_called_once_with(longterm_memory)
 
 

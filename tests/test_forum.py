@@ -9,7 +9,9 @@ from diskurs.entities import DiskursInput, ChatMessage, Role, MessageType, Routi
 from diskurs.forum import Forum, ForumFactory
 from diskurs.protocols import ConversationStore, Conversation
 
-pytestmark = pytest.mark.asyncio
+# Apply asyncio mark to specific async tests rather than using global pytestmark
+# This avoids conflicts with non-async tests
+# pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
 
 
 @pytest.fixture
@@ -35,6 +37,7 @@ def forum(mock_store):
     )
 
 
+@pytest.mark.asyncio
 async def test_fetch_existing_conversation(forum, mock_store):
     """Test fetching an existing conversation with valid conversation_id"""
     input_data = DiskursInput(conversation_id="test-id", user_query="Hello")
@@ -48,6 +51,7 @@ async def test_fetch_existing_conversation(forum, mock_store):
     mock_store.fetch.assert_awaited_once_with("test-id")
 
 
+@pytest.mark.asyncio
 async def test_create_new_persistent_conversation(forum, mock_store):
     """Test creating a new conversation with conversation_id"""
     input_data = DiskursInput(conversation_id="new-id", user_query="Hello")
@@ -61,6 +65,7 @@ async def test_create_new_persistent_conversation(forum, mock_store):
     mock_store.exists.assert_awaited_once_with("new-id")
 
 
+@pytest.mark.asyncio
 async def test_create_ephemeral_conversation(forum, mock_store):
     """Test creating an ephemeral conversation without conversation_id"""
     input_data = DiskursInput(user_query="Hello")
@@ -73,6 +78,7 @@ async def test_create_ephemeral_conversation(forum, mock_store):
     mock_store.persist.assert_not_awaited()
 
 
+@pytest.mark.asyncio
 async def test_maybe_persist_with_store_and_id(mock_store):
     """Test maybe_persist with both store and conversation_id"""
     conversation = ImmutableConversation(conversation_id="test-id", conversation_store=mock_store)
@@ -82,6 +88,7 @@ async def test_maybe_persist_with_store_and_id(mock_store):
     mock_store.persist.assert_awaited_once_with(conversation)
 
 
+@pytest.mark.asyncio
 async def test_maybe_persist_without_store():
     """Test maybe_persist without store doesn't raise"""
     conversation = ImmutableConversation(conversation_id="test-id")
@@ -89,6 +96,7 @@ async def test_maybe_persist_without_store():
     await conversation.maybe_persist()
 
 
+@pytest.mark.asyncio
 async def test_maybe_persist_without_id(mock_store):
     """Test maybe_persist without conversation_id doesn't persist"""
     conversation = ImmutableConversation(conversation_store=mock_store)
@@ -98,6 +106,7 @@ async def test_maybe_persist_without_id(mock_store):
     mock_store.persist.assert_not_awaited()
 
 
+@pytest.mark.asyncio
 async def test_append_message_persists_conversation(forum, mock_store):
     """Test that appending a message triggers persistence"""
     # Setup
