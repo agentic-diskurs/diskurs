@@ -184,6 +184,7 @@ def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1_000_0
 def validate_dataclass(parsed_response: dict[str, Any], prompt_argument: Type[GenericDataclass]) -> GenericDataclass:
     """
     Validate and convert a dictionary to a dataclass instance with proper type coercion.
+    Fields annotated with prompt_field(include=False) will be skipped during validation.
 
     :param parsed_response: Dictionary from parsed JSON/response
     :param prompt_argument: Target dataclass type
@@ -196,10 +197,27 @@ def validate_dataclass(parsed_response: dict[str, Any], prompt_argument: Type[Ge
     if not is_dataclass(prompt_argument):
         raise TypeError(f"{prompt_argument} is not a valid dataclass")
 
+    # Get type hints with metadata
+    hints = get_type_hints(prompt_argument, include_extras=True)
+
     # Validate field presence
     dataclass_fields = {f.name: f for f in fields(prompt_argument)}
+
+    # Filter out fields that should not be included in validation
+    includable_fields = {}
+    for field_name, field in dataclass_fields.items():
+        field_type = hints.get(field_name)
+        # If the field has include=False, skip it
+        if (
+            field_type
+            and hasattr(field_type, "__metadata__")
+            and any(isinstance(m, PromptField) and not m.should_include() for m in field_type.__metadata__)
+        ):
+            continue
+        includable_fields[field_name] = field
+
     required_fields = {
-        f.name for f in dataclass_fields.values() if f.default is MISSING and f.default_factory is MISSING
+        f.name for f in includable_fields.values() if f.default is MISSING and f.default_factory is MISSING
     }
 
     missing_required = required_fields - parsed_response.keys()
@@ -212,14 +230,30 @@ def validate_dataclass(parsed_response: dict[str, Any], prompt_argument: Type[Ge
         if extra_fields:
             error_parts.append(f"Extra fields provided: {', '.join(extra_fields)}. Please remove them.")
 
-        valid_fields = ", ".join(dataclass_fields.keys())
+        valid_fields = ", ".join(includable_fields.keys())
         error_parts.append(f"Valid fields are: {valid_fields}.")
 
         raise PromptValidationError(" ".join(error_parts))
 
     # Convert and validate fields
     converted = {}
+
+    # First, copy any default values from the dataclass for fields we're not processing
+    default_instance = prompt_argument()
     for field_name, field in dataclass_fields.items():
+        field_type = hints.get(field_name)
+
+        # Skip fields marked with include=False if they're not in the parsed response
+        if (
+            field_type
+            and hasattr(field_type, "__metadata__")
+            and any(isinstance(m, PromptField) and not m.should_include() for m in field_type.__metadata__)
+        ):
+            # Keep the original value from the default instance
+            converted[field_name] = getattr(default_instance, field_name)
+            continue
+
+        # Skip fields not in the parsed response
         if field_name not in parsed_response:
             continue
 
