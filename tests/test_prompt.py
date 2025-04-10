@@ -16,6 +16,7 @@ from diskurs.prompt import (
     HeuristicPrompt,
     validate_json,
     BasePrompt,
+    DefaultConductorPromptArgument,
 )
 from diskurs.utils import load_template_from_package
 from tests.test_files.heuristic_agent_test_files.prompt import MyHeuristicPromptArgument
@@ -213,6 +214,58 @@ def test_validate_dataclass_mixed_boolean_values():
     assert result.is_active is False
 
 
+def test_exclude_annotated_fields_in_json_schema():
+    """Test that fields annotated with prompt_field(include=False) are excluded from JSON schema."""
+
+    @dataclass
+    class TestPromptArgWithHiddenField(PromptArgument):
+        visible_field: str = "visible"
+        hidden_field: Annotated[str, prompt_field(include=False)] = "hidden"
+
+    prompt = BasePrompt(
+        agent_description="Test Agent",
+        system_template=Template("system"),
+        user_template=Template("user"),
+        prompt_argument_class=TestPromptArgWithHiddenField,
+        json_formatting_template=Template("{{ schema | tojson }}"),
+    )
+
+    # Get rendered system template
+    system_prompt = prompt.render_system_template(name="test", prompt_argument=TestPromptArgWithHiddenField())
+
+    # Check that the hidden field is not in the JSON schema
+    assert "visible_field" in system_prompt.content
+    assert "hidden_field" not in system_prompt.content
+
+
+def test_conductor_system_template_excludes_hidden_fields():
+    """Test that ConductorPrompt's system template correctly excludes hidden fields."""
+    # Create a simple ConductorPrompt with DefaultConductorPromptArgument
+    prompt = ConductorPrompt(
+        agent_description="Test Conductor",
+        system_template=Template("Agent descriptions should not be in JSON schema"),
+        user_template=Template("user template"),
+        prompt_argument_class=DefaultConductorPromptArgument,
+        json_formatting_template=Template("Fields: {{ schema | tojson }}"),
+        can_finalize=lambda x: True,
+        finalize=lambda x: x,
+        fail=lambda x: {"error": "fail"},
+        longterm_memory=None,
+    )
+
+    # Create a prompt argument with agent_descriptions
+    prompt_arg = DefaultConductorPromptArgument(
+        agent_descriptions={"agent1": "Description 1", "agent2": "Description 2"}, next_agent="agent1"
+    )
+
+    # Get rendered system template
+    system_prompt = prompt.render_system_template(name="test_conductor", prompt_argument=prompt_arg)
+
+    # Verify that agent_descriptions is not in the JSON schema
+    assert "next_agent" in system_prompt.content
+    assert "agent_descriptions" not in system_prompt.content
+
+
 prompt_config = {
     "location": Path(__file__).parent / "test_files" / "conductor_test_files",
     "prompt_argument_class": "ConductorPromptArgument",
@@ -224,14 +277,27 @@ prompt_config = {
 
 def test_conductor_custom_system_prompt():
     prompt = ConductorPrompt.create(**prompt_config)
+    prompt_arg = prompt.prompt_argument(
+        agent_descriptions={"first_agent": "I am the first agent", "second_agent": "I am the second agent"},
+        next_agent="first_agent",
+    )
+
     rendered_system_prompt = prompt.render_system_template(
         name="test_conductor",
-        prompt_argument=prompt.prompt_argument(
-            agent_descriptions={"first_agent": "I am the first agent", "second_agen": "I am the second agent"}
-        ),
+        prompt_argument=prompt_arg,
     )
-    print(rendered_system_prompt)
+
+    # Check that the system prompt content starts correctly
     assert rendered_system_prompt.content.startswith("Custom system template")
+
+    # The JSON schema part starts after the main content, usually with ```json
+    json_schema_part = rendered_system_prompt.content.split("```json")[1]
+
+    # Check that agent_descriptions is not in the JSON schema part
+    assert "agent_descriptions" not in json_schema_part
+
+    # Ensure next_agent is in the JSON schema since it's not marked as excluded
+    assert "next_agent" in json_schema_part
 
 
 prompt_config_no_finalize = {
@@ -622,3 +688,67 @@ def test_json_formatting_with_real_llm_compiler_prompt(prompt_with_array_instanc
 
     # Make sure the result shows an array structure for execution_plan
     assert "[" in result and "]" in result
+
+
+def test_prompt_field_include_annotations():
+    """
+    Test that both include=False and include=True annotations are properly respected
+    in the JSON schema generation.
+    """
+
+    @dataclass
+    class TestPromptArgWithMixedFields(PromptArgument):
+        # Normal field (should be included by default)
+        default_field: str = "default"
+
+        # Field explicitly included
+        included_field: Annotated[str, prompt_field(include=True)] = "included"
+
+        # Field explicitly excluded
+        excluded_field: Annotated[str, prompt_field(include=False)] = "excluded"
+
+        # Field with multiple annotations, including include=False (should be excluded)
+        multi_annotated_excluded: Annotated[str, prompt_field(include=False), "other annotation"] = "multi-excluded"
+
+        # Field with multiple annotations, including include=True (should be included)
+        multi_annotated_included: Annotated[str, "other annotation", prompt_field(include=True)] = "multi-included"
+
+    prompt = BasePrompt(
+        agent_description="Test Agent",
+        system_template=Template("Testing include annotations"),
+        user_template=Template("user template"),
+        prompt_argument_class=TestPromptArgWithMixedFields,
+        json_formatting_template=Template("{{ schema | tojson }}"),
+    )
+
+    # Get rendered system template
+    system_prompt = prompt.render_system_template(name="test", prompt_argument=TestPromptArgWithMixedFields())
+    content = system_prompt.content
+
+    # Fields that should be included
+    assert '"default_field"' in content
+    assert '"included_field"' in content
+    assert '"multi_annotated_included"' in content
+
+    # Fields that should be excluded
+    assert '"excluded_field"' not in content
+    assert '"multi_annotated_excluded"' not in content
+
+    # Test with a specific instance with values
+    instance = TestPromptArgWithMixedFields(
+        default_field="custom default",
+        included_field="custom included",
+        excluded_field="custom excluded",
+        multi_annotated_excluded="custom multi-excluded",
+        multi_annotated_included="custom multi-included",
+    )
+
+    system_prompt = prompt.render_system_template(name="test", prompt_argument=instance)
+    content = system_prompt.content
+
+    # Verify the same behavior with an instance with values
+    assert '"default_field"' in content
+    assert '"included_field"' in content
+    assert '"multi_annotated_included"' in content
+    assert '"excluded_field"' not in content
+    assert '"multi_annotated_excluded"' not in content

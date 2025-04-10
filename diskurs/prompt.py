@@ -1,13 +1,13 @@
 import json
 import logging
 import re
-from dataclasses import MISSING, asdict, dataclass, field, fields, is_dataclass
+from dataclasses import MISSING, asdict, dataclass, fields, is_dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional, Self, Type, TypeVar, Union, get_type_hints
+from typing import Annotated, Any, Callable, Optional, Self, Type, TypeVar, Union, get_type_hints
 
 from jinja2 import Environment, FileSystemLoader, Template
 
-from diskurs.entities import ChatMessage, MessageType, PromptArgument, PromptField, Role
+from diskurs.entities import ChatMessage, MessageType, PromptArgument, PromptField, Role, prompt_field
 from diskurs.errors import PromptValidationError
 from diskurs.protocols import CallTool
 from diskurs.protocols import ConductorPrompt as ConductorPromptProtocol
@@ -391,7 +391,21 @@ class BasePrompt(PromptProtocol):
         content = self.system_template.render(**asdict(prompt_argument))
 
         if self.return_json:
-            content += "\n" + self.render_json_formatting_prompt(asdict(self.prompt_argument()))
+            # Get type hints with metadata to check for include=False fields
+            hints = get_type_hints(self.prompt_argument, include_extras=True)
+
+            # Filter out fields that have include=False annotation
+            filtered_fields = {}
+            for key, value in asdict(self.prompt_argument()).items():
+                hint = hints.get(key)
+                if (
+                    hint is None
+                    or not hasattr(hint, "__metadata__")
+                    or any(isinstance(m, PromptField) and m.should_include() for m in hint.__metadata__)
+                ):
+                    filtered_fields[key] = value
+
+            content += "\n" + self.render_json_formatting_prompt(filtered_fields)
 
         return ChatMessage(role=Role.SYSTEM, name=name, content=content)
 
@@ -481,10 +495,13 @@ class BasePrompt(PromptProtocol):
         # Filter fields based on PromptField annotations
         included_fields = {}
         for key in prompt_args.keys():
-            if not hasattr(hints.get(key, None), "__metadata__") or any(
-                isinstance(m, PromptField) and m.should_include() for m in hints[key].__metadata__
+            hint = hints.get(key)
+            if (
+                hint is None
+                or not hasattr(hint, "__metadata__")
+                or any(isinstance(m, PromptField) and m.should_include() for m in hint.__metadata__)
             ):
-                field_type = hints.get(key, None) if key in hints else None
+                field_type = hints.get(key, None)  # Safely access key in hints dict
                 included_fields[key] = field_type
 
         # Generate schema for the fields
@@ -603,7 +620,7 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
 
 @dataclass
 class DefaultConductorPromptArgument(PromptArgument):
-    agent_descriptions: Optional[dict[str, str]] = field(default_factory=dict)
+    agent_descriptions: Annotated[Optional[dict[str, str]], prompt_field(include=False)] = None
     next_agent: Optional[str] = None
 
 
