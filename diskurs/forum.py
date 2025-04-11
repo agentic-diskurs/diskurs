@@ -84,6 +84,7 @@ class Forum:
                 prompt_argument=ForumPromptArgument(user_query=diskurs_input.user_query),
             )
 
+        # Remove if safe
         if diskurs_input.user_query:
             conversation = conversation.append(
                 ChatMessage(

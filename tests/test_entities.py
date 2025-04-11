@@ -9,6 +9,9 @@ from diskurs.entities import (
     Role,
     prompt_field,
     PromptField,
+    AccessMode,
+    PromptField2,
+    prompt_field2,
 )
 from diskurs.immutable_conversation import ImmutableConversation
 from .conftest import MyLongtermMemory, MyPromptArgument, EnumPromptArgument, ChatType, Priority
@@ -301,3 +304,97 @@ class TestEnumSerialization:
         # Invalid numeric value
         with pytest.raises(ValueError):
             EnumPromptArgument.from_dict({"priority": 99})
+
+
+def test_access_mode_enum():
+    """Test the AccessMode enum values and string representation"""
+    assert AccessMode.INPUT.value == "input"
+    assert AccessMode.OUTPUT.value == "output"
+    assert AccessMode.LOCKED.value == "locked"
+
+    assert str(AccessMode.INPUT) == "input"
+    assert str(AccessMode.OUTPUT) == "output"
+    assert str(AccessMode.LOCKED) == "locked"
+
+    # Test enum from string value
+    assert AccessMode("input") == AccessMode.INPUT
+    assert AccessMode("output") == AccessMode.OUTPUT
+    assert AccessMode("locked") == AccessMode.LOCKED
+
+
+def test_prompt_field2_creation():
+    """Test creating a PromptField2 directly"""
+    # Test default (OUTPUT mode)
+    field = prompt_field2()
+    assert isinstance(field, PromptField2)
+    assert field.access_mode == AccessMode.OUTPUT
+    assert field.should_include() is True  # OUTPUT mode should be included (backward compatibility)
+    assert field.is_output() is True
+    assert field.is_input() is False
+    assert field.is_locked() is False
+
+    # Test INPUT mode
+    field = prompt_field2(mode=AccessMode.INPUT)
+    assert field.access_mode == AccessMode.INPUT
+    assert field.should_include() is False  # INPUT mode should not be included (backward compatibility)
+    assert field.is_output() is False
+    assert field.is_input() is True
+    assert field.is_locked() is False
+
+    # Test LOCKED mode
+    field = prompt_field2(mode=AccessMode.LOCKED)
+    assert field.access_mode == AccessMode.LOCKED
+    assert field.should_include() is False  # LOCKED mode should not be included in output
+    assert field.is_output() is False
+    assert field.is_input() is False
+    assert field.is_locked() is True
+
+
+def test_prompt_field2_str_representation():
+    """Test string representation of PromptField2"""
+    field = prompt_field2(mode=AccessMode.INPUT)
+    assert str(field) == "PromptField2(access_mode=AccessMode.INPUT)"
+
+    field = prompt_field2(mode=AccessMode.OUTPUT)
+    assert str(field) == "PromptField2(access_mode=AccessMode.OUTPUT)"
+
+    field = prompt_field2(mode=AccessMode.LOCKED)
+    assert str(field) == "PromptField2(access_mode=AccessMode.LOCKED)"
+
+
+def test_prompt_field2_in_dataclass():
+    """Test PromptField2 within a dataclass"""
+
+    @dataclass
+    class TestPromptArg2(PromptArgument):
+        # Default field (no annotation)
+        default_field: str = "default"
+        # Field with OUTPUT mode (equivalent to include=True)
+        output_field: Annotated[str, prompt_field2(mode=AccessMode.OUTPUT)] = "output"
+        # Field with INPUT mode (equivalent to include=False)
+        input_field: Annotated[str, prompt_field2(mode=AccessMode.INPUT)] = "input"
+        # Field with LOCKED mode (new functionality)
+        locked_field: Annotated[str, prompt_field2(mode=AccessMode.LOCKED)] = "locked"
+
+    # Create an instance and get type hints
+    instance = TestPromptArg2()
+    hints = get_type_hints(TestPromptArg2, include_extras=True)
+
+    # Check OUTPUT field
+    output_meta = hints["output_field"].__metadata__[0]
+    assert isinstance(output_meta, PromptField2)
+    assert output_meta.access_mode == AccessMode.OUTPUT
+    assert output_meta.should_include() is True
+
+    # Check INPUT field
+    input_meta = hints["input_field"].__metadata__[0]
+    assert isinstance(input_meta, PromptField2)
+    assert input_meta.access_mode == AccessMode.INPUT
+    assert input_meta.should_include() is False
+
+    # Check LOCKED field
+    locked_meta = hints["locked_field"].__metadata__[0]
+    assert isinstance(locked_meta, PromptField2)
+    assert locked_meta.access_mode == AccessMode.LOCKED
+    assert locked_meta.is_locked() is True
+    assert locked_meta.should_include() is False

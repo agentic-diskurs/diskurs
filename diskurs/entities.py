@@ -5,6 +5,20 @@ from enum import Enum
 from typing import Annotated, Any, Callable, Optional, TypeVar, Union, get_args, get_origin
 
 
+class AccessMode(Enum):
+    """
+    Enumeration representing different access modes or states for fields.
+    """
+
+    INPUT = "input"  # Field accepts user input (formerly include=False)
+    OUTPUT = "output"  # Field displays output only (formerly include=True)
+    LOCKED = "locked"  # Field is locked/unchangeable
+
+    def __str__(self):
+        """Return the value of the enum member."""
+        return self.value
+
+
 @dataclass
 class JsonSerializable:
     def to_dict(self):
@@ -207,6 +221,104 @@ def prompt_field(*, include: bool = True) -> Any:
         ...     internal_field: Annotated[str, prompt_field(include=False)] = ""
     """
     return PromptField(include=include)
+
+
+class PromptField2:
+    """
+    Enhanced metadata class for controlling field behavior in prompt generation.
+    This class uses AccessMode enum to provide more granular control over how fields
+    should be handled during prompt generation and updating.
+
+    :param access_mode: Mode determining how the field is accessed.
+                        INPUT: Field accepts user input (formerly include=False)
+                        OUTPUT: Field displays output only (formerly include=True)
+                        LOCKED: Field is locked/unchangeable
+                        Defaults to OUTPUT.
+
+    Example:
+        >>> @dataclass
+        >>> class MyPrompt(PromptArgument):
+        ...     # Field will be included in output (formerly include=True)
+        ...     visible_field: Annotated[str, prompt_field(mode=AccessMode.OUTPUT)] = ""
+        ...     # Field will accept input (formerly include=False)
+        ...     editable_field: Annotated[str, prompt_field(mode=AccessMode.INPUT)] = ""
+        ...     # Field cannot be changed once set
+        ...     locked_field: Annotated[str, prompt_field(mode=AccessMode.LOCKED)] = ""
+    """
+
+    def __init__(self, access_mode: AccessMode = AccessMode.OUTPUT) -> None:
+        """
+        Initialize a new PromptField2 instance.
+
+        :param access_mode: Mode determining how the field is accessed (INPUT, OUTPUT, or LOCKED).
+        """
+        self.access_mode = access_mode
+
+    def __repr__(self) -> str:
+        """
+        Return string representation of the PromptField.
+
+        :return: String representation showing access mode.
+        """
+        return f"PromptField2(access_mode=AccessMode.{self.access_mode.name})"
+
+    def should_include(self) -> bool:
+        """
+        Determine if the field should be included in prompt generation.
+        For backward compatibility: OUTPUT = include=True, INPUT = include=False
+
+        :returns: True if the field should be included in output, False otherwise.
+        """
+        return self.access_mode == AccessMode.OUTPUT
+
+    def is_input(self) -> bool:
+        """
+        Determine if the field accepts input.
+
+        :returns: True if the field accepts input, False otherwise.
+        """
+        return self.access_mode == AccessMode.INPUT
+
+    def is_output(self) -> bool:
+        """
+        Determine if the field is output only.
+
+        :returns: True if the field is output only, False otherwise.
+        """
+        return self.access_mode == AccessMode.OUTPUT
+
+    def is_locked(self) -> bool:
+        """
+        Determine if the field is locked/unchangeable.
+
+        :returns: True if the field is locked, False otherwise.
+        """
+        return self.access_mode == AccessMode.LOCKED
+
+
+def prompt_field2(*, mode: AccessMode = AccessMode.OUTPUT) -> Any:
+    """
+    Enhanced decorator function to create a PromptField2 annotation with AccessMode.
+
+    :param mode: Mode determining how the field is accessed.
+                 INPUT: Field accepts user input (formerly include=False)
+                 OUTPUT: Field displays output only (formerly include=True)
+                 LOCKED: Field is locked/unchangeable
+                 Defaults to OUTPUT.
+
+    :returns: Any: A PromptField2 instance wrapped in Annotated.
+
+    Example:
+        >>> @dataclass
+        >>> class MyPrompt(PromptArgument):
+        ...     # Field will be included in output
+        ...     visible_field: Annotated[str, prompt_field2(mode=AccessMode.OUTPUT)] = ""
+        ...     # Field will accept input
+        ...     editable_field: Annotated[str, prompt_field2(mode=AccessMode.INPUT)] = ""
+        ...     # Field cannot be changed once set
+        ...     locked_field: Annotated[str, prompt_field2(mode=AccessMode.LOCKED)] = ""
+    """
+    return PromptField2(access_mode=mode)
 
 
 @dataclass
