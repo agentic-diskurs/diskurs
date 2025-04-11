@@ -34,8 +34,8 @@ class AzureOpenAIClient(BaseOaiApiLLMClient):
 
         if use_entra_id:
             client_params["azure_ad_token_provider"] = get_bearer_token_provider(
-                DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-            )
+                DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"  # type: ignore
+            )  # type: ignore # noqa
         else:
             client_params["api_key"] = api_key
 

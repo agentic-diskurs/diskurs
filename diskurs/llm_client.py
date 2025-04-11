@@ -30,7 +30,7 @@ class BaseOaiApiLLMClient(LLMClient):
         self,
         client: AsyncOpenAI,
         model: str,
-        tokenizer: Callable[[str], int],
+        tokenizer: Callable[[str], int] | tiktoken.Encoding,
         max_tokens: int,
         max_repeat: int = 3,
     ):

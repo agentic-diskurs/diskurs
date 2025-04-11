@@ -134,8 +134,8 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
 
                 parsed_response = self.prompt.parse_user_prompt(
                     self.name,
-                    llm_response=response.last_message.content,
-                    old_prompt_argument=response.prompt_argument,
+                    llm_response=response.last_message.content or "",
+                    old_prompt_argument=response.prompt_argument or self.prompt.create_prompt_argument(),
                     message_type=message_type,
                 )
 

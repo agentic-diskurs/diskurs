@@ -65,9 +65,9 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         name: str,
         **kwargs,
     ) -> Self:
-        prompt = kwargs.get("prompt")
-        llm_client = kwargs.get("llm_client")
-        agent_descriptions = kwargs.get("agent_descriptions")
+        prompt = kwargs["prompt"]
+        llm_client = kwargs["llm_client"]
+        agent_descriptions = kwargs["agent_descriptions"]
         finalizer_name = kwargs.get("finalizer_name", None)
         can_finalize_name = kwargs.get("can_finalize_name", None)
         supervisor = kwargs.get("supervisor", None)
@@ -128,32 +128,40 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
     def create_or_update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation:
         longterm_memory = conversation.get_agent_longterm_memory(self.name) or self.prompt.init_longterm_memory()
-
-        source = (
-            conversation.get_agent_longterm_memory(conversation.last_message.name)
-            if is_previous_agent_conductor(conversation)
-            else conversation.prompt_argument
-        )
-
-        if source:
-            longterm_memory = self.update_longterm_memory(source, longterm_memory, overwrite)
-        else:
-            self.logger.warning(
-                f"No suitable user prompt argument nor long-term memory found in conversation {conversation}"
+        if agent_name := conversation.last_message.name:
+            source = (
+                conversation.get_agent_longterm_memory(agent_name)
+                if is_previous_agent_conductor(conversation)
+                else conversation.prompt_argument
             )
 
-        return conversation.update_agent_longterm_memory(agent_name=self.name, longterm_memory=longterm_memory)
+            if source:
+                longterm_memory = self.update_longterm_memory(source, longterm_memory, overwrite)
+            else:
+                self.logger.warning(
+                    f"No suitable user prompt argument nor long-term memory found in conversation {conversation}"
+                )
+
+            return conversation.update_agent_longterm_memory(agent_name=self.name, longterm_memory=longterm_memory)
+        else:
+            self.logger.warning(f"No agent name found in conversation {conversation}. Cannot update long-term memory.")
+            return conversation
 
     async def add_routing_message_to_chat(self, conversation, next_agent):
-        updated_prompt = conversation.prompt_argument
-        updated_prompt.next_agent = next_agent
-        conversation = conversation.update(prompt_argument=updated_prompt)
-        # Add JSON message to conversation to ensure a consistent chat history
-        prompt_dict = asdict(updated_prompt)
-        content = json.dumps(prompt_dict)
-        return conversation.append(
-            ChatMessage(role=Role.ASSISTANT, content=content, name=self.name, type=MessageType.CONDUCTOR)
-        )
+        if updated_prompt := conversation.prompt_argument:
+            updated_prompt.next_agent = next_agent
+            conversation = conversation.update(prompt_argument=updated_prompt)
+            # Add JSON message to conversation to ensure a consistent chat history
+            prompt_dict = asdict(updated_prompt)
+            content = json.dumps(prompt_dict)
+            return conversation.append(
+                ChatMessage(role=Role.ASSISTANT, content=content, name=self.name, type=MessageType.CONDUCTOR)
+            )
+        else:
+            self.logger.error(
+                f"Prompt argument is None for conversation {conversation}. Cannot add routing message to chat."
+            )
+            raise ValueError("Prompt argument is None")
 
     async def invoke(
         self, conversation: Conversation, message_type=MessageType.CONVERSATION, reset_prompt=True
