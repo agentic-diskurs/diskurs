@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Annotated, Optional
 from diskurs import PromptArgument
-from diskurs.entities import JsonSerializable, prompt_field
+from diskurs.entities import AccessMode, JsonSerializable, prompt_field
 
 
 @dataclass(kw_only=True)
@@ -27,4 +27,4 @@ class ParallelMultiStepUserPrompt(PromptArgument):
     urls: Optional[list[str] | str] = None
     list_name: Optional[str] = None
     action: Optional[str] = None
-    instructions: Annotated[list[URLInstruction], prompt_field(include=False)] = field(default_factory=list)
+    instructions: Annotated[list[URLInstruction], prompt_field(mode=AccessMode.INPUT)] = field(default_factory=list)
