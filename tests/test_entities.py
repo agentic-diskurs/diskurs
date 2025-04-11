@@ -7,11 +7,8 @@ from diskurs.entities import (
     JsonSerializable,
     ChatMessage,
     Role,
-    prompt_field,
-    PromptField,
     AccessMode,
-    PromptField2,
-    prompt_field2,
+    prompt_field,
 )
 from diskurs.immutable_conversation import ImmutableConversation
 from .conftest import MyLongtermMemory, MyPromptArgument, EnumPromptArgument, ChatType, Priority
@@ -135,88 +132,134 @@ def test_prompt_argument_to_dict():
 
 
 @dataclass
-class PromptFieldTestDataclass(PromptArgument):
-    # Test different field configurations
-    visible_field: str = "visible"
-    hidden_field: Annotated[str, prompt_field(include=False)] = "hidden"
-    default_visible: Annotated[str, prompt_field()] = "default visible"
+class AccessModeTestDataclass(PromptArgument):
+    # Test different access mode configurations
+    output_field: Annotated[str, prompt_field(mode=AccessMode.OUTPUT)] = "output"
+    input_field: Annotated[str, prompt_field(mode=AccessMode.INPUT)] = "input"
+    locked_field: Annotated[str, prompt_field(mode=AccessMode.LOCKED)] = "locked"
+    default_field: str = "default"  # No annotation, should behave like OUTPUT
+
+
+def test_access_mode_enum():
+    """Test the AccessMode enum values and string representation"""
+    assert AccessMode.INPUT.value == "input"
+    assert AccessMode.OUTPUT.value == "output"
+    assert AccessMode.LOCKED.value == "locked"
+
+    assert str(AccessMode.INPUT) == "input"
+    assert str(AccessMode.OUTPUT) == "output"
+    assert str(AccessMode.LOCKED) == "locked"
+
+    # Test enum from string value
+    assert AccessMode("input") == AccessMode.INPUT
+    assert AccessMode("output") == AccessMode.OUTPUT
+    assert AccessMode("locked") == AccessMode.LOCKED
 
 
 def test_prompt_field_creation():
-    # Test creating a PromptField directly
-    field = prompt_field(include=True)
-    assert isinstance(field, PromptField)
-    assert field.include is True
-
-    field = prompt_field(include=False)
-    assert isinstance(field, PromptField)
-    assert field.include is False
-
-
-def test_prompt_field_default():
-    # Test default value (include=True)
+    """Test creating prompt_field with different access modes"""
+    # Test default (OUTPUT mode)
     field = prompt_field()
-    assert field.include is True
-    assert field.should_include() is True
+    assert field.access_mode == AccessMode.OUTPUT
+    assert field.is_output() is True
+    assert field.is_input() is False
+    assert field.is_locked() is False
 
+    # Test INPUT mode
+    field = prompt_field(mode=AccessMode.INPUT)
+    assert field.access_mode == AccessMode.INPUT
+    assert field.is_output() is False
+    assert field.is_input() is True
+    assert field.is_locked() is False
 
-def test_prompt_field_in_dataclass():
-    # Test prompt fields within a dataclass
-    instance = PromptFieldTestDataclass()
-
-    # Get field metadata using typing.get_type_hints() with include_extras=True
-    hints = get_type_hints(PromptFieldTestDataclass, include_extras=True)
-
-    # Hidden field should have PromptField with include=False
-    hidden_meta = hints["hidden_field"].__metadata__[0]
-    assert isinstance(hidden_meta, PromptField)
-    assert hidden_meta.should_include() is False
-
-    # Default visible field should have PromptField with include=True
-    default_meta = hints["default_visible"].__metadata__[0]
-    assert isinstance(default_meta, PromptField)
-    assert default_meta.should_include() is True
-
-    # Regular field should not have PromptField metadata
-    assert "__metadata__" not in dir(hints["visible_field"])
+    # Test LOCKED mode
+    field = prompt_field(mode=AccessMode.LOCKED)
+    assert field.access_mode == AccessMode.LOCKED
+    assert field.is_output() is False
+    assert field.is_input() is False
+    assert field.is_locked() is True
 
 
 def test_prompt_field_str_representation():
-    field = prompt_field(include=False)
-    assert str(field) == "PromptField(include=False)"
+    """Test string representation of PromptField"""
+    field = prompt_field(mode=AccessMode.INPUT)
+    assert str(field) == "PromptField(access_mode=AccessMode.INPUT)"
 
-    field = prompt_field(include=True)
-    assert str(field) == "PromptField(include=True)"
+    field = prompt_field(mode=AccessMode.OUTPUT)
+    assert str(field) == "PromptField(access_mode=AccessMode.OUTPUT)"
+
+    field = prompt_field(mode=AccessMode.LOCKED)
+    assert str(field) == "PromptField(access_mode=AccessMode.LOCKED)"
 
 
-def test_prompt_field_should_include():
-    # Test the should_include() method directly
-    field = prompt_field(include=True)
-    assert field.should_include() is True
+def test_prompt_field_in_dataclass():
+    """Test prompt fields with AccessMode within a dataclass"""
+    instance = AccessModeTestDataclass()
 
-    field = prompt_field(include=False)
-    assert field.should_include() is False
+    # Get field metadata using typing.get_type_hints() with include_extras=True
+    hints = get_type_hints(AccessModeTestDataclass, include_extras=True)
+
+    # Check the OUTPUT field
+    output_meta = hints["output_field"].__metadata__[0]
+    assert output_meta.access_mode == AccessMode.OUTPUT
+    assert output_meta.is_output() is True
+    assert output_meta.is_input() is False
+    assert output_meta.is_locked() is False
+
+    # Check the INPUT field
+    input_meta = hints["input_field"].__metadata__[0]
+    assert input_meta.access_mode == AccessMode.INPUT
+    assert input_meta.is_output() is False
+    assert input_meta.is_input() is True
+    assert input_meta.is_locked() is False
+
+    # Check the LOCKED field
+    locked_meta = hints["locked_field"].__metadata__[0]
+    assert locked_meta.access_mode == AccessMode.LOCKED
+    assert locked_meta.is_output() is False
+    assert locked_meta.is_input() is False
+    assert locked_meta.is_locked() is True
+
+    # Regular field should not have metadata
+    assert "__metadata__" not in dir(hints["default_field"])
 
 
 def test_prompt_field_in_inheritance():
-    # Test that prompt fields work correctly with inheritance
+    """Test that AccessMode fields work correctly with inheritance"""
+
     @dataclass
-    class ChildPromptClass(PromptFieldTestDataclass):
-        child_visible: Annotated[str, prompt_field(include=True)] = "child visible"
-        child_hidden: Annotated[str, prompt_field(include=False)] = "child hidden"
+    class ChildPromptClass(AccessModeTestDataclass):
+        child_output: Annotated[str, prompt_field(mode=AccessMode.OUTPUT)] = "child output"
+        child_input: Annotated[str, prompt_field(mode=AccessMode.INPUT)] = "child input"
+        child_locked: Annotated[str, prompt_field(mode=AccessMode.LOCKED)] = "child locked"
 
     hints = get_type_hints(ChildPromptClass, include_extras=True)
 
     # Check parent class fields are preserved
-    parent_hidden_meta = hints["hidden_field"].__metadata__[0]
-    assert parent_hidden_meta.should_include() is False
+    parent_output_meta = hints["output_field"].__metadata__[0]
+    assert parent_output_meta.access_mode == AccessMode.OUTPUT
+    assert parent_output_meta.is_output() is True
+
+    parent_input_meta = hints["input_field"].__metadata__[0]
+    assert parent_input_meta.access_mode == AccessMode.INPUT
+    assert parent_input_meta.is_input() is True
+
+    parent_locked_meta = hints["locked_field"].__metadata__[0]
+    assert parent_locked_meta.access_mode == AccessMode.LOCKED
+    assert parent_locked_meta.is_locked() is True
 
     # Check child class fields
-    child_hidden_meta = hints["child_hidden"].__metadata__[0]
-    assert child_hidden_meta.should_include() is False
+    child_output_meta = hints["child_output"].__metadata__[0]
+    assert child_output_meta.access_mode == AccessMode.OUTPUT
+    assert child_output_meta.is_output() is True
 
-    child_visible_meta = hints["child_visible"].__metadata__[0]
-    assert child_visible_meta.should_include() is True
+    child_input_meta = hints["child_input"].__metadata__[0]
+    assert child_input_meta.access_mode == AccessMode.INPUT
+    assert child_input_meta.is_input() is True
+
+    child_locked_meta = hints["child_locked"].__metadata__[0]
+    assert child_locked_meta.access_mode == AccessMode.LOCKED
+    assert child_locked_meta.is_locked() is True
 
 
 class TestEnumSerialization:
@@ -306,95 +349,26 @@ class TestEnumSerialization:
             EnumPromptArgument.from_dict({"priority": 99})
 
 
-def test_access_mode_enum():
-    """Test the AccessMode enum values and string representation"""
-    assert AccessMode.INPUT.value == "input"
-    assert AccessMode.OUTPUT.value == "output"
-    assert AccessMode.LOCKED.value == "locked"
-
-    assert str(AccessMode.INPUT) == "input"
-    assert str(AccessMode.OUTPUT) == "output"
-    assert str(AccessMode.LOCKED) == "locked"
-
-    # Test enum from string value
-    assert AccessMode("input") == AccessMode.INPUT
-    assert AccessMode("output") == AccessMode.OUTPUT
-    assert AccessMode("locked") == AccessMode.LOCKED
-
-
-def test_prompt_field2_creation():
-    """Test creating a PromptField2 directly"""
-    # Test default (OUTPUT mode)
-    field = prompt_field2()
-    assert isinstance(field, PromptField2)
-    assert field.access_mode == AccessMode.OUTPUT
-    assert field.should_include() is True  # OUTPUT mode should be included (backward compatibility)
-    assert field.is_output() is True
-    assert field.is_input() is False
-    assert field.is_locked() is False
-
-    # Test INPUT mode
-    field = prompt_field2(mode=AccessMode.INPUT)
-    assert field.access_mode == AccessMode.INPUT
-    assert field.should_include() is False  # INPUT mode should not be included (backward compatibility)
-    assert field.is_output() is False
-    assert field.is_input() is True
-    assert field.is_locked() is False
-
-    # Test LOCKED mode
-    field = prompt_field2(mode=AccessMode.LOCKED)
-    assert field.access_mode == AccessMode.LOCKED
-    assert field.should_include() is False  # LOCKED mode should not be included in output
-    assert field.is_output() is False
-    assert field.is_input() is False
-    assert field.is_locked() is True
-
-
-def test_prompt_field2_str_representation():
-    """Test string representation of PromptField2"""
-    field = prompt_field2(mode=AccessMode.INPUT)
-    assert str(field) == "PromptField2(access_mode=AccessMode.INPUT)"
-
-    field = prompt_field2(mode=AccessMode.OUTPUT)
-    assert str(field) == "PromptField2(access_mode=AccessMode.OUTPUT)"
-
-    field = prompt_field2(mode=AccessMode.LOCKED)
-    assert str(field) == "PromptField2(access_mode=AccessMode.LOCKED)"
-
-
-def test_prompt_field2_in_dataclass():
-    """Test PromptField2 within a dataclass"""
+def test_access_mode_with_multiple_annotations():
+    """Test AccessMode with multiple annotations"""
 
     @dataclass
-    class TestPromptArg2(PromptArgument):
-        # Default field (no annotation)
-        default_field: str = "default"
-        # Field with OUTPUT mode (equivalent to include=True)
-        output_field: Annotated[str, prompt_field2(mode=AccessMode.OUTPUT)] = "output"
-        # Field with INPUT mode (equivalent to include=False)
-        input_field: Annotated[str, prompt_field2(mode=AccessMode.INPUT)] = "input"
-        # Field with LOCKED mode (new functionality)
-        locked_field: Annotated[str, prompt_field2(mode=AccessMode.LOCKED)] = "locked"
+    class MultiAnnotatedClass(PromptArgument):
+        # Field with multiple annotations including AccessMode
+        multi_field: Annotated[str, "description", prompt_field(mode=AccessMode.OUTPUT), "another annotation"] = "test"
 
-    # Create an instance and get type hints
-    instance = TestPromptArg2()
-    hints = get_type_hints(TestPromptArg2, include_extras=True)
+    hints = get_type_hints(MultiAnnotatedClass, include_extras=True)
 
-    # Check OUTPUT field
-    output_meta = hints["output_field"].__metadata__[0]
-    assert isinstance(output_meta, PromptField2)
-    assert output_meta.access_mode == AccessMode.OUTPUT
-    assert output_meta.should_include() is True
+    # Get all metadata
+    metadata_list = hints["multi_field"].__metadata__
 
-    # Check INPUT field
-    input_meta = hints["input_field"].__metadata__[0]
-    assert isinstance(input_meta, PromptField2)
-    assert input_meta.access_mode == AccessMode.INPUT
-    assert input_meta.should_include() is False
+    # Find the PromptField in the metadata
+    prompt_field_meta = None
+    for meta in metadata_list:
+        if hasattr(meta, "access_mode"):
+            prompt_field_meta = meta
+            break
 
-    # Check LOCKED field
-    locked_meta = hints["locked_field"].__metadata__[0]
-    assert isinstance(locked_meta, PromptField2)
-    assert locked_meta.access_mode == AccessMode.LOCKED
-    assert locked_meta.is_locked() is True
-    assert locked_meta.should_include() is False
+    assert prompt_field_meta is not None
+    assert prompt_field_meta.access_mode == AccessMode.OUTPUT
+    assert prompt_field_meta.is_output() is True

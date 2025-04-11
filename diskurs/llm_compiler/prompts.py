@@ -3,7 +3,7 @@ from typing import Annotated, Any, Optional, Self
 
 from jinja2 import Template
 
-from diskurs.entities import PromptArgument, PromptField
+from diskurs.entities import AccessMode, PromptArgument, prompt_field
 from diskurs.llm_compiler.entities import PlanStep
 from diskurs.prompt import BasePrompt, load_template
 from diskurs.registry import register_prompt
@@ -18,7 +18,7 @@ class PlanningPromptArgument(PromptArgument):
     user_query: str = ""
     execution_plan: Optional[list[PlanStep]] = field(default_factory=list)
     answer: str = ""
-    evaluate_replanning: Annotated[bool, PromptField(include=False)] = False
+    evaluate_replanning: Annotated[bool, prompt_field(mode=AccessMode.INPUT)] = False
     replan: bool = False
     replan_explanation: str = ""
 

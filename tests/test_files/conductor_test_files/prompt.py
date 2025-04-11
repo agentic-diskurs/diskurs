@@ -1,12 +1,12 @@
 from dataclasses import dataclass, asdict
 from typing import Optional, Any, Annotated
 
-from diskurs.entities import PromptArgument, LongtermMemory, prompt_field
+from diskurs.entities import PromptArgument, LongtermMemory, prompt_field, AccessMode
 
 
 @dataclass
 class ConductorPromptArgument(PromptArgument):
-    agent_descriptions: Annotated[Optional[dict[str, str]], prompt_field(include=False)] = None
+    agent_descriptions: Annotated[Optional[dict[str, str]], prompt_field(mode=AccessMode.INPUT)] = None
     content: Optional[str] = None
     next_agent: Optional[str] = None
 

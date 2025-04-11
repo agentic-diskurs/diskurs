@@ -7,7 +7,14 @@ from typing import Annotated, Any, Callable, Optional, Self, Type, TypeVar, Unio
 
 from jinja2 import Environment, FileSystemLoader, Template
 
-from diskurs.entities import ChatMessage, MessageType, PromptArgument, PromptField, Role, prompt_field
+from diskurs.entities import (
+    AccessMode,
+    ChatMessage,
+    MessageType,
+    PromptArgument,
+    Role,
+    prompt_field,
+)
 from diskurs.errors import PromptValidationError
 from diskurs.protocols import CallTool
 from diskurs.protocols import ConductorPrompt as ConductorPromptProtocol
@@ -184,8 +191,8 @@ def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1_000_0
 def validate_dataclass(parsed_response: dict[str, Any], prompt_argument: Type[GenericDataclass]) -> GenericDataclass:
     """
     Validate and convert a dictionary to a dataclass instance with proper type coercion.
-    Fields annotated with prompt_field(include=False) or prompt_field2(mode=AccessMode.INPUT)
-    will be skipped during validation.
+    Fields annotated with prompt_field(mode=AccessMode.INPUT) will be skipped during validation,
+    as these are intended to accept user input rather than be validated.
 
     :param parsed_response: Dictionary from parsed JSON/response
     :param prompt_argument: Target dataclass type
@@ -208,14 +215,10 @@ def validate_dataclass(parsed_response: dict[str, Any], prompt_argument: Type[Ge
     includable_fields = {}
     for field_name, field in dataclass_fields.items():
         field_type = hints.get(field_name)
-        # Skip if field has include=False or is marked as INPUT
+        # Skip fields marked as INPUT mode
         if field_type and hasattr(field_type, "__metadata__"):
-            # Check both PromptField and PromptField2
-            if any(
-                (isinstance(m, PromptField) and not m.should_include())
-                or (hasattr(m, "access_mode") and m.is_input())  # For PromptField2
-                for m in field_type.__metadata__
-            ):
+            # Check for PromptField with INPUT mode
+            if any(hasattr(m, "access_mode") and m.is_input() for m in field_type.__metadata__):
                 continue
         includable_fields[field_name] = field
 
@@ -246,18 +249,13 @@ def validate_dataclass(parsed_response: dict[str, Any], prompt_argument: Type[Ge
     for field_name, field in dataclass_fields.items():
         field_type = hints.get(field_name)
 
-        # Skip fields marked with include=False or INPUT/LOCKED mode if they're not in the parsed response
+        # Skip fields marked with INPUT or LOCKED mode if they're not in the parsed response
         if field_type and hasattr(field_type, "__metadata__"):
             is_excluded = False
             for m in field_type.__metadata__:
-                # Handle both PromptField and PromptField2
-                if isinstance(m, PromptField) and not m.should_include():
+                if hasattr(m, "access_mode") and not m.is_output():  # Check if not OUTPUT mode
                     is_excluded = True
                     break
-                elif hasattr(m, "access_mode"):  # Handle PromptField2
-                    if not m.is_output():  # If not OUTPUT mode (INPUT or LOCKED)
-                        is_excluded = True
-                        break
 
             if is_excluded:
                 # Keep the original value from the default instance
@@ -436,27 +434,21 @@ class BasePrompt(PromptProtocol):
         content = self.system_template.render(**asdict(prompt_argument))
 
         if self.return_json:
-            # Get type hints with metadata to check for field access modes
+            # Get type hints with metadata
             hints = get_type_hints(self.prompt_argument, include_extras=True)
 
             # Filter out fields that should not be included in output
             filtered_fields = {}
             for key, value in asdict(self.prompt_argument()).items():
                 hint = hints.get(key)
-                # Only include fields if:
-                # 1. No metadata (default include)
-                # 2. Has PromptField with include=True
-                # 3. Has PromptField2 with mode=OUTPUT
+                # Only include fields if they have no metadata or have OUTPUT mode
                 if hint is None or not hasattr(hint, "__metadata__"):
                     # No metadata, include by default
                     filtered_fields[key] = value
                 else:
-                    # Check for both PromptField and PromptField2
+                    # Check metadata for OUTPUT mode
                     for metadata in hint.__metadata__:
-                        if isinstance(metadata, PromptField) and metadata.should_include():
-                            filtered_fields[key] = value
-                            break
-                        elif hasattr(metadata, "access_mode") and metadata.is_output():
+                        if hasattr(metadata, "access_mode") and metadata.is_output():
                             filtered_fields[key] = value
                             break
 
@@ -547,7 +539,7 @@ class BasePrompt(PromptProtocol):
         # Get type hints with metadata
         hints = get_type_hints(self.prompt_argument, include_extras=True)
 
-        # Filter fields based on PromptField annotations
+        # Filter fields based on AccessMode
         included_fields = {}
         for key in prompt_args.keys():
             hint = hints.get(key)
@@ -556,18 +548,14 @@ class BasePrompt(PromptProtocol):
             # Check if field has metadata annotations
             if hint is not None and hasattr(hint, "__metadata__"):
                 include_field = False
-                # Check both PromptField and PromptField2
+                # Check for OUTPUT mode
                 for metadata in hint.__metadata__:
-                    if isinstance(metadata, PromptField) and metadata.should_include():
-                        include_field = True
-                        break
-                    # Handle PromptField2 with AccessMode
-                    elif hasattr(metadata, "access_mode") and metadata.is_output():
+                    if hasattr(metadata, "access_mode") and metadata.is_output():
                         include_field = True
                         break
 
             if include_field:
-                field_type = hints.get(key, None)  # Safely access key in hints dict
+                field_type = hints.get(key, None)
                 included_fields[key] = field_type
 
         # Generate schema for the fields
@@ -686,7 +674,7 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
 
 @dataclass
 class DefaultConductorPromptArgument(PromptArgument):
-    agent_descriptions: Annotated[Optional[dict[str, str]], prompt_field(include=False)] = None
+    agent_descriptions: Annotated[Optional[dict[str, str]], prompt_field(mode=AccessMode.INPUT)] = None
     next_agent: Optional[str] = None
 
 

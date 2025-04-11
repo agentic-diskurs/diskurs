@@ -46,7 +46,7 @@ class MyPromptArgument(PromptArgument):
 
 
 @dataclass
-class TestPromptArgument(PromptArgument):
+class MockPromptArgument(PromptArgument):
     content: str = ""
     next_agent: str = ""
 
@@ -180,14 +180,14 @@ def mock_rules():
 
 @pytest.fixture
 def mock_conversation():
-    return ImmutableConversation(prompt_argument=TestPromptArgument()).append(
+    return ImmutableConversation(prompt_argument=MockPromptArgument()).append(
         ChatMessage(role=Role.USER, content="test message", name="user")
     )
 
 
 @pytest.fixture
 def mock_conversation_with_keyword():
-    return ImmutableConversation(prompt_argument=TestPromptArgument()).append(
+    return ImmutableConversation(prompt_argument=MockPromptArgument()).append(
         ChatMessage(role=Role.USER, content="test message with keyword", name="user")
     )
 
@@ -363,14 +363,16 @@ async def test_process_conversation_finalize(conductor_agent):
     conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
 
     conductor_agent.prompt.can_finalize.return_value = True
-    conductor_agent.prompt.finalize.return_value = {"result": "final result"}
-    conductor_agent.dispatcher.finalize = Mock()
+    conductor_agent.prompt.finalize = AsyncMock(return_value={"result": "final result"})
+    conductor_agent.dispatcher.finalize = AsyncMock()
 
-    conductor_agent.generate_validated_response = Mock()
+    conductor_agent.generate_validated_response = AsyncMock()
 
-    await conductor_agent.process_conversation(conversation)
+    result = await conductor_agent.process_conversation(conversation)
 
-    assert await conversation.final_result == {"result": "final result"}
+    # Use await to get the final result
+    final_result = await result.final_result
+    assert final_result == {"result": "final result"}
     conductor_agent.generate_validated_response.assert_not_called()
 
 
@@ -570,8 +572,8 @@ async def test_invoke_with_rule_match(conductor_agent_with_rules, mock_conversat
     # Set up the prompt to properly create a prompt_argument with next_agent
     def mock_create_prompt_arg(**kwargs):
         if "next_agent" in kwargs:
-            return TestPromptArgument(next_agent=kwargs["next_agent"])
-        return TestPromptArgument()
+            return MockPromptArgument(next_agent=kwargs["next_agent"])
+        return MockPromptArgument()
 
     conductor_agent_with_rules.prompt.create_prompt_argument = Mock(side_effect=mock_create_prompt_arg)
 
@@ -625,7 +627,7 @@ async def test_process_conversation_with_rules(conductor_agent_with_rules, mock_
     # 1. prompt_argument
     # 2. A properly formatted JSON message
     async def mock_invoke(conversation, message_type=None):
-        updated = conversation.update(prompt_argument=TestPromptArgument(next_agent="agent1"))
+        updated = conversation.update(prompt_argument=MockPromptArgument(next_agent="agent1"))
         # Add a JSON message that can be parsed
         return updated.append(
             ChatMessage(
@@ -652,13 +654,13 @@ async def test_rule_only_conductor_no_llm_fallback(conductor_agent_rules_only, m
         rule.condition = rule_always_false
 
     # Clear any existing next_agent value
-    clean_conversation = mock_conversation.update(prompt_argument=TestPromptArgument(next_agent=None))
+    clean_conversation = mock_conversation.update(prompt_argument=MockPromptArgument(next_agent=None))
     conductor_agent_rules_only.prompt.init_prompt = (
         lambda agent_name, conversation, message_type, **kwargs: conversation
     )
 
     # Also mock prompt.create_prompt_argument to ensure it returns a clean object
-    conductor_agent_rules_only.prompt.create_prompt_argument = Mock(return_value=TestPromptArgument(next_agent=None))
+    conductor_agent_rules_only.prompt.create_prompt_argument = Mock(return_value=MockPromptArgument(next_agent=None))
 
     # Call invoke
     result = await conductor_agent_rules_only.invoke(clean_conversation, MessageType.CONDUCTOR)
@@ -766,8 +768,8 @@ async def test_invoke_rule_match_one_message(conductor_agent_with_rules, mock_co
     # Set up the prompt to properly create a prompt_argument with next_agent
     def mock_create_prompt_arg(**kwargs):
         if "next_agent" in kwargs:
-            return TestPromptArgument(next_agent=kwargs["next_agent"])
-        return TestPromptArgument()
+            return MockPromptArgument(next_agent=kwargs["next_agent"])
+        return MockPromptArgument()
 
     conductor_agent_with_rules.prompt.create_prompt_argument = Mock(side_effect=mock_create_prompt_arg)
 

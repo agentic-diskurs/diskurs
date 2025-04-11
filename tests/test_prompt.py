@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from jinja2 import Template
 
-from tests.conftest import are_classes_structurally_similar  # Changed import path
+from tests.conftest import are_classes_structurally_similar
 from diskurs import ImmutableConversation, ToolExecutor, PromptValidationError
-from diskurs.entities import ChatMessage, Role, PromptArgument, prompt_field
+from diskurs.entities import ChatMessage, Role, PromptArgument, AccessMode, prompt_field
 from diskurs.prompt import (
     MultistepPrompt,
     validate_dataclass,
@@ -16,7 +16,6 @@ from diskurs.prompt import (
     HeuristicPrompt,
     validate_json,
     BasePrompt,
-    DefaultConductorPromptArgument,
 )
 from diskurs.utils import load_template_from_package
 from tests.test_files.heuristic_agent_test_files.prompt import MyHeuristicPromptArgument
@@ -214,38 +213,47 @@ def test_validate_dataclass_mixed_boolean_values():
     assert result.is_active is False
 
 
-def test_exclude_annotated_fields_in_json_schema():
-    """Test that fields annotated with prompt_field(include=False) are excluded from JSON schema."""
+def test_exclude_input_fields_in_json_schema():
+    """Test that fields with ACCESS_MODE.INPUT are excluded from JSON schema."""
 
     @dataclass
-    class TestPromptArgWithHiddenField(PromptArgument):
-        visible_field: str = "visible"
-        hidden_field: Annotated[str, prompt_field(include=False)] = "hidden"
+    class TestPromptArgWithAccessMode(PromptArgument):
+        output_field: Annotated[str, prompt_field(mode=AccessMode.OUTPUT)] = "output"
+        input_field: Annotated[str, prompt_field(mode=AccessMode.INPUT)] = "input"
+        locked_field: Annotated[str, prompt_field(mode=AccessMode.LOCKED)] = "locked"
 
     prompt = BasePrompt(
         agent_description="Test Agent",
         system_template=Template("system"),
         user_template=Template("user"),
-        prompt_argument_class=TestPromptArgWithHiddenField,
+        prompt_argument_class=TestPromptArgWithAccessMode,
         json_formatting_template=Template("{{ schema | tojson }}"),
     )
 
     # Get rendered system template
-    system_prompt = prompt.render_system_template(name="test", prompt_argument=TestPromptArgWithHiddenField())
+    system_prompt = prompt.render_system_template(name="test", prompt_argument=TestPromptArgWithAccessMode())
 
-    # Check that the hidden field is not in the JSON schema
-    assert "visible_field" in system_prompt.content
-    assert "hidden_field" not in system_prompt.content
+    # Check that only OUTPUT fields are in the JSON schema
+    assert "output_field" in system_prompt.content
+    assert "input_field" not in system_prompt.content
+    assert "locked_field" not in system_prompt.content
 
 
 def test_conductor_system_template_excludes_hidden_fields():
-    """Test that ConductorPrompt's system template correctly excludes hidden fields."""
-    # Create a simple ConductorPrompt with DefaultConductorPromptArgument
+    """Test that ConductorPrompt's system template correctly excludes INPUT fields."""
+
+    # Create a test conductor prompt argument with AccessMode
+    @dataclass
+    class TestConductorPromptArg(PromptArgument):
+        agent_descriptions: Annotated[dict[str, str], prompt_field(mode=AccessMode.INPUT)] = None
+        next_agent: Annotated[str, prompt_field(mode=AccessMode.OUTPUT)] = None
+
+    # Create a simple ConductorPrompt with the test argument
     prompt = ConductorPrompt(
         agent_description="Test Conductor",
         system_template=Template("Agent descriptions should not be in JSON schema"),
         user_template=Template("user template"),
-        prompt_argument_class=DefaultConductorPromptArgument,
+        prompt_argument_class=TestConductorPromptArg,
         json_formatting_template=Template("Fields: {{ schema | tojson }}"),
         can_finalize=lambda x: True,
         finalize=lambda x: x,
@@ -254,7 +262,7 @@ def test_conductor_system_template_excludes_hidden_fields():
     )
 
     # Create a prompt argument with agent_descriptions
-    prompt_arg = DefaultConductorPromptArgument(
+    prompt_arg = TestConductorPromptArg(
         agent_descriptions={"agent1": "Description 1", "agent2": "Description 2"}, next_agent="agent1"
     )
 
@@ -363,7 +371,6 @@ def test_parse_user_prompt_json_array(prompt_with_array_instance, prompt_testing
 
 
 def test_fail():
-
     prompt = ConductorPrompt.create(**prompt_config)
     msg = prompt.fail(prompt.longterm_memory())
     assert msg["error"] == "Failed to finalize"
@@ -472,12 +479,12 @@ def test_render_json_formatting_prompt(prompt_instance):
     assert "topic" in result
 
 
-def test_render_json_formatting_prompt_with_prompt_fields():
+def test_render_json_formatting_prompt_with_access_modes():
     @dataclass
     class TestPromptArg(PromptArgument):
-        visible_field: str = "visible"
-        hidden_field: Annotated[str, prompt_field(include=False)] = "hidden"
-        another_visible: Annotated[str, prompt_field(include=True)] = "visible2"
+        output_field: Annotated[str, prompt_field(mode=AccessMode.OUTPUT)] = "output"
+        input_field: Annotated[str, prompt_field(mode=AccessMode.INPUT)] = "input"
+        locked_field: Annotated[str, prompt_field(mode=AccessMode.LOCKED)] = "locked"
 
     # Create a minimal template for testing
     template = Template(
@@ -493,14 +500,14 @@ def test_render_json_formatting_prompt_with_prompt_fields():
     )
 
     result = prompt.render_json_formatting_prompt(
-        {"visible_field": "test", "hidden_field": "should not appear", "another_visible": "should appear"}
+        {"output_field": "should appear", "input_field": "should not appear", "locked_field": "should not appear"}
     )
 
-    # Check that visible fields are included
-    assert "visible_field" in result
-    assert "another_visible" in result
-    # Check that hidden field is excluded
-    assert "hidden_field" not in result
+    # Check that only output fields are included
+    assert "output_field" in result
+    # Check that input and locked fields are excluded
+    assert "input_field" not in result
+    assert "locked_field" not in result
 
 
 def test_render_json_formatting_prompt_empty_args():
@@ -539,15 +546,17 @@ def test_render_json_formatting_prompt_missing_template():
 def test_render_json_formatting_prompt_inheritance():
     @dataclass
     class BasePromptArg(PromptArgument):
-        base_visible: str = "base"
-        base_hidden: Annotated[str, prompt_field(include=False)] = "hidden"
+        base_output: Annotated[str, prompt_field(mode=AccessMode.OUTPUT)] = "base"
+        base_input: Annotated[str, prompt_field(mode=AccessMode.INPUT)] = "input"
 
     @dataclass
     class ChildPromptArg(BasePromptArg):
-        child_visible: str = "child"
-        child_hidden: Annotated[str, prompt_field(include=False)] = "hidden"
+        child_output: Annotated[str, prompt_field(mode=AccessMode.OUTPUT)] = "child"
+        child_locked: Annotated[str, prompt_field(mode=AccessMode.LOCKED)] = "locked"
 
-    template = Template("Fields: {% for key in keys %}{{ key }}{% if not loop.last %}, {% endif %}{% endfor %}")
+    template = Template(
+        "Fields: {% for key in schema.keys() %}{{ key }}{% if not loop.last %}, {% endif %}{% endfor %}"
+    )
 
     prompt = BasePrompt(
         agent_description="Test Agent",
@@ -556,6 +565,16 @@ def test_render_json_formatting_prompt_inheritance():
         prompt_argument_class=ChildPromptArg,
         json_formatting_template=template,
     )
+
+    result = prompt.render_json_formatting_prompt(
+        {"base_output": "base", "base_input": "input", "child_output": "child", "child_locked": "locked"}
+    )
+
+    # Check that only output fields are in the result
+    assert "base_output" in result
+    assert "child_output" in result
+    assert "base_input" not in result
+    assert "child_locked" not in result
 
 
 def test_generate_json_schema_with_nested_dataclass():
@@ -690,57 +709,63 @@ def test_json_formatting_with_real_llm_compiler_prompt(prompt_with_array_instanc
     assert "[" in result and "]" in result
 
 
-def test_prompt_field_include_annotations():
+def test_access_mode_annotations():
     """
-    Test that both include=False and include=True annotations are properly respected
-    in the JSON schema generation.
+    Test that all AccessMode types are properly respected in the JSON schema generation.
     """
 
     @dataclass
-    class TestPromptArgWithMixedFields(PromptArgument):
-        # Normal field (should be included by default)
+    class TestPromptArgWithAccessModes(PromptArgument):
+        # Default field (should be included by default)
         default_field: str = "default"
 
-        # Field explicitly included
-        included_field: Annotated[str, prompt_field(include=True)] = "included"
+        # Field with OUTPUT mode
+        output_field: Annotated[str, prompt_field(mode=AccessMode.OUTPUT)] = "output"
 
-        # Field explicitly excluded
-        excluded_field: Annotated[str, prompt_field(include=False)] = "excluded"
+        # Field with INPUT mode
+        input_field: Annotated[str, prompt_field(mode=AccessMode.INPUT)] = "input"
 
-        # Field with multiple annotations, including include=False (should be excluded)
-        multi_annotated_excluded: Annotated[str, prompt_field(include=False), "other annotation"] = "multi-excluded"
+        # Field with LOCKED mode
+        locked_field: Annotated[str, prompt_field(mode=AccessMode.LOCKED)] = "locked"
 
-        # Field with multiple annotations, including include=True (should be included)
-        multi_annotated_included: Annotated[str, "other annotation", prompt_field(include=True)] = "multi-included"
+        # Field with multiple annotations, including mode=INPUT (should be excluded)
+        multi_annotated_input: Annotated[str, prompt_field(mode=AccessMode.INPUT), "other annotation"] = "multi-input"
+
+        # Field with multiple annotations, including mode=OUTPUT (should be included)
+        multi_annotated_output: Annotated[str, "other annotation", prompt_field(mode=AccessMode.OUTPUT)] = (
+            "multi-output"
+        )
 
     prompt = BasePrompt(
         agent_description="Test Agent",
-        system_template=Template("Testing include annotations"),
+        system_template=Template("Testing access mode annotations"),
         user_template=Template("user template"),
-        prompt_argument_class=TestPromptArgWithMixedFields,
+        prompt_argument_class=TestPromptArgWithAccessModes,
         json_formatting_template=Template("{{ schema | tojson }}"),
     )
 
     # Get rendered system template
-    system_prompt = prompt.render_system_template(name="test", prompt_argument=TestPromptArgWithMixedFields())
+    system_prompt = prompt.render_system_template(name="test", prompt_argument=TestPromptArgWithAccessModes())
     content = system_prompt.content
 
-    # Fields that should be included
+    # Fields that should be included (OUTPUT mode)
     assert '"default_field"' in content
-    assert '"included_field"' in content
-    assert '"multi_annotated_included"' in content
+    assert '"output_field"' in content
+    assert '"multi_annotated_output"' in content
 
-    # Fields that should be excluded
-    assert '"excluded_field"' not in content
-    assert '"multi_annotated_excluded"' not in content
+    # Fields that should be excluded (INPUT and LOCKED modes)
+    assert '"input_field"' not in content
+    assert '"locked_field"' not in content
+    assert '"multi_annotated_input"' not in content
 
     # Test with a specific instance with values
-    instance = TestPromptArgWithMixedFields(
+    instance = TestPromptArgWithAccessModes(
         default_field="custom default",
-        included_field="custom included",
-        excluded_field="custom excluded",
-        multi_annotated_excluded="custom multi-excluded",
-        multi_annotated_included="custom multi-included",
+        output_field="custom output",
+        input_field="custom input",
+        locked_field="custom locked",
+        multi_annotated_input="custom multi-input",
+        multi_annotated_output="custom multi-output",
     )
 
     system_prompt = prompt.render_system_template(name="test", prompt_argument=instance)
@@ -748,7 +773,8 @@ def test_prompt_field_include_annotations():
 
     # Verify the same behavior with an instance with values
     assert '"default_field"' in content
-    assert '"included_field"' in content
-    assert '"multi_annotated_included"' in content
-    assert '"excluded_field"' not in content
-    assert '"multi_annotated_excluded"' not in content
+    assert '"output_field"' in content
+    assert '"multi_annotated_output"' in content
+    assert '"input_field"' not in content
+    assert '"locked_field"' not in content
+    assert '"multi_annotated_input"' not in content
