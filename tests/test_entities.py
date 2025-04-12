@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import get_type_hints
+from dataclasses import dataclass, field
+from typing import get_type_hints, Optional
 
 import pytest
 
@@ -137,9 +137,9 @@ def test_prompt_argument_to_dict():
 @dataclass
 class AccessModeTestDataclass(PromptArgument):
     # Test different access mode configurations
-    output_field: OutputField[str] = "output"
-    input_field: InputField[str] = "input"
-    locked_field: LockedField[str] = "locked"
+    output_field: OutputField[str] = "output"  # type: ignore
+    input_field: InputField[str] = "input"  # type: ignore
+    locked_field: LockedField[str] = "locked"  # type: ignore
     default_field: str = "default"  # No annotation, should behave like OUTPUT
 
 

@@ -13,8 +13,7 @@ from diskurs.entities import (
     PromptArgument,
     Role,
     InputField,
-    InputFieldMetadata,
-    LockedFieldMetadata,
+    PromptField,
 )
 from diskurs.errors import PromptValidationError
 from diskurs.protocols import CallTool
@@ -218,11 +217,8 @@ def validate_dataclass(parsed_response: dict[str, Any], prompt_argument: Type[Ge
         field_type = hints.get(field_name)
         # Skip fields marked with INPUT metadata
         if field_type and hasattr(field_type, "__metadata__"):
-            # Check for InputFieldMetadata
-            if any(
-                isinstance(m, InputFieldMetadata) or (hasattr(m, "is_input") and m.is_input())
-                for m in field_type.__metadata__
-            ):
+            # Check for field with input access mode using PromptField metadata
+            if any(isinstance(m, PromptField) and m.is_input() for m in field_type.__metadata__):
                 continue
         includable_fields[field_name] = field
 
@@ -257,9 +253,7 @@ def validate_dataclass(parsed_response: dict[str, Any], prompt_argument: Type[Ge
         if field_type and hasattr(field_type, "__metadata__"):
             is_excluded = False
             for m in field_type.__metadata__:
-                if isinstance(m, (InputFieldMetadata, LockedFieldMetadata)) or (
-                    hasattr(m, "is_output") and not m.is_output()
-                ):  # Check if not OUTPUT mode
+                if isinstance(m, PromptField) and (m.is_input() or m.is_locked()):
                     is_excluded = True
                     break
 
@@ -452,9 +446,9 @@ class BasePrompt(PromptProtocol):
                     # No metadata, include by default
                     filtered_fields[key] = value
                 else:
-                    # Check metadata for OUTPUT mode
+                    # Check metadata for PromptField with OUTPUT mode
                     for metadata in hint.__metadata__:
-                        if hasattr(metadata, "access_mode") and metadata.is_output():
+                        if isinstance(metadata, PromptField) and metadata.is_output():
                             filtered_fields[key] = value
                             break
 
