@@ -4,6 +4,7 @@ from typing import get_type_hints, Optional
 import pytest
 
 from diskurs.entities import (
+    LongtermMemory,
     MessageType,
     PromptArgument,
     JsonSerializable,
@@ -19,21 +20,54 @@ from .conftest import MyLongtermMemory, MyPromptArgument, EnumPromptArgument, Ch
 
 
 def test_basic_update():
-    conversation = ImmutableConversation()
+    """Test direct update between LongtermMemory and PromptArgument using new entity methods"""
+    # Create a LongtermMemory with values
     longterm_memory = MyLongtermMemory(
         field1="longterm_val1", field2="longterm_val2", field3="longterm_val3", user_query="How's the weather?"
     )
-    conversation = conversation.update_agent_longterm_memory(
-        agent_name="my_conductor", longterm_memory=longterm_memory
-    )
 
-    conversation = conversation.update(prompt_argument=MyPromptArgument())
+    # Create a prompt argument
+    prompt_argument = MyPromptArgument()
 
-    updated_conversation = conversation.update_prompt_argument_with_longterm_memory("my_conductor")
+    # Initialize prompt argument from longterm memory (copying InputField values)
+    updated_prompt_argument = prompt_argument.init(longterm_memory)
 
-    assert updated_conversation.prompt_argument.field1 == "longterm_val1"
-    assert updated_conversation.prompt_argument.field2 == "longterm_val2"
-    assert updated_conversation.prompt_argument.field3 == "longterm_val3"
+    # Verify that values were copied correctly
+    assert updated_prompt_argument.field1 == "longterm_val1"
+    assert updated_prompt_argument.field2 == "longterm_val2"
+    assert updated_prompt_argument.field3 == "longterm_val3"
+
+
+def test_immutable_conversation_update_agent_longterm_memory():
+    """Test update_agent_longterm_memory method of ImmutableConversation"""
+    # Create a conversation
+    conversation = ImmutableConversation()
+
+    # Create a longterm memory
+    longterm_memory = MyLongtermMemory(field1="ltm_value1", field2="ltm_value2", user_query="What's the weather like?")
+
+    # Update agent longterm memory
+    conversation = conversation.update_agent_longterm_memory("test_agent", longterm_memory)
+
+    # Verify the longterm memory was stored correctly
+    retrieved_ltm = conversation.get_agent_longterm_memory("test_agent")
+    assert retrieved_ltm is not None
+    assert retrieved_ltm.field1 == "ltm_value1"
+    assert retrieved_ltm.field2 == "ltm_value2"
+    assert retrieved_ltm.user_query == "What's the weather like?"
+
+    # Update with a new longterm memory
+    new_ltm = MyLongtermMemory(field1="new_value", user_query="Updated question")
+    conversation = conversation.update_agent_longterm_memory("test_agent", new_ltm)
+
+    # Verify the update worked
+    updated_ltm = conversation.get_agent_longterm_memory("test_agent")
+    assert updated_ltm.field1 == "new_value"
+    assert updated_ltm.user_query == "Updated question"
+
+    # Verify the immutability - previous conversation shouldn't have changed
+    assert retrieved_ltm.field1 == "ltm_value1"
+    assert retrieved_ltm.user_query == "What's the weather like?"
 
 
 def test_partial_update():
@@ -386,7 +420,7 @@ def test_field_type_with_complex_types():
         list_field: InputField[list[str]] = field(default_factory=lambda: ["a", "b", "c"])
         dict_field: OutputField[dict[str, int]] = field(default_factory=lambda: {"one": 1, "two": 2})
         nested_field: LockedField[NestedClass] = field(default_factory=NestedClass)
-        optional_field: OutputField[Optional[str]] = OutputField(None)
+        optional_field: OutputField[Optional[str]] = None
 
     instance = ComplexTypesClass()
     assert instance.list_field == ["a", "b", "c"]
@@ -437,3 +471,359 @@ def test_field_serialization():
     assert deserialized2.input_field == "new input"
     assert deserialized2.output_field == 99
     assert deserialized2.locked_field is False
+
+
+@dataclass
+class TestPromptArgument(PromptArgument):
+    input_field: InputField[str] = "default_input"
+    output_field: OutputField[str] = "default_output"
+    locked_field: LockedField[str] = "default_locked"
+    regular_field: str = "default_regular"
+
+
+@dataclass
+class TestLongtermMemory(LongtermMemory):
+    input_field: str = "ltm_input"
+    output_field: str = "ltm_output"
+    locked_field: str = "ltm_locked"
+    regular_field: str = "ltm_regular"
+    user_query: str = "What is the meaning of life?"
+
+
+class TestPromptFieldMethods:
+    """Tests for the new methods added to PromptArgument and LongtermMemory"""
+
+    def test_prompt_argument_init_from_longterm_memory(self):
+        """Test initializing a PromptArgument from a LongtermMemory"""
+        # Create a LongtermMemory instance with values
+        ltm = TestLongtermMemory(
+            input_field="ltm_input_value",
+            output_field="ltm_output_value",
+            locked_field="ltm_locked_value",
+            regular_field="ltm_regular_value",
+        )
+
+        # Create a fresh PromptArgument
+        prompt_arg = TestPromptArgument()
+
+        # Initialize from LongtermMemory
+        result = prompt_arg.init(ltm)
+
+        # Verify that only InputField values were copied
+        assert result.input_field == "ltm_input_value"  # Should be copied (InputField)
+        assert result.output_field == "default_output"  # Should not be copied (OutputField)
+        assert result.locked_field == "default_locked"  # Should not be copied (LockedField)
+        assert result.regular_field == "default_regular"  # Should not be copied (regular field)
+
+    def test_prompt_argument_init_from_prompt_argument(self):
+        """Test initializing a PromptArgument from another PromptArgument"""
+        # Create a source PromptArgument with values
+        source = TestPromptArgument(
+            input_field="source_input",
+            output_field="source_output",
+            locked_field="source_locked",
+            regular_field="source_regular",
+        )
+
+        # Create a target PromptArgument with default values
+        target = TestPromptArgument()
+
+        # Initialize from source PromptArgument
+        result = target.init(source)
+
+        # Verify that only InputField values were copied
+        assert result.input_field == "source_input"  # Should be copied (InputField)
+        assert result.output_field == "default_output"  # Should not be copied (OutputField)
+        assert result.locked_field == "default_locked"  # Should not be copied (LockedField)
+        assert result.regular_field == "default_regular"  # Should not be copied (regular field)
+
+    def test_prompt_argument_init_with_null_source(self):
+        """Test initializing a PromptArgument with a null source"""
+        prompt_arg = TestPromptArgument()
+        result = prompt_arg.init(None)
+
+        # Should return self unchanged
+        assert result == prompt_arg
+
+    def test_prompt_argument_update(self):
+        """Test updating a PromptArgument with values from a dictionary"""
+        # Create a PromptArgument with default values
+        prompt_arg = TestPromptArgument()
+
+        # Update with a dictionary of values
+        result = prompt_arg.update(
+            {
+                "input_field": "new_input",
+                "output_field": "new_output",
+                "locked_field": "new_locked",
+                "regular_field": "new_regular",
+            }
+        )
+
+        # Verify that only non-InputField and non-LockedField values were updated
+        assert result.input_field == "default_input"  # Should not be updated (InputField)
+        assert result.output_field == "new_output"  # Should be updated (OutputField)
+        assert result.locked_field == "default_locked"  # Should not be updated (LockedField)
+        assert result.regular_field == "new_regular"  # Should be updated (regular field)
+
+    def test_prompt_argument_update_with_empty_dict(self):
+        """Test updating a PromptArgument with an empty dictionary"""
+        prompt_arg = TestPromptArgument()
+        result = prompt_arg.update({})
+
+        # Should return self unchanged
+        assert result == prompt_arg
+
+    def test_prompt_argument_update_with_nonexistent_field(self):
+        """Test updating a PromptArgument with a nonexistent field"""
+        prompt_arg = TestPromptArgument()
+        result = prompt_arg.update({"nonexistent_field": "value"})
+
+        # Should return self unchanged, ignoring the nonexistent field
+        assert result == prompt_arg
+
+    def test_longterm_memory_update(self):
+        """Test updating a LongtermMemory with values from a PromptArgument"""
+        # Create a PromptArgument with values
+        prompt_arg = TestPromptArgument(
+            input_field="prompt_input",
+            output_field="prompt_output",
+            locked_field="prompt_locked",
+            regular_field="prompt_regular",
+        )
+
+        # Create a LongtermMemory with default values
+        ltm = TestLongtermMemory()
+
+        # Update LongtermMemory with PromptArgument
+        result = ltm.update(prompt_arg)
+
+        # Verify that only OutputField values were copied
+        assert result.input_field == "ltm_input"  # Should not be updated (not OutputField in source)
+        assert result.output_field == "prompt_output"  # Should be updated (OutputField in source)
+        assert result.locked_field == "ltm_locked"  # Should not be updated (not OutputField in source)
+        assert result.regular_field == "ltm_regular"  # Should not be updated (not OutputField in source)
+
+    def test_longterm_memory_update_with_null_prompt_arg(self):
+        """Test updating a LongtermMemory with a null PromptArgument"""
+        ltm = TestLongtermMemory()
+        result = ltm.update(None)
+
+        # Should return self unchanged
+        assert result == ltm
+
+    def test_longterm_memory_update_with_different_fields(self):
+        """Test updating a LongtermMemory with a PromptArgument that has different fields"""
+
+        @dataclass
+        class DifferentPromptArgument(PromptArgument):
+            different_output_field: OutputField[str] = OutputField("different_output")
+            common_output_field: OutputField[str] = OutputField("common_output")
+
+        @dataclass
+        class TestLongtermMemory2(LongtermMemory):
+            common_output_field: str = "ltm_common"
+            other_field: str = "ltm_other"
+            user_query: str = "What is the meaning of life?"
+
+        prompt_arg = DifferentPromptArgument()
+        ltm = TestLongtermMemory2()
+
+        result = ltm.update(prompt_arg)
+
+        # Only common fields with OutputField type should be updated
+        assert result.common_output_field == "common_output"  # Should be updated (common field, OutputField in source)
+        assert result.other_field == "ltm_other"  # Should not be updated (not present in source)
+
+    def test_integration_with_immutable_conversation(self):
+        """Test integration of new methods with ImmutableConversation's existing functionality"""
+        # Create test instances
+        prompt_arg = TestPromptArgument(
+            input_field="prompt_input",
+            output_field="prompt_output",
+            locked_field="prompt_locked",
+            regular_field="prompt_regular",
+        )
+
+        ltm = TestLongtermMemory(
+            input_field="ltm_input", output_field="ltm_output", locked_field="ltm_locked", regular_field="ltm_regular"
+        )
+
+        # Create a conversation and add the longterm memory
+        conversation = ImmutableConversation()
+        conversation = conversation.update_agent_longterm_memory(agent_name="test_agent", longterm_memory=ltm)
+        conversation = conversation.update(prompt_argument=prompt_arg)
+
+        # Test update pattern that would be used in conductor_agent.py
+        # This simulates the create_or_update_longterm_memory method
+        agent_ltm = conversation.get_agent_longterm_memory("test_agent")
+        updated_ltm = agent_ltm.update(conversation.prompt_argument)
+        conversation = conversation.update_agent_longterm_memory(agent_name="test_agent", longterm_memory=updated_ltm)
+
+        # Verify that OutputField values from prompt_arg were copied to longterm memory
+        updated_agent_ltm = conversation.get_agent_longterm_memory("test_agent")
+        assert updated_agent_ltm.output_field == "prompt_output"  # Should be updated (OutputField in source)
+        assert updated_agent_ltm.input_field == "ltm_input"  # Should not be updated
+
+        # Test init pattern that would be used in multistep_agent.py
+        # This simulates the prepare_invoke method
+        new_prompt_arg = TestPromptArgument()
+        initialized_prompt_arg = new_prompt_arg.init(conversation.get_agent_longterm_memory("test_agent"))
+        conversation = conversation.update(prompt_argument=initialized_prompt_arg)
+
+        # Verify that InputField values from longterm_memory were copied to prompt argument
+        assert conversation.prompt_argument.input_field == "ltm_input"  # Should be copied (InputField)
+        assert conversation.prompt_argument.output_field == "default_output"  # Should not be copied
+        assert conversation.prompt_argument.locked_field == "default_locked"  # Should not be copied
+
+
+class TestGetOutputFields:
+    """Tests specifically for the get_output_fields method of PromptArgument class"""
+
+    def test_get_output_fields_basic(self):
+        """Test that get_output_fields correctly identifies OutputField and regular fields"""
+
+        @dataclass
+        class TestOutputFieldsArgument(PromptArgument):
+            input_field: InputField[str] = InputField("input value")
+            output_field: OutputField[str] = OutputField("output value")
+            locked_field: LockedField[str] = LockedField("locked value")
+            regular_field: str = "regular value"
+
+        arg = TestOutputFieldsArgument()
+        output_fields = arg.get_output_fields()
+
+        # Should include OutputField and regular field, but not InputField or LockedField
+        assert "output_field" in output_fields
+        assert "regular_field" in output_fields
+        assert "input_field" not in output_fields
+        assert "locked_field" not in output_fields
+        assert output_fields["output_field"] == "output value"
+        assert output_fields["regular_field"] == "regular value"
+
+    def test_get_output_fields_inheritance(self):
+        """Test that get_output_fields works correctly with inheritance"""
+
+        @dataclass
+        class BaseArgument(PromptArgument):
+            base_input: InputField[str] = InputField("base input")
+            base_output: OutputField[str] = OutputField("base output")
+            base_locked: LockedField[str] = LockedField("base locked")
+            base_regular: str = "base regular"
+
+        @dataclass
+        class ChildArgument(BaseArgument):
+            child_input: InputField[str] = InputField("child input")
+            child_output: OutputField[str] = OutputField("child output")
+            child_locked: LockedField[str] = LockedField("child locked")
+            child_regular: str = "child regular"
+
+        arg = ChildArgument()
+        output_fields = arg.get_output_fields()
+
+        # Should include OutputField and regular field from both parent and child classes
+        assert "base_output" in output_fields
+        assert "base_regular" in output_fields
+        assert "child_output" in output_fields
+        assert "child_regular" in output_fields
+
+        # Should exclude InputField and LockedField from both parent and child classes
+        assert "base_input" not in output_fields
+        assert "base_locked" not in output_fields
+        assert "child_input" not in output_fields
+        assert "child_locked" not in output_fields
+
+    def test_get_output_fields_complex_types(self):
+        """Test that get_output_fields handles complex field types correctly"""
+
+        @dataclass
+        class NestedClass:
+            value: str = "nested value"
+
+        @dataclass
+        class ComplexArgument(PromptArgument):
+            output_list: OutputField[list[str]] = OutputField(["one", "two", "three"])
+            output_dict: OutputField[dict[str, int]] = OutputField({"a": 1, "b": 2})
+            output_nested: OutputField[NestedClass] = OutputField(NestedClass())
+            input_complex: InputField[list[dict[str, str]]] = InputField([{"key": "value"}])
+            locked_complex: LockedField[dict[str, list[int]]] = LockedField({"numbers": [1, 2, 3]})
+            regular_complex: dict[str, Any] = field(default_factory=lambda: {"regular": "value"})
+
+        arg = ComplexArgument()
+        output_fields = arg.get_output_fields()
+
+        # Should include OutputField and regular field with complex types
+        assert "output_list" in output_fields
+        assert "output_dict" in output_fields
+        assert "output_nested" in output_fields
+        assert "regular_complex" in output_fields
+
+        # Should exclude InputField and LockedField with complex types
+        assert "input_complex" not in output_fields
+        assert "locked_complex" not in output_fields
+
+        # Verify values are correctly preserved
+        assert output_fields["output_list"] == ["one", "two", "three"]
+        assert output_fields["output_dict"] == {"a": 1, "b": 2}
+        assert isinstance(output_fields["output_nested"], NestedClass)
+        assert output_fields["regular_complex"] == {"regular": "value"}
+
+    def test_get_output_fields_empty_and_none(self):
+        """Test that get_output_fields correctly handles empty and None values"""
+
+        @dataclass
+        class EmptyArgument(PromptArgument):
+            output_none: OutputField[Optional[str]] = OutputField(None)
+            output_empty_list: OutputField[list] = OutputField([])
+            output_empty_dict: OutputField[dict] = OutputField({})
+            regular_none: Optional[str] = None
+
+        arg = EmptyArgument()
+        output_fields = arg.get_output_fields()
+
+        # Should include all fields
+        assert "output_none" in output_fields
+        assert "output_empty_list" in output_fields
+        assert "output_empty_dict" in output_fields
+        assert "regular_none" in output_fields
+
+        # Verify values are correctly preserved
+        assert output_fields["output_none"] is None
+        assert output_fields["output_empty_list"] == []
+        assert output_fields["output_empty_dict"] == {}
+        assert output_fields["regular_none"] is None
+
+    def test_get_output_fields_integration_with_prompt(self):
+        """Test integration of get_output_fields with the prompt rendering logic"""
+        from diskurs.prompt import BasePrompt
+        from jinja2 import Template
+
+        @dataclass
+        class TestIntegrationArgument(PromptArgument):
+            input_field: InputField[str] = InputField("input value")
+            output_field: OutputField[str] = OutputField("output value")
+            locked_field: LockedField[str] = LockedField("locked value")
+            regular_field: str = "regular value"
+
+        # Create a simple BasePrompt for testing
+        system_template = Template("System: {{ regular_field }}")
+        user_template = Template("User: {{ regular_field }}")
+        json_template = Template("JSON Schema: {{ schema | tojson }}")
+
+        prompt = BasePrompt(
+            agent_description="Test Agent",
+            system_template=system_template,
+            user_template=user_template,
+            prompt_argument_class=TestIntegrationArgument,
+            json_formatting_template=json_template,
+            return_json=True,
+        )
+
+        arg = TestIntegrationArgument()
+        message = prompt.render_system_template("test", arg)
+
+        # The system template should contain the JSON schema with only output and regular fields
+        assert "output_field" in message.content
+        assert "regular_field" in message.content
+        assert "input_field" not in message.content
+        assert "locked_field" not in message.content

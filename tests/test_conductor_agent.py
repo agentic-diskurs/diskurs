@@ -1,10 +1,13 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
-from unittest.mock import ANY, AsyncMock, Mock, patch
+from unittest.mock import ANY, AsyncMock, Mock
 
 import pytest
+from jinja2 import Template
 
-from diskurs import ImmutableConversation, Conversation, PromptValidationError
+from conftest import MyLongtermMemory
+from diskurs import ImmutableConversation, Conversation, PromptValidationError, InputField
 from diskurs.conductor_agent import ConductorAgent, validate_finalization
 from diskurs.entities import (
     ChatMessage,
@@ -13,14 +16,15 @@ from diskurs.entities import (
     LongtermMemory,
     PromptArgument,
     RoutingRule,
+    ToolDescription,
+    LockedField,
+    OutputField,
 )
-from diskurs.prompt import (
-    DefaultConductorPromptArgument,
-)
+from diskurs.prompt import ConductorPrompt, DefaultConductorPromptArgument
 from diskurs.protocols import (
     LLMClient,
     ConversationDispatcher,
-    ConductorPrompt,
+    ToolExecutor,
 )
 
 FINALIZER_NAME = "finalizer"
@@ -197,6 +201,10 @@ def create_conductor_agent(
     supervisor=None,
     rules=None,
     fallback_to_llm=True,
+    tools=None,
+    tool_executor=None,
+    init_prompt_arguments_with_longterm_memory=True,
+    init_prompt_arguments_with_previous_agent=True,
 ):
     agent = ConductorAgent(
         name="conductor",
@@ -211,6 +219,10 @@ def create_conductor_agent(
         supervisor=supervisor,
         rules=rules,
         fallback_to_llm=fallback_to_llm,
+        tools=tools,
+        tool_executor=tool_executor,
+        init_prompt_arguments_with_longterm_memory=init_prompt_arguments_with_longterm_memory,
+        init_prompt_arguments_with_previous_agent=init_prompt_arguments_with_previous_agent,
     )
     return agent
 
@@ -266,116 +278,99 @@ def conductor_agent_rules_only(mock_prompt, mock_dispatcher, mock_rules):
     )
 
 
-# ----- Tests for Basic Agent Functionality -----
+@pytest.fixture
+def mock_tool_executor():
+    """Mock tool executor for testing tool handling in ConductorAgent"""
+    tool_executor = Mock(spec=ToolExecutor)
+    tool_executor.call_tool = AsyncMock(return_value={"result": "tool_result"})
+    tool_executor.execute_tool = AsyncMock(return_value=Mock(tool_call_id="test_id", result="tool execution result"))
+    return tool_executor
+
+
+@pytest.fixture
+def mock_tool_descriptions():
+    """Create mock tool descriptions for testing"""
+    return [
+        ToolDescription(
+            function_name="test_tool",
+            description="Test tool for testing",
+            parameters={
+                "type": "object",
+                "properties": {"test_param": {"type": "string"}},
+                "required": ["test_param"],
+            },
+        )
+    ]
+
+
+@pytest.fixture
+def conductor_agent_with_tools(
+    mock_prompt, mock_llm_client, mock_dispatcher, mock_tool_executor, mock_tool_descriptions
+):
+    """Create a conductor agent with tools"""
+    return create_conductor_agent(
+        mock_dispatcher, mock_llm_client, mock_prompt, tools=mock_tool_descriptions, tool_executor=mock_tool_executor
+    )
+
+
+class MyConductorPromptArgument(PromptArgument):
+    agent_descriptions: LockedField[str] = "should never be changed"
+    field1: InputField[str] = "input field 1"
+    field2: OutputField[str] = "output field 2"
+
+
+@pytest.fixture
+def conductor_agent():
+    with open(Path(__file__).parent.parent / "diskurs" / "assets" / "json_formatting.jinja2", encoding="utf-8") as f:
+        json_formatting_template = f.read()
+        json_formatting_template = Template(json_formatting_template)
+
+    prompt = ConductorPrompt(
+        agent_description="Test conductor agent",
+        system_template=Template(
+            "Test conductor agent description {{ agent_descriptions }}, input field {{ field1 }}, output "
+            "field {{ field2 }}"
+        ),
+        user_template=Template("Test conductor agent"),
+        prompt_argument_class=MyConductorPromptArgument,
+        json_formatting_template=json_formatting_template,
+        longterm_memory=MyLongtermMemory,
+    )
+
+    return ConductorAgent(
+        name="conductor",
+        agent_descriptions={
+            "agent1": "Test agent 1",
+            "agent2": "Test agent 2",
+        },
+        topics=["agent1", "agent2"],
+        prompt=prompt,
+        llm_client=AsyncMock(spec=LLMClient),
+        dispatcher=AsyncMock(spec=ConversationDispatcher),
+    )
 
 
 def test_update_longterm_memory(conductor_agent):
     conversation = ImmutableConversation(
         prompt_argument=MyPromptArgument(field1="value1", field2="value2", field3="value3")
     )
-    longterm_memory = MyLongTermMemory()
-
-    conversation.update_agent_longterm_memory = Mock(return_value=conversation)
-    conductor_agent.prompt.init_longterm_memory.return_value = longterm_memory
 
     updated_conversation = conductor_agent.create_or_update_longterm_memory(conversation=conversation)
+    longterm_memory = updated_conversation.get_agent_longterm_memory("conductor")
 
     assert longterm_memory.field1 == "value1"
     assert longterm_memory.field2 == "value2"
     assert longterm_memory.field3 == "value3"
-    conversation.update_agent_longterm_memory.assert_called_once_with(
-        agent_name=conductor_agent.name, longterm_memory=longterm_memory
-    )
-
-
-def test_update_longterm_memory_existing_fields(conductor_agent):
-    conversation = ImmutableConversation(
-        prompt_argument=MyPromptArgument(field1="value1", field2="value2", field3="value3")
-    )
-    longterm_memory = MyLongTermMemory(field1="existing_value1")
-
-    conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
-    conversation.update_agent_longterm_memory = Mock(return_value=conversation)
-    conductor_agent.prompt.init_longterm_memory = Mock()
-
-    updated_conversation = conductor_agent.create_or_update_longterm_memory(conversation, overwrite=False)
-
-    assert longterm_memory.field1 == "existing_value1"  # Should not be overwritten
-    assert longterm_memory.field2 == "value2"
-    conversation.update_agent_longterm_memory.assert_called_once_with(
-        agent_name=conductor_agent.name, longterm_memory=longterm_memory
-    )
 
 
 def test_update_longterm_memory_with_overwrite(conductor_agent):
     conversation = ImmutableConversation(prompt_argument=MyPromptArgument(field1="new_value1"))
     longterm_memory = MyLongTermMemory(field1="existing_value1")
 
-    conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
-    conversation.update_agent_longterm_memory = Mock(return_value=conversation)
-    conductor_agent.prompt.init_longterm_memory = Mock()
-
-    updated_conversation = conductor_agent.create_or_update_longterm_memory(conversation, overwrite=True)
+    updated_conversation = conductor_agent.create_or_update_longterm_memory(conversation=conversation)
+    longterm_memory = updated_conversation.get_agent_longterm_memory("conductor")
 
     assert longterm_memory.field1 == "new_value1"  # Should be overwritten
-    conversation.update_agent_longterm_memory.assert_called_once_with(
-        agent_name=conductor_agent.name, longterm_memory=longterm_memory
-    )
-
-
-@pytest.mark.asyncio
-async def test_process_conversation_updates_longterm_memory(conductor_agent):
-    conversation = ImmutableConversation(
-        prompt_argument=MyPromptArgument(field1="value1", field2="value2", field3="value3")
-    ).append(ChatMessage(Role.ASSISTANT, content='{"next_agent": "agent1"}'))
-    longterm_memory = MyLongTermMemory()
-
-    with patch.object(
-        ImmutableConversation,
-        "update_agent_longterm_memory",
-        return_value=conversation,
-    ) as mock_update_longterm:
-        conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
-        conductor_agent.prompt.init_longterm_memory.return_value = longterm_memory
-        conductor_agent.prompt.can_finalize.return_value = False
-        conductor_agent.prompt.create_prompt_argument.return_value = MyPromptArgument(field1="sys1", field2="sys2")
-
-        prompt_argument = MyPromptArgument(field1="value1", field2="value2")
-        conductor_agent.prompt.create_prompt_argument.return_value = prompt_argument
-
-        conductor_agent.generate_validated_response = AsyncMock(return_value=conversation)
-
-        await conductor_agent.process_conversation(conversation)
-
-        assert longterm_memory.field1 == "value1"
-        assert longterm_memory.field2 == "value2"
-        mock_update_longterm.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_process_conversation_finalize(conductor_agent):
-    conversation = ImmutableConversation(prompt_argument=MyPromptArgument())
-    longterm_memory = MyLongTermMemory()
-
-    conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
-
-    # The finalize method called in this code path is not async, so use a regular Mock
-    finalize_result = {"result": "final result"}
-    conductor_agent.prompt.finalize = Mock(return_value=finalize_result)
-
-    conductor_agent.prompt.can_finalize.return_value = True
-    # Don't mock dispatcher.finalize since it's not used in this code path
-    conductor_agent.generate_validated_response = AsyncMock()
-
-    # The conversation object is modified directly, not returned
-    await conductor_agent.process_conversation(conversation)
-
-    # Verify the finalize mock was called correctly
-    conductor_agent.prompt.finalize.assert_called_once_with(longterm_memory)
-
-    # Check if conversation.final_result was set correctly - no await needed for a direct property
-    assert conversation.final_result == finalize_result
-    conductor_agent.generate_validated_response.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -488,27 +483,6 @@ async def test_finalize_call_prompt_function(conductor_agent_with_finalizer_func
     # No need to await final_result as it's a direct property
     assert mock_conversation.final_result == {"result": "final result"}
     conductor_agent_with_finalizer_function.dispatcher.publish.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_process_conversation_calls_can_finalize(mock_conversation, conductor_agent):
-    conductor_agent.finalize = AsyncMock()
-
-    await conductor_agent.process_conversation(mock_conversation)
-    conductor_agent.finalize.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_can_finalize(mock_conversation, conductor_agent):
-    conductor_agent.can_finalize_name = "Finalizer_Agent"
-    conductor_agent.prompt.can_finalize.return_value = True
-    conductor_agent.finalize = AsyncMock()
-
-    parsed_prompt_argument = DefaultCanFinalizePromptArgument(can_finalize=True)
-    conductor_agent.prompt.parse_user_prompt.return_value = parsed_prompt_argument
-
-    await conductor_agent.process_conversation(mock_conversation)
-    conductor_agent.finalize.assert_called_once()
 
 
 # ----- Tests for Rule-Based Routing -----
@@ -811,3 +785,317 @@ async def test_invoke_no_rule_no_llm_no_message(conductor_agent_rules_only, mock
 
     # Assert that no message was appended
     assert len(result.chat) == initial_message_count
+
+
+# ----- Tests for BaseAgent Tool Functionality in ConductorAgent -----
+
+
+@pytest.mark.asyncio
+async def test_handle_tool_call(conductor_agent_with_tools, mock_conversation):
+    """Test that tool calls are properly handled using the BaseAgent.handle_tool_call method."""
+    # Create a conversation with tool calls
+    conversation_with_tool_call = mock_conversation.append(
+        ChatMessage(
+            role=Role.ASSISTANT,
+            content=None,
+            name=conductor_agent_with_tools.name,
+            tool_calls=[
+                {
+                    "tool_call_id": "test_id",
+                    "function_name": "test_tool",
+                    "arguments": '{"test_param": "test_value"}',
+                }
+            ],
+        )
+    )
+
+    # Call handle_tool_call
+    result = await conductor_agent_with_tools.handle_tool_call(
+        conversation_with_tool_call, conversation_with_tool_call
+    )
+
+    # Verify the tool was executed and the result was added to the conversation
+    conductor_agent_with_tools.tool_executor.execute_tool.assert_called_once()
+
+    # Check there's a tool response message
+    tool_responses = [msg for msg in result.chat if msg.role == Role.TOOL]
+    assert len(tool_responses) == 1
+    assert tool_responses[0].tool_call_id == "test_id"
+    assert tool_responses[0].content == "tool execution result"
+
+
+@pytest.mark.asyncio
+async def test_generate_validated_response_with_tools(conductor_agent_with_tools, mock_conversation):
+    """Test the generate_validated_response method with tools"""
+    # Set up the parse_user_prompt mock to return a valid prompt argument
+    prompt_arg = MockPromptArgument(next_agent="agent1")
+    conductor_agent_with_tools.prompt.parse_user_prompt.return_value = prompt_arg
+
+    # First have the LLM generate a response with a tool call
+    async def mock_generate_first_tool_call(conversation, tools=None, message_type=None):
+        return conversation.append(
+            ChatMessage(
+                role=Role.ASSISTANT,
+                content=None,
+                name=conductor_agent_with_tools.name,
+                tool_calls=[
+                    {
+                        "tool_call_id": "test_id",
+                        "function_name": "test_tool",
+                        "arguments": '{"test_param": "test_value"}',
+                    }
+                ],
+            )
+        )
+
+    # Then when generate is called again after the tool response, return a normal response
+    async def mock_generate_after_tool(conversation, tools=None, message_type=None):
+        # Check if there's a tool response already
+        if any(msg.role == Role.TOOL for msg in conversation.chat):
+            return conversation.append(
+                ChatMessage(
+                    role=Role.ASSISTANT,
+                    content='{"next_agent": "agent1"}',
+                    name=conductor_agent_with_tools.name,
+                )
+            )
+        # Otherwise return the tool call response again
+        return mock_generate_first_tool_call(conversation, tools, message_type)
+
+    conductor_agent_with_tools.llm_client.generate = AsyncMock(side_effect=mock_generate_after_tool)
+
+    # Call generate_validated_response
+    result = await conductor_agent_with_tools.generate_validated_response(mock_conversation, MessageType.CONDUCTOR)
+
+    # Verify the flow: LLM generates tool call -> tool is executed -> LLM generates final response
+    conductor_agent_with_tools.llm_client.generate.assert_called()
+    conductor_agent_with_tools.tool_executor.execute_tool.assert_called_once()
+
+    # The final result should have the prompt argument updated
+    assert result.prompt_argument == prompt_arg
+
+
+@pytest.mark.asyncio
+async def test_prepare_invoke_with_initialization_flags(mock_dispatcher, mock_llm_client, mock_prompt):
+    """Test that the prepare_invoke method correctly initializes conversation based on flags"""
+    # Create agent with initialization flags disabled
+    conductor = create_conductor_agent(
+        mock_dispatcher,
+        mock_llm_client,
+        mock_prompt,
+        init_prompt_arguments_with_longterm_memory=False,
+        init_prompt_arguments_with_previous_agent=False,
+    )
+
+    # Create mock conversation
+    conversation = ImmutableConversation(prompt_argument=MyPromptArgument(field1="original_value"))
+
+    # Mock the longterm memory that would normally be retrieved
+    longterm_memory = MyLongTermMemory(field1="memory_value")
+    conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
+
+    # Mock init_prompt to return conversation with new prompt argument
+    new_prompt_arg = MyPromptArgument(field1="")
+    conductor.prompt.create_prompt_argument = Mock(return_value=new_prompt_arg)
+    conductor.prompt.init_prompt = Mock(return_value=conversation.update(prompt_argument=new_prompt_arg))
+
+    # Call prepare_invoke
+    result = await conductor.prepare_invoke(conversation)
+
+    # Since init flags are disabled, the field1 should remain empty and not be updated
+    # from either longterm memory or previous prompt argument
+    assert result.prompt_argument.field1 == ""
+    assert result.prompt_argument != conversation.prompt_argument
+
+
+@pytest.mark.asyncio
+async def test_register_tools(conductor_agent_with_tools):
+    """Test registering additional tools with the agent"""
+    # Initial tool count
+    initial_tool_count = len(conductor_agent_with_tools.tools)
+
+    # Define a mock function to register as a tool
+    def mock_tool_function(param1: str):
+        """A mock tool function for testing"""
+        return f"Processed {param1}"
+
+    # Register the tool
+    conductor_agent_with_tools.register_tools(mock_tool_function)
+
+    # Verify the tool was added
+    assert len(conductor_agent_with_tools.tools) > initial_tool_count
+
+
+# ----- Tests for Integration of BaseAgent and ConductorAgent Functionality -----
+
+
+@pytest.mark.asyncio
+async def test_integration_rule_based_routing_with_tools(
+    conductor_agent_with_tools, conductor_agent_with_rules, mock_conversation
+):
+    """Test the integration of rule-based routing with tool handling"""
+    # Combine tools and rules in one agent
+    conductor = create_conductor_agent(
+        mock_dispatcher=conductor_agent_with_tools.dispatcher,
+        mock_llm_client=conductor_agent_with_tools.llm_client,
+        mock_prompt=conductor_agent_with_tools.prompt,
+        tools=conductor_agent_with_tools.tools,
+        tool_executor=conductor_agent_with_tools.tool_executor,
+        rules=conductor_agent_with_rules.rules,
+    )
+
+    # Set up the agent to use rule-based routing
+    conductor.prompt.init_prompt = lambda agent_name, conversation, message_type, **kwargs: conversation
+
+    # Make all rules return false to force LLM fallback with tool use
+    for rule in conductor.rules:
+        rule.condition = rule_always_false
+
+    # Setup LLM to return a tool call first, then a regular response
+    tool_calls_made = 0
+
+    async def mock_generate_with_tools(conversation, tools=None, message_type=None):
+        nonlocal tool_calls_made
+        if tool_calls_made == 0:
+            tool_calls_made += 1
+            return conversation.append(
+                ChatMessage(
+                    role=Role.ASSISTANT,
+                    content=None,
+                    name=conductor.name,
+                    tool_calls=[
+                        {
+                            "tool_call_id": "test_id",
+                            "function_name": "test_tool",
+                            "arguments": '{"test_param": "test_value"}',
+                        }
+                    ],
+                )
+            )
+        else:
+            return conversation.append(
+                ChatMessage(role=Role.ASSISTANT, content='{"next_agent": "agent1"}', name=conductor.name)
+            )
+
+    # Setup prompt to return a valid prompt argument after tool use
+    conductor.llm_client.generate = AsyncMock(side_effect=mock_generate_with_tools)
+    prompt_arg = MockPromptArgument(next_agent="agent1")
+    conductor.prompt.parse_user_prompt.return_value = prompt_arg
+    conductor.prompt.is_final = Mock(return_value=True)
+
+    # Invoke the agent
+    result = await conductor.invoke(mock_conversation, MessageType.CONDUCTOR)
+
+    # Verify that tool was called AND routing happened
+    conductor.tool_executor.execute_tool.assert_called_once()
+    assert result.prompt_argument.next_agent == "agent1"
+
+
+@pytest.mark.asyncio
+async def test_integration_prepare_invoke_and_can_finalize(conductor_agent, mock_conversation):
+    """Test integration between prepare_invoke and conversation finalization"""
+    # Mock prepare_invoke to properly initialize the conversation
+    original_prepare_invoke = conductor_agent.prepare_invoke
+
+    async def mock_prepare_invoke_with_finalize(conversation):
+        # Call the original prepare_invoke
+        updated_conv = await original_prepare_invoke(conversation)
+        # Add special flag to prompt_argument to allow finalization
+        if updated_conv.prompt_argument:
+            updated_conv.prompt_argument = DefaultCanFinalizePromptArgument(can_finalize=True)
+        return updated_conv
+
+    conductor_agent.prepare_invoke = AsyncMock(side_effect=mock_prepare_invoke_with_finalize)
+    conductor_agent.prompt.can_finalize = Mock(return_value=True)
+    conductor_agent.finalize = AsyncMock()
+
+    # Add longterm memory that will be returned by the mock
+    longterm_memory = MyLongTermMemory()
+    mock_conversation = mock_conversation.update_agent_longterm_memory(
+        agent_name=conductor_agent.name,
+        longterm_memory=longterm_memory,
+    )
+
+    # Process the conversation
+    await conductor_agent.process_conversation(mock_conversation)
+
+    # Verify that prepare_invoke was called and led to finalization
+    conductor_agent.prepare_invoke.assert_called_once()
+    conductor_agent.finalize.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_integration_prepare_invoke_before_rule_evaluation(conductor_agent_with_rules, mock_conversation):
+    """Test that prepare_invoke is correctly called before rule evaluation"""
+    # Create a spy on prepare_invoke
+    original_prepare_invoke = conductor_agent_with_rules.prepare_invoke
+    prepare_invoke_called = False
+
+    async def prepare_invoke_spy(conversation):
+        nonlocal prepare_invoke_called
+        prepare_invoke_called = True
+        return await original_prepare_invoke(conversation)
+
+    conductor_agent_with_rules.prepare_invoke = AsyncMock(side_effect=prepare_invoke_spy)
+
+    # Mock the original invoke to avoid actual rule evaluation
+    conductor_agent_with_rules.prompt.init_prompt = lambda name, conv, message_type, **kwargs: conv
+
+    # Call invoke
+    await conductor_agent_with_rules.invoke(mock_conversation, MessageType.CONDUCTOR)
+
+    # Verify prepare_invoke was called
+    assert prepare_invoke_called
+    conductor_agent_with_rules.prepare_invoke.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_inheritance_tools_and_longterm_memory_integration(conductor_agent_with_tools, mock_conversation):
+    """Test that BaseAgent tool handling works correctly with ConductorAgent's longterm memory"""
+    # Mock conversation with longterm memory
+    longterm_memory = MyLongTermMemory(field1="memory_value")
+    conversation = mock_conversation.update_agent_longterm_memory(
+        agent_name=conductor_agent_with_tools.name,
+        longterm_memory=longterm_memory,
+    )
+
+    # Setup the LLM to use tools first then have a valid response
+    async def generate_with_tool_then_normal(conv, tools=None, message_type=None):
+        # If there's already a tool response, return a normal message
+        if any(msg.role == Role.TOOL for msg in conv.chat):
+            return conv.append(
+                ChatMessage(
+                    role=Role.ASSISTANT,
+                    content='{"next_agent": "agent1", "field1": "updated_value"}',
+                    name=conductor_agent_with_tools.name,
+                )
+            )
+        # Otherwise return a tool call
+        return conv.append(
+            ChatMessage(
+                role=Role.ASSISTANT,
+                content=None,
+                name=conductor_agent_with_tools.name,
+                tool_calls=[
+                    {
+                        "tool_call_id": "test_id",
+                        "function_name": "test_tool",
+                        "arguments": '{"test_param": "test_value"}',
+                    }
+                ],
+            )
+        )
+
+    conductor_agent_with_tools.llm_client.generate = AsyncMock(side_effect=generate_with_tool_then_normal)
+
+    # Setup prompt parser to update the memory
+    updated_prompt_arg = MyPromptArgument(field1="updated_value", next_agent="agent1")
+    conductor_agent_with_tools.prompt.parse_user_prompt.return_value = updated_prompt_arg
+
+    # Process the conversation
+    conversation = await conductor_agent_with_tools.invoke(conversation)
+    conversation = conductor_agent_with_tools.create_or_update_longterm_memory(conversation)
+
+    # Verify tool was used and longterm memory updated
+    conductor_agent_with_tools.tool_executor.execute_tool.assert_called_once()
+    assert longterm_memory.field1 == "updated_value"

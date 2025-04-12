@@ -1127,7 +1127,7 @@ class ConductorAgent(Protocol):
         """
         ...
 
-    def create_or_update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation:
+    def create_or_update_longterm_memory(self, conversation: Conversation) -> Conversation:
         """
         Creates or updates the longterm memory for this conductor agent in the conversation.
 

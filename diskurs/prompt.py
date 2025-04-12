@@ -435,25 +435,7 @@ class BasePrompt(PromptProtocol):
         content = self.system_template.render(**asdict(prompt_argument))
 
         if self.return_json:
-            # Get type hints with metadata
-            hints = get_type_hints(self.prompt_argument, include_extras=True)
-
-            # Filter out fields that should not be included in output
-            filtered_fields = {}
-            for key, value in asdict(self.prompt_argument()).items():
-                hint = hints.get(key)
-                # Only include fields if they have no metadata or have OUTPUT mode
-                if hint is None or not hasattr(hint, "__metadata__"):
-                    # No metadata, include by default
-                    filtered_fields[key] = value
-                else:
-                    # Check metadata for PromptField with OUTPUT mode
-                    for metadata in hint.__metadata__:
-                        if isinstance(metadata, PromptField) and metadata.is_output():
-                            filtered_fields[key] = value
-                            break
-
-            content += "\n" + self.render_json_formatting_prompt(filtered_fields)
+            content += "\n" + self.render_json_formatting_prompt(prompt_argument)
 
         return ChatMessage(role=Role.SYSTEM, name=name, content=content)
 
@@ -520,7 +502,7 @@ class BasePrompt(PromptProtocol):
             active_agent=agent_name,
         )
 
-    def render_json_formatting_prompt(self, prompt_args: dict[str, Any]) -> str:
+    def render_json_formatting_prompt(self, prompt_argument: PromptArgument) -> str:
         """
         Render the JSON formatting template with included fields.
 
@@ -537,30 +519,9 @@ class BasePrompt(PromptProtocol):
         if self.json_formatting_template is None:
             raise ValueError("json_formatting_template is not set.")
 
-        # Get type hints with metadata
-        hints = get_type_hints(self.prompt_argument, include_extras=True)
-
-        # Filter fields based on AccessMode
-        included_fields = {}
-        for key in prompt_args.keys():
-            hint = hints.get(key)
-            include_field = True
-
-            # Check if field has metadata annotations
-            if hint is not None and hasattr(hint, "__metadata__"):
-                include_field = False
-                # Check for OUTPUT mode
-                for metadata in hint.__metadata__:
-                    if hasattr(metadata, "access_mode") and metadata.is_output():
-                        include_field = True
-                        break
-
-            if include_field:
-                field_type = hints.get(key, None)
-                included_fields[key] = field_type
-
-        # Generate schema for the fields
-        schema = self._generate_json_schema(included_fields)
+        schema = self._generate_json_schema(
+            {key: get_type_hints(self.prompt_argument).get(key, None) for key in prompt_argument.get_output_fields()}
+        )
 
         return self.json_formatting_template.render(schema=schema)
 

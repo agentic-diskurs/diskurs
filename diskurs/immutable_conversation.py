@@ -1,7 +1,6 @@
 import copy
 import enum
 import importlib
-from dataclasses import fields, replace
 from typing import Any, Optional, TypeVar
 
 from diskurs import LongtermMemory
@@ -121,36 +120,6 @@ class ImmutableConversation(Conversation):
         updated_longterm_memory[agent_name] = longterm_memory
 
         return self.update(longterm_memory=updated_longterm_memory)
-
-    @staticmethod
-    def update_prompt_argument(source_values, target_values):
-        updated_fields = {}
-        for field in fields(target_values):
-            if hasattr(source_values, field.name):
-                source_value = getattr(source_values, field.name)
-                if source_value:
-                    updated_fields[field.name] = source_value
-        updated_prompt_argument = replace(target_values, **updated_fields)
-        return updated_prompt_argument
-
-    def update_prompt_argument_with_longterm_memory(self, conductor_name: str) -> "ImmutableConversation":
-        longterm_memory = self.get_agent_longterm_memory(conductor_name)
-        updated_prompt_argument = self.update_prompt_argument(
-            source_values=longterm_memory,
-            target_values=self.prompt_argument,
-        )
-
-        return self.update(prompt_argument=updated_prompt_argument)
-
-    def update_prompt_argument_with_previous_agent(
-        self, previous_agent_prompt_argument: GenericPromptArg
-    ) -> "ImmutableConversation":
-        updated_prompt_argument = self.update_prompt_argument(
-            source_values=previous_agent_prompt_argument,
-            target_values=self.prompt_argument,
-        )
-
-        return self.update(prompt_argument=updated_prompt_argument)
 
     def update(
         self,

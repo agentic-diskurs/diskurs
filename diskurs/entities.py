@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from dataclasses import fields, is_dataclass
 from enum import Enum
-from typing import Annotated, TypeVar, TypeAlias
+from typing import Annotated, TypeVar, TypeAlias, get_type_hints
 from typing import Any, Callable, Optional, Union, get_args, get_origin, TYPE_CHECKING
 
 
@@ -235,12 +235,124 @@ else:
 
 @dataclass
 class PromptArgument(JsonSerializable):
-    pass
+    def init(self, source: Union["PromptArgument", LongtermMemory]) -> "PromptArgument":
+        """
+        Initialize a new instance by reading the fields of another PromptArgument or LongtermMemory.
+        Only fields of type InputField will be copied from the source.
+
+        :param source: The source object to copy fields from
+        :return: A new instance with InputField values copied from source
+        """
+        if not source:
+            return self
+
+        common_fields = {f.name for f in fields(self)}.intersection({f.name for f in fields(source)})
+        update_values = {}
+
+        # Get type hints with metadata for the current class
+        hints = get_type_hints(self.__class__, include_extras=True)
+
+        for field_name in common_fields:
+            # Check if the field has InputField metadata
+            field_type = hints.get(field_name)
+
+            if field_type and hasattr(field_type, "__metadata__"):
+                for metadata in field_type.__metadata__:
+                    if isinstance(metadata, PromptField) and metadata.is_input():
+                        # Only copy InputField fields
+                        update_values[field_name] = getattr(source, field_name)
+                        break
+
+        # Create a new instance with updated values
+        return self.__class__(**{**asdict(self), **update_values})
+
+    def update(self, values: dict[str, Any]) -> "PromptArgument":
+        """
+        Update instance fields with values from a dictionary, except for those of type
+        LockedField or InputField.
+
+        :param values: Dictionary containing field values to update
+        :return: A new instance with updated values
+        """
+        if not values:
+            return self
+
+        update_values = {}
+
+        # Get type hints with metadata for the current class
+        hints = get_type_hints(self.__class__, include_extras=True)
+
+        for field_name, value in values.items():
+            if field_name not in {f.name for f in fields(self)}:
+                continue
+
+            field_type = hints.get(field_name)
+            skip_field = False
+
+            # Check if the field has LockedField or InputField metadata
+            if field_type and hasattr(field_type, "__metadata__"):
+                for metadata in field_type.__metadata__:
+                    if isinstance(metadata, PromptField) and (metadata.is_locked() or metadata.is_input()):
+                        skip_field = True
+                        break
+
+            if not skip_field:
+                update_values[field_name] = value
+
+        # Create a new instance with updated values
+        return self.__class__(**{**asdict(self), **update_values})
+
+    def get_output_fields(self) -> dict[str, Any]:
+        """
+        Returns a dictionary containing only the fields that should be included in JSON output.
+        This includes fields with OutputField annotation and fields with no specific annotation.
+
+        :return: Dictionary of field names to values that should be included in output
+        """
+        # Get type hints with metadata
+        hints = get_type_hints(self.__class__, include_extras=True)
+
+        # Filter fields for output
+        output_fields = {}
+        for key, value in asdict(self).items():
+            hint = hints.get(key)
+            include_field = True
+
+            # If field has metadata, only include it if it has OutputField annotation
+            if hint and hasattr(hint, "__metadata__"):
+                include_field = False
+                for metadata in hint.__metadata__:
+                    if isinstance(metadata, PromptField) and metadata.is_output():
+                        include_field = True
+                        break
+
+            # Include fields with no metadata or with OutputField annotation
+            if include_field:
+                output_fields[key] = value
+
+        return output_fields
 
 
 @dataclass
 class LongtermMemory(JsonSerializable):
-    user_query: str
+    user_query: str = ""
+
+    def update(self, prompt_argument: PromptArgument | LongtermMemory) -> "LongtermMemory":
+        """
+        Update fields in the longterm memory using values from a PromptArgument.
+        Only fields of type OutputField in the PromptArgument will be copied to
+        the LongtermMemory if they have matching names.
+
+        :param prompt_argument: The PromptArgument to copy fields from
+        :return: A new LongtermMemory instance with updated fields
+        """
+        if not prompt_argument:
+            return self
+
+        common_fields = {f.name for f in fields(self)}.intersection({f.name for f in fields(prompt_argument)})
+        update_values = {field_name: getattr(prompt_argument, field_name) for field_name in common_fields}
+
+        return self.__class__(**{**asdict(self), **update_values})
 
 
 @dataclass

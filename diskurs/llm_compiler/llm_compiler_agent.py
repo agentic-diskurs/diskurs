@@ -1,6 +1,6 @@
 from typing import Optional, Self
 
-from diskurs.agent import get_last_conductor_name, is_previous_agent_conductor
+from diskurs.agent import initialize_prompt_argument
 from diskurs.entities import MessageType, ToolDescription
 from diskurs.llm_compiler.entities import ExecutionPlan
 from diskurs.llm_compiler.parallel_executor import ParallelExecutor
@@ -62,25 +62,31 @@ class LLMCompilerAgent(MultiStepAgent):
     ) -> Conversation:
         self.logger.debug(f"Invoke called on LLM Compiler agent {self.name}")
 
+        # Store the previous prompt argument in case we need it
         previous_user_prompt_augment = conversation.prompt_argument
 
+        # Initialize a fresh prompt
         conversation = self.prompt.init_prompt(self.name, conversation)
-        if self.init_prompt_arguments_with_longterm_memory:
-            conversation = conversation.update_prompt_argument_with_longterm_memory(
-                conductor_name=get_last_conductor_name(conversation.chat)
-            )
 
-        if not is_previous_agent_conductor(conversation) and self.init_prompt_arguments_with_previous_agent:
-            conversation = conversation.update_prompt_argument_with_previous_agent(previous_user_prompt_augment)
+        # Use the centralized utility function to initialize prompt arguments
+        _, updated_prompt_argument = initialize_prompt_argument(
+            conversation=conversation,
+            prompt_argument=conversation.prompt_argument,
+            init_from_longterm_memory=self.init_prompt_arguments_with_longterm_memory,
+            init_from_previous_agent=self.init_prompt_arguments_with_previous_agent,
+            previous_prompt_argument=previous_user_prompt_augment,
+        )
 
-        prompt_argument: PlanningPromptArgument = conversation.prompt_argument
+        # Set tool-specific properties on the prompt argument
+        prompt_argument = updated_prompt_argument
         prompt_argument.tools = self.tools
-        prompt_argument.user_query = conversation.prompt_argument.user_query
+        prompt_argument.user_query = prompt_argument.user_query
 
+        # Update the conversation with the initialized prompt argument
         conversation = conversation.update(
             prompt_argument=prompt_argument,
             system_prompt=self.prompt.render_system_template(name=self.name, prompt_args=prompt_argument),
-            user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=conversation.prompt_argument),
+            user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=prompt_argument),
         )
 
         evaluate_replanning = False

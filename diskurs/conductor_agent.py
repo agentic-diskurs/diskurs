@@ -1,10 +1,10 @@
 import json
 import logging
-from dataclasses import asdict, fields
+from dataclasses import asdict
 from typing import Any, List, Optional, Self
 
 from diskurs.agent import BaseAgent, is_previous_agent_conductor
-from diskurs.entities import ChatMessage, LongtermMemory, MessageType, PromptArgument, Role, RoutingRule
+from diskurs.entities import ChatMessage, MessageType, PromptArgument, Role, RoutingRule
 from diskurs.protocols import ConductorAgent as ConductorAgentProtocol
 from diskurs.protocols import ConductorPrompt, Conversation, ConversationDispatcher, LLMClient
 from diskurs.registry import register_agent
@@ -37,8 +37,12 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         max_dispatches: int = 50,
         rules: Optional[List[RoutingRule]] = None,
         fallback_to_llm: bool = True,
+        # BaseAgent parameters
+        tools: Optional[list[Any]] = None,
+        tool_executor: Optional[Any] = None,
+        init_prompt_arguments_with_longterm_memory: bool = True,
+        init_prompt_arguments_with_previous_agent: bool = True,
     ):
-
         validate_finalization(finalizer_name, prompt, supervisor=supervisor)
 
         super().__init__(
@@ -48,6 +52,10 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             topics=topics,
             dispatcher=dispatcher,
             max_trials=max_trials,
+            tools=tools,
+            tool_executor=tool_executor,
+            init_prompt_arguments_with_longterm_memory=init_prompt_arguments_with_longterm_memory,
+            init_prompt_arguments_with_previous_agent=init_prompt_arguments_with_previous_agent,
         )
         self.agent_descriptions = agent_descriptions
         self.finalizer_name = finalizer_name
@@ -55,7 +63,6 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         self.can_finalize_name = can_finalize_name
         self.max_dispatches = max_dispatches
         self.n_dispatches = 0
-
         self.rules = rules or []
         self.fallback_to_llm = fallback_to_llm
 
@@ -75,9 +82,14 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         max_trials = kwargs.get("max_trials", 5)
         max_dispatches = kwargs.get("max_dispatches", 50)
         topics = kwargs.get("topics", [])
-
         rules = kwargs.get("rules", [])
         fallback_to_llm = kwargs.get("fallback_to_llm", True)
+
+        # BaseAgent parameters
+        tools = kwargs.get("tools", None)
+        tool_executor = kwargs.get("tool_executor", None)
+        init_prompt_arguments_with_longterm_memory = kwargs.get("init_prompt_arguments_with_longterm_memory", True)
+        init_prompt_arguments_with_previous_agent = kwargs.get("init_prompt_arguments_with_previous_agent", True)
 
         return cls(
             name=name,
@@ -93,6 +105,10 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             topics=topics,
             rules=rules,
             fallback_to_llm=fallback_to_llm,
+            tools=tools,
+            tool_executor=tool_executor,
+            init_prompt_arguments_with_longterm_memory=init_prompt_arguments_with_longterm_memory,
+            init_prompt_arguments_with_previous_agent=init_prompt_arguments_with_previous_agent,
         )
 
     def evaluate_rules(self, conversation: Conversation) -> Optional[str]:
@@ -110,36 +126,29 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
         return None
 
-    @staticmethod
-    def update_longterm_memory(
-        source: LongtermMemory | PromptArgument,
-        target: LongtermMemory,
-        overwrite: bool,
-    ) -> LongtermMemory:
-        common_fields = {field.name for field in fields(target)}.intersection({field.name for field in fields(source)})
-        for field in common_fields:
-            if overwrite or not getattr(target, field):
-                setattr(
-                    target,
-                    field,
-                    getattr(source, field),
-                )
-        return target
+    def create_or_update_longterm_memory(self, conversation: Conversation) -> Conversation:
+        """
+        Creates or updates the conductor's longterm memory based on the current conversation.
+        Uses the LongtermMemory.update() method to copy OutputField values from a PromptArgument.
 
-    def create_or_update_longterm_memory(self, conversation: Conversation, overwrite: bool = False) -> Conversation:
-        longterm_memory = conversation.get_agent_longterm_memory(self.name) or self.prompt.init_longterm_memory()
+        :param conversation: Current conversation object
+        :return: Updated conversation with updated longterm memory
+        """
+        longterm_memory = (
+            conversation.get_agent_longterm_memory(agent_name=self.name) or self.prompt.init_longterm_memory()
+        )
 
         source = (
-            conversation.get_agent_longterm_memory(conversation.last_message.name or "")
-            if is_previous_agent_conductor(conversation)
+            conversation.get_agent_longterm_memory(agent_name=conversation.last_message.name or "")
+            if is_previous_agent_conductor(conversation=conversation)
             else conversation.prompt_argument
         )
 
         if source:
-            longterm_memory = self.update_longterm_memory(source, longterm_memory, overwrite)
+            longterm_memory = longterm_memory.update(prompt_argument=source)
         else:
             self.logger.warning(
-                f"No suitable user prompt argument nor long-term memory found in conversation {conversation}"
+                "No suitable user prompt argument nor long-term memory found in conversation %s", conversation
             )
 
         return conversation.update_agent_longterm_memory(agent_name=self.name, longterm_memory=longterm_memory)
