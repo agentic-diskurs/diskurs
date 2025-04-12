@@ -326,11 +326,11 @@ def test_access_mode_with_multiple_annotations():
     @dataclass
     class MultiAnnotatedClass(PromptArgument):
         # Field with multiple annotations including OutputField
-        output_with_doc: Annotated[OutputField[str], "This is documentation"] = "test output"
+        output_with_doc: Annotated[OutputField[str], "This is documentation"] = OutputField("test output")
         # Field with multiple annotations including InputField
-        input_with_doc: Annotated[InputField[bool], "This is documentation"] = False
+        input_with_doc: Annotated[InputField[bool], "This is documentation"] = InputField(False)
         # Field with multiple annotations including LockedField
-        locked_with_doc: Annotated[LockedField[int], "This is documentation"] = 42
+        locked_with_doc: Annotated[LockedField[int], "This is documentation"] = LockedField(42)
 
     hints = get_type_hints(MultiAnnotatedClass, include_extras=True)
 
@@ -386,7 +386,7 @@ def test_field_type_with_complex_types():
         list_field: InputField[list[str]] = field(default_factory=lambda: ["a", "b", "c"])
         dict_field: OutputField[dict[str, int]] = field(default_factory=lambda: {"one": 1, "two": 2})
         nested_field: LockedField[NestedClass] = field(default_factory=NestedClass)
-        optional_field: OutputField[Optional[str]] = None
+        optional_field: OutputField[Optional[str]] = OutputField(None)
 
     instance = ComplexTypesClass()
     assert instance.list_field == ["a", "b", "c"]

@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from dataclasses import MISSING, asdict, dataclass, fields, is_dataclass
+from dataclasses import MISSING, asdict, dataclass, field, fields, is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional, Self, Type, TypeVar, Union, get_type_hints
 
@@ -10,6 +10,7 @@ from jinja2 import Environment, FileSystemLoader, Template
 from diskurs.entities import (
     ChatMessage,
     MessageType,
+    OutputField,
     PromptArgument,
     Role,
     InputField,
@@ -674,8 +675,8 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
 
 @dataclass
 class DefaultConductorPromptArgument(PromptArgument):
-    agent_descriptions: InputField[dict[str, str]] = None
-    next_agent: Optional[str] = None
+    agent_descriptions: InputField[dict[str, str]] = InputField(field(default_factory=dict))
+    next_agent: OutputField[Optional[str]] = OutputField(None)
 
 
 GenericConductorLongtermMemory = TypeVar("GenericConductorLongtermMemory", bound="ConductorLongtermMemory")

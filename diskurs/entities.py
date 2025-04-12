@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from dataclasses import fields, is_dataclass
 from enum import Enum
-from typing import Annotated, TypeVar, cast
-from typing import Any, Callable, Optional, Union, get_args, get_origin
+from typing import Annotated, TypeVar, TypeAlias
+from typing import Any, Callable, Optional, Union, get_args, get_origin, TYPE_CHECKING
 
 
 class AccessMode(Enum):
@@ -191,28 +191,46 @@ class PromptField:
         return self.access_mode == AccessMode.LOCKED.value
 
 
-# Now define marker classes that use __class_getitem__ to return an Annotated type.
-class InputField:
-    @classmethod
-    def __class_getitem__(cls, t: type[T]) -> Any:
-        # Create Annotated[t, PromptField("input")]
-        # Use cast(Any, …) to please the type checker.
-        annotated_type = Annotated[t, PromptField("input")]
-        return cast(Any, annotated_type)
+# For type checking purposes, define these types as just the generic type
+if TYPE_CHECKING:
 
+    V = TypeVar("V")
+    # Treat InputField[T] as just T under type checking
+    InputField: TypeAlias = V
+    OutputField: TypeAlias = V
+    LockedField: TypeAlias = V
 
-class OutputField:
-    @classmethod
-    def __class_getitem__(cls, t: type[T]) -> Any:
-        annotated_type = Annotated[t, PromptField("output")]
-        return cast(Any, annotated_type)
+else:
+    # Runtime implementation
+    class InputField:
+        """Input field type for dataclasses."""
 
+        def __new__(cls, value=None):
+            return value
 
-class LockedField:
-    @classmethod
-    def __class_getitem__(cls, t: type[T]) -> Any:
-        annotated_type = Annotated[t, PromptField("locked")]
-        return cast(Any, annotated_type)
+        @classmethod
+        def __class_getitem__(cls, t):
+            return Annotated[t, PromptField("input")]
+
+    class OutputField:
+        """Output field type for dataclasses."""
+
+        def __new__(cls, value=None):
+            return value
+
+        @classmethod
+        def __class_getitem__(cls, t):
+            return Annotated[t, PromptField("output")]
+
+    class LockedField:
+        """Locked field type for dataclasses."""
+
+        def __new__(cls, value=None):
+            return value
+
+        @classmethod
+        def __class_getitem__(cls, t):
+            return Annotated[t, PromptField("locked")]
 
 
 @dataclass
