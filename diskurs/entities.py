@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, fields, is_dataclass
 from enum import Enum
-from typing import Annotated, Any, Callable, Optional, TypeVar, Union, get_args, get_origin
+from typing import Annotated, Any, Callable, Generic, Optional, TypeVar, Union, get_args, get_origin
 
 
 class AccessMode(Enum):
@@ -17,6 +17,10 @@ class AccessMode(Enum):
     def __str__(self):
         """Return the value of the enum member."""
         return self.value
+
+
+# Type variable for generic field types
+T = TypeVar("T")
 
 
 @dataclass
@@ -63,7 +67,6 @@ class JsonSerializable:
             origin = get_origin(field_type)
             args = get_args(field_type)
 
-            # Handle Annotated types (for prompt_field annotations)
             if origin is Annotated:
                 field_type = args[0]  # The actual type is the first argument
                 origin = get_origin(field_type)
@@ -162,93 +165,120 @@ class ChatMessage(JsonSerializable):
             self.tool_calls = [ToolCall.from_dict(tc) for tc in self.tool_calls]
 
 
-class PromptField:
-    """
-    Metadata class for controlling field behavior in prompt generation.
-    This class uses AccessMode enum to provide granular control over how fields
-    should be handled during prompt generation and updating.
-
-    :param access_mode: Mode determining how the field is accessed.
-                        INPUT: Field accepts user input
-                        OUTPUT: Field displays output only
-                        LOCKED: Field is locked/unchangeable
-                        Defaults to OUTPUT.
-
-    Example:
-        >>> @dataclass
-        >>> class MyPrompt(PromptArgument):
-        ...     # Field will be included in output
-        ...     visible_field: Annotated[str, prompt_field(mode=AccessMode.OUTPUT)] = ""
-        ...     # Field will accept input
-        ...     editable_field: Annotated[str, prompt_field(mode=AccessMode.INPUT)] = ""
-        ...     # Field cannot be changed once set
-        ...     locked_field: Annotated[str, prompt_field(mode=AccessMode.LOCKED)] = ""
-    """
-
-    def __init__(self, access_mode: AccessMode = AccessMode.OUTPUT) -> None:
-        """
-        Initialize a new PromptField instance.
-
-        :param access_mode: Mode determining how the field is accessed (INPUT, OUTPUT, or LOCKED).
-        """
-        self.access_mode = access_mode
-
-    def __repr__(self) -> str:
-        """
-        Return string representation of the PromptField.
-
-        :return: String representation showing access mode.
-        """
-        return f"PromptField(access_mode=AccessMode.{self.access_mode.name})"
+# Field metadata classes for access mode information
+class InputFieldMetadata:
+    """Metadata for input fields."""
 
     def is_input(self) -> bool:
-        """
-        Determine if the field accepts input.
-
-        :returns: True if the field accepts input, False otherwise.
-        """
-        return self.access_mode == AccessMode.INPUT
+        return True
 
     def is_output(self) -> bool:
-        """
-        Determine if the field is output only.
-
-        :returns: True if the field is output only, False otherwise.
-        """
-        return self.access_mode == AccessMode.OUTPUT
+        return False
 
     def is_locked(self) -> bool:
-        """
-        Determine if the field is locked/unchangeable.
+        return False
 
-        :returns: True if the field is locked, False otherwise.
-        """
-        return self.access_mode == AccessMode.LOCKED
+    def __repr__(self) -> str:
+        return "InputFieldMetadata()"
 
 
-def prompt_field(*, mode: AccessMode = AccessMode.OUTPUT) -> Any:
+class OutputFieldMetadata:
+    """Metadata for output fields."""
+
+    def is_input(self) -> bool:
+        return False
+
+    def is_output(self) -> bool:
+        return True
+
+    def is_locked(self) -> bool:
+        return False
+
+    def __repr__(self) -> str:
+        return "OutputFieldMetadata()"
+
+
+class LockedFieldMetadata:
+    """Metadata for locked fields."""
+
+    def is_input(self) -> bool:
+        return False
+
+    def is_output(self) -> bool:
+        return False
+
+    def is_locked(self) -> bool:
+        return True
+
+    def __repr__(self) -> str:
+        return "LockedFieldMetadata()"
+
+
+# Special generic classes that work both as runtime values and type annotations
+class InputField(Generic[T]):
     """
-    Decorator function to create a PromptField annotation with AccessMode.
+    Field that accepts user input.
 
-    :param mode: Mode determining how the field is accessed.
-                 INPUT: Field accepts user input
-                 OUTPUT: Field displays output only
-                 LOCKED: Field is locked/unchangeable
-                 Defaults to OUTPUT.
-
-    :returns: Any: A PromptField instance wrapped in Annotated.
+    This can be used both as a type annotation and with an assigned value:
 
     Example:
         >>> @dataclass
         >>> class MyPrompt(PromptArgument):
-        ...     # Field will be included in output
-        ...     visible_field: Annotated[str, prompt_field(mode=AccessMode.OUTPUT)] = ""
-        ...     # Field will accept input
-        ...     editable_field: Annotated[str, prompt_field(mode=AccessMode.INPUT)] = ""
-        ...     # Field cannot be changed once set
-        ...     locked_field: Annotated[str, prompt_field(mode=AccessMode.LOCKED)] = ""
+        ...     # Field with input mode (type annotation only)
+        ...     input_field: InputField[bool] = False
     """
-    return PromptField(access_mode=mode)
+
+    # This allows Pylance to treat the class as a proper Generic
+    __slots__ = ()
+
+    # This tells Python what the actual runtime type is
+    @classmethod
+    def __class_getitem__(cls, item: type) -> Any:
+        """Support for InputField[Type] syntax."""
+        # Create the annotated type with our access mode metadata
+        return Annotated[item, InputFieldMetadata()]
+
+
+class OutputField(Generic[T]):
+    """
+    Field for output-only values.
+
+    This can be used both as a type annotation and with an assigned value:
+
+    Example:
+        >>> @dataclass
+        >>> class MyPrompt(PromptArgument):
+        ...     # Field with output mode (type annotation only)
+        ...     output_field: OutputField[str] = "default value"
+    """
+
+    __slots__ = ()
+
+    @classmethod
+    def __class_getitem__(cls, item: type) -> Any:
+        """Support for OutputField[Type] syntax."""
+        return Annotated[item, OutputFieldMetadata()]
+
+
+class LockedField(Generic[T]):
+    """
+    Field for locked values that cannot be changed.
+
+    This can be used both as a type annotation and with an assigned value:
+
+    Example:
+        >>> @dataclass
+        >>> class MyPrompt(PromptArgument):
+        ...     # Field with locked mode (type annotation only)
+        ...     locked_field: LockedField[int] = 42
+    """
+
+    __slots__ = ()
+
+    @classmethod
+    def __class_getitem__(cls, item: type) -> Any:
+        """Support for LockedField[Type] syntax."""
+        return Annotated[item, LockedFieldMetadata()]
 
 
 @dataclass

@@ -2,14 +2,12 @@ import asyncio
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Annotated
 
 from dotenv import load_dotenv
 from jinja2 import Template
 
 from diskurs import (
     PromptArgument,
-    prompt_field,
     LongtermMemory,
     ConductorAgent,
     Conversation,
@@ -21,7 +19,7 @@ from diskurs import (
     PromptValidationError,
 )
 from diskurs.azure_llm_client import AzureOpenAIClient
-from diskurs.entities import RoutingRule, DiskursInput, AgentDescription
+from diskurs.entities import InputField, OutputField, RoutingRule, DiskursInput, AgentDescription
 from diskurs.filesystem_conversation_store import AsyncFilesystemConversationStore
 from diskurs.prompt import ConductorPrompt, MultistepPrompt
 from diskurs.tools import ToolExecutor
@@ -149,7 +147,7 @@ sales_agent_description = (
 )
 
 sales_agent_system_template = Template(
-    """You are a sales agent. Your task is to analyze the information about a company and decide if it fits 
+    """You are a sales agent. Your task is to analyze the information about a company and decide if it fits
     in the ideal customer profile.
     - You carefully analyze the information about the company
     - You will decide if the company fits in the ideal customer profile
@@ -167,19 +165,18 @@ sales_agent_user_template = Template(
     I have to analyze the information about the company, who's details are provided above, and decide if it fits in the ideal customer profile.
     - I will carefully analyze the information about the company
     - I will decide if the company fits in the ideal customer profile
-    - If the company fits in the ideal customer profile, I will return a verdict of *trustworthy* otherwise *not*
-    - Only if it fits in the ideal customer profile, I will return a management summary about the company and the reasons why it fits
+    - If it fits in the ideal customer profile, I will return a management summary about the company and the reasons why it fits
     """
 )
 
 
 @dataclass
 class SalesAgentPromptArgument(PromptArgument):
-    company_country: Annotated[str, prompt_field(include=False)] = ""
-    company_industry: Annotated[str, prompt_field(include=False)] = ""
-    company_size: Annotated[int, prompt_field(include=False)] = ""
-    verdict: Annotated[str, prompt_field(include=True)] = ""
-    management_summary: Annotated[str, prompt_field(include=True)] = ""
+    company_country: InputField[str] = ""
+    company_industry: InputField[str] = ""
+    company_size: InputField[int] = ""
+    verdict: OutputField[str] = ""
+    management_summary: OutputField[str] = ""
 
 
 sales_agent_prompt = MultistepPrompt(agent_description=sales_agent_description,
@@ -220,8 +217,8 @@ customer_success_user_template = Template(
 
 @dataclass
 class CustomerSuccessAgentPromptArgument(PromptArgument):
-    company_name: Annotated[str, prompt_field(include=False)] = ""
-    detailed_company_information: Annotated[str, prompt_field(include=True)] = ""
+    company_name: InputField[str] = ""
+    detailed_company_information: OutputField[str] = ""
 
 
 customer_success_agent_prompt = MultistepPrompt(agent_description=customer_success_agent_description,
@@ -266,10 +263,10 @@ customer_analyst_user_template = Template(
 
 @dataclass
 class CustomerAnalystAgentPromptArgument(PromptArgument):
-    company_name: Annotated[str, prompt_field(include=False)] = ""
-    detailed_company_information: Annotated[str, prompt_field(include=True)] = ""
-    company_score: Annotated[int, prompt_field(include=False)] = ""
-    growth_index: Annotated[float, prompt_field(include=False)] = ""
+    company_name: InputField[str] = ""
+    detailed_company_information: OutputField[str] = ""
+    company_score: InputField[int] = ""
+    growth_index: InputField[float] = ""
 
 
 customer_analyst_agent_prompt = MultistepPrompt(agent_description=customer_analyst_agent_description,
@@ -303,10 +300,10 @@ my_conductor_system_template = Template(
     You will receive a user query, a set of agent descriptions and the chat history.
     Your job is to determine which agent should be the next agent based on the provided information.
     {% if example_trajectories %}You will also receive a set of example trajectories to help you understand better how to route the user query.{% endif %}
-    
+
     **User Query:**
     {{ user_query }}
-    
+
     **Agent Descriptions:**
     {% for agent in agent_descriptions %}
     - Name: {{ agent.name }}
@@ -341,10 +338,10 @@ class MyConductorLongtermMemory(LongtermMemory):
 
 @dataclass
 class MyConductorPromptArgument(PromptArgument):
-    agent_descriptions: Annotated[list[dict[str, str]], prompt_field(include=False)] = field(default_factory=list)
-    example_trajectories: Annotated[list[dict[str, str]], prompt_field(include=False)] = field(default_factory=list)
-    user_query: Annotated[str, prompt_field(include=False)] = ""
-    next_agent: Annotated[str, prompt_field(include=True)] = ""
+    agent_descriptions: InputField[list[dict[str, str]]] = field(default_factory=list)
+    example_trajectories: InputField[list[dict[str, str]]] = field(default_factory=list)
+    user_query: InputField[str] = ""
+    next_agent: OutputField[str] = ""
 
 
 with open(
@@ -357,16 +354,34 @@ with open(
 def get_in_out(prompt_argument: PromptArgument) -> dict[str, dict[str, str]]:
     """
     Gets information about the inputs and outputs of the agent.
-    It uses the prompt arguments fields "prompt_field" to get the names of the inputs and outputs.
-    If the field is marked as "include=True", it is considered an output, otherwise an input.
+    It uses the prompt arguments fields to get the names of the inputs and outputs.
+    OutputField types are considered outputs, InputField types are considered inputs.
     """
+    from typing import get_origin, get_args, Annotated
+    from diskurs.entities import PromptField
+
     inputs = {}
     outputs = {}
-    for field_name, field_value in prompt_argument.__annotations__.items():
-        if hasattr(field_value, "__metadata__") and field_value.__metadata__[0].include:
-            outputs[field_name] = getattr(prompt_argument, field_name)
-        else:
-            inputs[field_name] = getattr(prompt_argument, field_name)
+    for field_name, field_type in prompt_argument.__annotations__.items():
+        # Get the value of the field
+        field_value = getattr(prompt_argument, field_name)
+
+        # Check if it's an OutputField type
+        origin = get_origin(field_type)
+        if origin is Annotated:
+            args = get_args(field_type)
+            # Check if any of the annotations is a PromptField with OUTPUT mode
+            has_output_annotation = any(
+                isinstance(meta, PromptField) and meta.is_output()
+                for meta in args[1:]
+            )
+            if has_output_annotation:
+                outputs[field_name] = field_value
+                continue
+
+        # If not identified as an output, treat as input
+        inputs[field_name] = field_value
+
     return {"inputs": inputs, "outputs": outputs}
 
 

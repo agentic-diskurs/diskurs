@@ -3,7 +3,7 @@ from importlib.metadata import version
 from .conductor_agent import ConductorAgent
 from .config import ConversationStoreConfig, ToolDependencyConfig
 from .dispatcher import AsynchronousConversationDispatcher
-from .entities import DiskursInput, LongtermMemory, PromptArgument, PromptField, prompt_field
+from .entities import DiskursInput, LongtermMemory, PromptArgument, InputField, OutputField, LockedField, AccessMode
 from .forum import Forum, ForumFactory, create_forum_from_config
 from .immutable_conversation import ImmutableConversation
 from .multistep_agent import MultiStepAgent
@@ -70,6 +70,8 @@ __all__ = [
     "CallTool",
     "ToolExecutor",
     "ToolDependency",
-    "PromptField",
-    "prompt_field",
+    "InputField",
+    "OutputField",
+    "LockedField",
+    "AccessMode",
 ]

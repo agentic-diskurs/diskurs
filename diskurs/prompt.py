@@ -3,17 +3,18 @@ import logging
 import re
 from dataclasses import MISSING, asdict, dataclass, fields, is_dataclass
 from pathlib import Path
-from typing import Annotated, Any, Callable, Optional, Self, Type, TypeVar, Union, get_type_hints
+from typing import Any, Callable, Optional, Self, Type, TypeVar, Union, get_type_hints
 
 from jinja2 import Environment, FileSystemLoader, Template
 
 from diskurs.entities import (
-    AccessMode,
     ChatMessage,
     MessageType,
     PromptArgument,
     Role,
-    prompt_field,
+    InputField,
+    InputFieldMetadata,
+    LockedFieldMetadata,
 )
 from diskurs.errors import PromptValidationError
 from diskurs.protocols import CallTool
@@ -191,7 +192,7 @@ def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1_000_0
 def validate_dataclass(parsed_response: dict[str, Any], prompt_argument: Type[GenericDataclass]) -> GenericDataclass:
     """
     Validate and convert a dictionary to a dataclass instance with proper type coercion.
-    Fields annotated with prompt_field(mode=AccessMode.INPUT) will be skipped during validation,
+    Fields with InputFieldMetadata will be skipped during validation,
     as these are intended to accept user input rather than be validated.
 
     :param parsed_response: Dictionary from parsed JSON/response
@@ -215,10 +216,13 @@ def validate_dataclass(parsed_response: dict[str, Any], prompt_argument: Type[Ge
     includable_fields = {}
     for field_name, field in dataclass_fields.items():
         field_type = hints.get(field_name)
-        # Skip fields marked as INPUT mode
+        # Skip fields marked with INPUT metadata
         if field_type and hasattr(field_type, "__metadata__"):
-            # Check for PromptField with INPUT mode
-            if any(hasattr(m, "access_mode") and m.is_input() for m in field_type.__metadata__):
+            # Check for InputFieldMetadata
+            if any(
+                isinstance(m, InputFieldMetadata) or (hasattr(m, "is_input") and m.is_input())
+                for m in field_type.__metadata__
+            ):
                 continue
         includable_fields[field_name] = field
 
@@ -249,11 +253,13 @@ def validate_dataclass(parsed_response: dict[str, Any], prompt_argument: Type[Ge
     for field_name, field in dataclass_fields.items():
         field_type = hints.get(field_name)
 
-        # Skip fields marked with INPUT or LOCKED mode if they're not in the parsed response
+        # Skip fields marked with INPUT or LOCKED metadata if they're not in the parsed response
         if field_type and hasattr(field_type, "__metadata__"):
             is_excluded = False
             for m in field_type.__metadata__:
-                if hasattr(m, "access_mode") and not m.is_output():  # Check if not OUTPUT mode
+                if isinstance(m, (InputFieldMetadata, LockedFieldMetadata)) or (
+                    hasattr(m, "is_output") and not m.is_output()
+                ):  # Check if not OUTPUT mode
                     is_excluded = True
                     break
 
@@ -674,7 +680,7 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
 
 @dataclass
 class DefaultConductorPromptArgument(PromptArgument):
-    agent_descriptions: Annotated[Optional[dict[str, str]], prompt_field(mode=AccessMode.INPUT)] = None
+    agent_descriptions: InputField[dict[str, str]] = None
     next_agent: Optional[str] = None
 
 

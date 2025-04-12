@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from typing import get_type_hints
+
 import pytest
 
 from diskurs.entities import (
@@ -8,11 +10,12 @@ from diskurs.entities import (
     ChatMessage,
     Role,
     AccessMode,
-    prompt_field,
+    OutputField,
+    InputField,
+    LockedField,
 )
 from diskurs.immutable_conversation import ImmutableConversation
 from .conftest import MyLongtermMemory, MyPromptArgument, EnumPromptArgument, ChatType, Priority
-from typing import Annotated, get_type_hints
 
 
 def test_basic_update():
@@ -134,9 +137,9 @@ def test_prompt_argument_to_dict():
 @dataclass
 class AccessModeTestDataclass(PromptArgument):
     # Test different access mode configurations
-    output_field: Annotated[str, prompt_field(mode=AccessMode.OUTPUT)] = "output"
-    input_field: Annotated[str, prompt_field(mode=AccessMode.INPUT)] = "input"
-    locked_field: Annotated[str, prompt_field(mode=AccessMode.LOCKED)] = "locked"
+    output_field: OutputField[str] = "output"
+    input_field: InputField[str] = "input"
+    locked_field: LockedField[str] = "locked"
     default_field: str = "default"  # No annotation, should behave like OUTPUT
 
 
@@ -156,44 +159,8 @@ def test_access_mode_enum():
     assert AccessMode("locked") == AccessMode.LOCKED
 
 
-def test_prompt_field_creation():
-    """Test creating prompt_field with different access modes"""
-    # Test default (OUTPUT mode)
-    field = prompt_field()
-    assert field.access_mode == AccessMode.OUTPUT
-    assert field.is_output() is True
-    assert field.is_input() is False
-    assert field.is_locked() is False
-
-    # Test INPUT mode
-    field = prompt_field(mode=AccessMode.INPUT)
-    assert field.access_mode == AccessMode.INPUT
-    assert field.is_output() is False
-    assert field.is_input() is True
-    assert field.is_locked() is False
-
-    # Test LOCKED mode
-    field = prompt_field(mode=AccessMode.LOCKED)
-    assert field.access_mode == AccessMode.LOCKED
-    assert field.is_output() is False
-    assert field.is_input() is False
-    assert field.is_locked() is True
-
-
-def test_prompt_field_str_representation():
-    """Test string representation of PromptField"""
-    field = prompt_field(mode=AccessMode.INPUT)
-    assert str(field) == "PromptField(access_mode=AccessMode.INPUT)"
-
-    field = prompt_field(mode=AccessMode.OUTPUT)
-    assert str(field) == "PromptField(access_mode=AccessMode.OUTPUT)"
-
-    field = prompt_field(mode=AccessMode.LOCKED)
-    assert str(field) == "PromptField(access_mode=AccessMode.LOCKED)"
-
-
 def test_prompt_field_in_dataclass():
-    """Test prompt fields with AccessMode within a dataclass"""
+    """Test the field type annotations within a dataclass"""
     instance = AccessModeTestDataclass()
 
     # Get field metadata using typing.get_type_hints() with include_extras=True
@@ -201,21 +168,18 @@ def test_prompt_field_in_dataclass():
 
     # Check the OUTPUT field
     output_meta = hints["output_field"].__metadata__[0]
-    assert output_meta.access_mode == AccessMode.OUTPUT
     assert output_meta.is_output() is True
     assert output_meta.is_input() is False
     assert output_meta.is_locked() is False
 
     # Check the INPUT field
     input_meta = hints["input_field"].__metadata__[0]
-    assert input_meta.access_mode == AccessMode.INPUT
     assert input_meta.is_output() is False
     assert input_meta.is_input() is True
     assert input_meta.is_locked() is False
 
     # Check the LOCKED field
     locked_meta = hints["locked_field"].__metadata__[0]
-    assert locked_meta.access_mode == AccessMode.LOCKED
     assert locked_meta.is_output() is False
     assert locked_meta.is_input() is False
     assert locked_meta.is_locked() is True
@@ -225,41 +189,47 @@ def test_prompt_field_in_dataclass():
 
 
 def test_prompt_field_in_inheritance():
-    """Test that AccessMode fields work correctly with inheritance"""
+    """Test that field type annotations work correctly with inheritance"""
 
     @dataclass
     class ChildPromptClass(AccessModeTestDataclass):
-        child_output: Annotated[str, prompt_field(mode=AccessMode.OUTPUT)] = "child output"
-        child_input: Annotated[str, prompt_field(mode=AccessMode.INPUT)] = "child input"
-        child_locked: Annotated[str, prompt_field(mode=AccessMode.LOCKED)] = "child locked"
+        child_output: OutputField[str] = "child output"
+        child_input: InputField[str] = "child input"
+        child_locked: LockedField[str] = "child locked"
 
     hints = get_type_hints(ChildPromptClass, include_extras=True)
 
     # Check parent class fields are preserved
     parent_output_meta = hints["output_field"].__metadata__[0]
-    assert parent_output_meta.access_mode == AccessMode.OUTPUT
     assert parent_output_meta.is_output() is True
+    assert parent_output_meta.is_input() is False
+    assert parent_output_meta.is_locked() is False
 
     parent_input_meta = hints["input_field"].__metadata__[0]
-    assert parent_input_meta.access_mode == AccessMode.INPUT
     assert parent_input_meta.is_input() is True
+    assert parent_input_meta.is_output() is False
+    assert parent_input_meta.is_locked() is False
 
     parent_locked_meta = hints["locked_field"].__metadata__[0]
-    assert parent_locked_meta.access_mode == AccessMode.LOCKED
     assert parent_locked_meta.is_locked() is True
+    assert parent_locked_meta.is_output() is False
+    assert parent_locked_meta.is_input() is False
 
     # Check child class fields
     child_output_meta = hints["child_output"].__metadata__[0]
-    assert child_output_meta.access_mode == AccessMode.OUTPUT
     assert child_output_meta.is_output() is True
+    assert child_output_meta.is_input() is False
+    assert child_output_meta.is_locked() is False
 
     child_input_meta = hints["child_input"].__metadata__[0]
-    assert child_input_meta.access_mode == AccessMode.INPUT
     assert child_input_meta.is_input() is True
+    assert child_input_meta.is_output() is False
+    assert child_input_meta.is_locked() is False
 
     child_locked_meta = hints["child_locked"].__metadata__[0]
-    assert child_locked_meta.access_mode == AccessMode.LOCKED
     assert child_locked_meta.is_locked() is True
+    assert child_locked_meta.is_output() is False
+    assert child_locked_meta.is_input() is False
 
 
 class TestEnumSerialization:
@@ -350,25 +320,120 @@ class TestEnumSerialization:
 
 
 def test_access_mode_with_multiple_annotations():
-    """Test AccessMode with multiple annotations"""
+    """Test fields with multiple annotations including our field types"""
+    from typing import Annotated
 
     @dataclass
     class MultiAnnotatedClass(PromptArgument):
-        # Field with multiple annotations including AccessMode
-        multi_field: Annotated[str, "description", prompt_field(mode=AccessMode.OUTPUT), "another annotation"] = "test"
+        # Field with multiple annotations including OutputField
+        output_with_doc: Annotated[OutputField[str], "This is documentation"] = "test output"
+        # Field with multiple annotations including InputField
+        input_with_doc: Annotated[InputField[bool], "This is documentation"] = False
+        # Field with multiple annotations including LockedField
+        locked_with_doc: Annotated[LockedField[int], "This is documentation"] = 42
 
     hints = get_type_hints(MultiAnnotatedClass, include_extras=True)
 
-    # Get all metadata
-    metadata_list = hints["multi_field"].__metadata__
+    # Check that we can extract the proper metadata from complex annotations
+    assert hints["output_with_doc"].__metadata__[1] == "This is documentation"
+    assert hints["input_with_doc"].__metadata__[1] == "This is documentation"
+    assert hints["locked_with_doc"].__metadata__[1] == "This is documentation"
 
-    # Find the PromptField in the metadata
-    prompt_field_meta = None
-    for meta in metadata_list:
-        if hasattr(meta, "access_mode"):
-            prompt_field_meta = meta
-            break
+    # Create an instance and verify the values are assigned correctly
+    instance = MultiAnnotatedClass()
+    assert instance.output_with_doc == "test output"
+    assert instance.input_with_doc is False
+    assert instance.locked_with_doc == 42
 
-    assert prompt_field_meta is not None
-    assert prompt_field_meta.access_mode == AccessMode.OUTPUT
-    assert prompt_field_meta.is_output() is True
+
+def test_field_type_value_assignment():
+    """Test direct value assignment to fields with our type annotations"""
+
+    @dataclass
+    class TestAssignmentClass(PromptArgument):
+        # Test assignment of different types
+        string_field: OutputField[str] = "default string"
+        int_field: InputField[int] = 42
+        bool_field: LockedField[bool] = True
+        float_field: OutputField[float] = 3.14
+
+    # Create an instance with default values
+    instance1 = TestAssignmentClass()
+    assert instance1.string_field == "default string"
+    assert instance1.int_field == 42
+    assert instance1.bool_field is True
+    assert instance1.float_field == 3.14
+
+    # Create an instance with custom values
+    instance2 = TestAssignmentClass(string_field="custom string", int_field=99, bool_field=False, float_field=2.71)
+    assert instance2.string_field == "custom string"
+    assert instance2.int_field == 99
+    assert instance2.bool_field is False
+    assert instance2.float_field == 2.71
+
+
+def test_field_type_with_complex_types():
+    """Test field types with more complex Python types"""
+
+    @dataclass
+    class NestedClass:
+        name: str = "nested"
+        value: int = 0
+
+    @dataclass
+    class ComplexTypesClass(PromptArgument):
+        # Test with list, dict and custom class types
+        list_field: InputField[list[str]] = field(default_factory=lambda: ["a", "b", "c"])
+        dict_field: OutputField[dict[str, int]] = field(default_factory=lambda: {"one": 1, "two": 2})
+        nested_field: LockedField[NestedClass] = field(default_factory=NestedClass)
+        optional_field: OutputField[Optional[str]] = None
+
+    instance = ComplexTypesClass()
+    assert instance.list_field == ["a", "b", "c"]
+    assert instance.dict_field == {"one": 1, "two": 2}
+    assert instance.nested_field.name == "nested"
+    assert instance.nested_field.value == 0
+    assert instance.optional_field is None
+
+    # Test assignment of new values
+    instance.list_field = ["x", "y", "z"]
+    instance.dict_field = {"three": 3, "four": 4}
+    instance.nested_field = NestedClass(name="updated", value=42)
+    instance.optional_field = "now it has a value"
+
+    assert instance.list_field == ["x", "y", "z"]
+    assert instance.dict_field == {"three": 3, "four": 4}
+    assert instance.nested_field.name == "updated"
+    assert instance.nested_field.value == 42
+    assert instance.optional_field == "now it has a value"
+
+
+def test_field_serialization():
+    """Test that fields with our type annotations serialize correctly"""
+
+    @dataclass
+    class SerializableClass(PromptArgument):
+        input_field: InputField[str] = "input value"
+        output_field: OutputField[int] = 42
+        locked_field: LockedField[bool] = True
+
+    instance = SerializableClass()
+    serialized = instance.to_dict()
+
+    # Verify serialization works
+    assert serialized["input_field"] == "input value"
+    assert serialized["output_field"] == 42
+    assert serialized["locked_field"] is True
+
+    # Deserialize and verify
+    deserialized = SerializableClass.from_dict(serialized)
+    assert deserialized.input_field == "input value"
+    assert deserialized.output_field == 42
+    assert deserialized.locked_field is True
+
+    # Test with updated values
+    updated = {"input_field": "new input", "output_field": 99, "locked_field": False}
+    deserialized2 = SerializableClass.from_dict(updated)
+    assert deserialized2.input_field == "new input"
+    assert deserialized2.output_field == 99
+    assert deserialized2.locked_field is False
