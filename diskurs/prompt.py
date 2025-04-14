@@ -431,7 +431,9 @@ class BasePrompt(PromptProtocol):
 
         return cls(**all_args)
 
-    def render_system_template(self, name: str, prompt_argument: PromptArgument) -> ChatMessage:
+    def render_system_template(
+        self, name: str, prompt_argument: PromptArgument, return_json: bool = True
+    ) -> ChatMessage:
         content = self.system_template.render(**asdict(prompt_argument))
 
         if self.return_json:

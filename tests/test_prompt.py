@@ -292,10 +292,7 @@ def test_conductor_custom_system_prompt():
         next_agent="first_agent",
     )
 
-    rendered_system_prompt = prompt.render_system_template(
-        name="test_conductor",
-        prompt_argument=prompt_arg,
-    )
+    rendered_system_prompt = prompt.render_system_template(name="test_conductor", prompt_argument=prompt_arg)
 
     assert rendered_system_prompt.content.startswith("Custom system template")
 

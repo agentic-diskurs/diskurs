@@ -114,10 +114,7 @@ class Prompt(Protocol):
         ...
 
     def render_system_template(
-        self,
-        name: str,
-        prompt_argument: PromptArgument,
-        return_json: bool = True,
+        self, name: str, prompt_argument: PromptArgument, return_json: bool = True
     ) -> ChatMessage:
         """
         Renders the system template with the provided prompt arguments.
@@ -231,7 +228,9 @@ class MultistepPrompt(Prompt):
     - The agent needs to maintain a clear state progression through the conversation
     """
 
-    def render_system_template(self, name: str, prompt_args: PromptArgument, return_json: bool = True) -> ChatMessage:
+    def render_system_template(
+        self, name: str, prompt_argument: PromptArgument, return_json: bool = True
+    ) -> ChatMessage:
         """
         Renders the system template with the provided prompt arguments.
 
@@ -240,7 +239,7 @@ class MultistepPrompt(Prompt):
         instructions to help the model produce structured outputs.
 
         :param name: The name of the agent for which the template is being rendered.
-        :param prompt_args: The prompt arguments to use for rendering the template.
+        :param prompt_argument: The prompt arguments to use for rendering the template.
         :param return_json: Whether to include JSON formatting instructions.
         :return: A ChatMessage object containing the rendered system prompt.
         """

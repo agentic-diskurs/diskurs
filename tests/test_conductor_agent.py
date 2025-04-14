@@ -19,6 +19,7 @@ from diskurs.entities import (
     ToolDescription,
     LockedField,
     OutputField,
+    ToolCall,
 )
 from diskurs.prompt import ConductorPrompt, DefaultConductorPromptArgument
 from diskurs.protocols import (
@@ -292,9 +293,9 @@ def mock_tool_descriptions():
     """Create mock tool descriptions for testing"""
     return [
         ToolDescription(
-            function_name="test_tool",
+            name="test_tool",
             description="Test tool for testing",
-            parameters={
+            arguments={
                 "type": "object",
                 "properties": {"test_param": {"type": "string"}},
                 "required": ["test_param"],
@@ -800,11 +801,11 @@ async def test_handle_tool_call(conductor_agent_with_tools, mock_conversation):
             content=None,
             name=conductor_agent_with_tools.name,
             tool_calls=[
-                {
-                    "tool_call_id": "test_id",
-                    "function_name": "test_tool",
-                    "arguments": '{"test_param": "test_value"}',
-                }
+                ToolCall(
+                    tool_call_id="test_id",
+                    function_name="test_tool",
+                    arguments={"test_param": "test_value"},
+                )
             ],
         )
     )
@@ -818,7 +819,7 @@ async def test_handle_tool_call(conductor_agent_with_tools, mock_conversation):
     conductor_agent_with_tools.tool_executor.execute_tool.assert_called_once()
 
     # Check there's a tool response message
-    tool_responses = [msg for msg in result.chat if msg.role == Role.TOOL]
+    tool_responses = [msg for msg in result.user_prompt if msg.role == Role.TOOL]
     assert len(tool_responses) == 1
     assert tool_responses[0].tool_call_id == "test_id"
     assert tool_responses[0].content == "tool execution result"
@@ -839,11 +840,11 @@ async def test_generate_validated_response_with_tools(conductor_agent_with_tools
                 content=None,
                 name=conductor_agent_with_tools.name,
                 tool_calls=[
-                    {
-                        "tool_call_id": "test_id",
-                        "function_name": "test_tool",
-                        "arguments": '{"test_param": "test_value"}',
-                    }
+                    ToolCall(
+                        tool_call_id="test_id",
+                        function_name="test_tool",
+                        arguments={"test_param": "test_value"},
+                    )
                 ],
             )
         )
@@ -851,7 +852,7 @@ async def test_generate_validated_response_with_tools(conductor_agent_with_tools
     # Then when generate is called again after the tool response, return a normal response
     async def mock_generate_after_tool(conversation, tools=None, message_type=None):
         # Check if there's a tool response already
-        if any(msg.role == Role.TOOL for msg in conversation.chat):
+        if any(msg.role == Role.TOOL for msg in conversation.user_prompt):
             return conversation.append(
                 ChatMessage(
                     role=Role.ASSISTANT,

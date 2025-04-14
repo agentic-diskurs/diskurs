@@ -85,7 +85,7 @@ class LLMCompilerAgent(MultiStepAgent):
         # Update the conversation with the initialized prompt argument
         conversation = conversation.update(
             prompt_argument=prompt_argument,
-            system_prompt=self.prompt.render_system_template(name=self.name, prompt_args=prompt_argument),
+            system_prompt=self.prompt.render_system_template(name=self.name, prompt_argument=),
             user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=prompt_argument),
         )
 
@@ -124,7 +124,7 @@ class LLMCompilerAgent(MultiStepAgent):
             # Update conversation with new prompt values.
             conversation = conversation.update(
                 prompt_argument=prompt_argument,
-                system_prompt=self.prompt.render_system_template(self.name, prompt_args=prompt_argument),
+                system_prompt=self.prompt.render_system_template(self.name, ),
                 user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=prompt_argument),
             )
 

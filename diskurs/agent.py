@@ -172,6 +172,9 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
         if updated_prompt_argument is not conversation.prompt_argument:
             conversation = conversation.update(
                 prompt_argument=updated_prompt_argument,
+                system_prompt=self.prompt.render_system_template(
+                    name=self.name, prompt_argument=updated_prompt_argument
+                ),
                 user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=updated_prompt_argument),
             )
 
