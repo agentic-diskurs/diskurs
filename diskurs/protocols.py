@@ -189,29 +189,15 @@ class Prompt(Protocol):
         """
         ...
 
-    def init_prompt(
+    def initialize_prompt(
         self,
         agent_name: str,
         conversation: "Conversation",
-        message_type: MessageType = MessageType.CONVERSATION,
-        **kwargs
-    ) -> "Conversation":
-        """
-        Initializes a conversation with fresh prompt arguments and templates.
-
-        This method prepares a conversation for processing by an agent by:
-        1. Creating a new prompt argument instance
-        2. Rendering a system prompt
-        3. Rendering a user prompt
-        4. Updating the conversation with these elements
-
-        :param agent_name: Name of the agent initializing the prompt.
-        :param conversation: The conversation to initialize.
-        :param message_type: Message type to use when rendering templates.
-        :param kwargs: Additional parameters, may include 'prompt_argument' dict.
-        :return: Updated conversation with initialized prompt components.
-        """
-        ...
+        locked_fields,
+        init_from_longterm_memory: bool = True,
+        init_from_previous_agent: bool = True,
+        reset_prompt: bool = True,
+    ) -> "Conversation": ...
 
 
 class MultistepPrompt(Prompt):
@@ -404,6 +390,16 @@ class HeuristicPrompt(Protocol):
         :return: A `ChatMessage` object containing the rendered template.
         """
         ...
+
+    def initialize_prompt(
+        self,
+        agent_name: str,
+        conversation: "Conversation",
+        locked_fields,
+        init_from_longterm_memory: bool = True,
+        init_from_previous_agent: bool = True,
+        reset_prompt: bool = True,
+    ) -> "Conversation": ...
 
 
 class Conversation(Protocol[PromptArg]):
@@ -679,6 +675,12 @@ class Conversation(Protocol[PromptArg]):
         :return: Dictionary representation of the Conversation.
         """
         ...
+
+    def has_conductor_been_called(self): ...
+
+    def get_last_conductor_name(self): ...
+
+    def is_previous_agent_conductor(self): ...
 
 
 class LLMClient(Protocol):

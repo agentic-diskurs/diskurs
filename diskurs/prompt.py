@@ -7,6 +7,7 @@ from typing import Any, Callable, Optional, Self, Type, TypeVar, Union, get_type
 
 from jinja2 import Environment, FileSystemLoader, Template
 
+from diskurs import LockedField
 from diskurs.entities import (
     ChatMessage,
     MessageType,
@@ -38,6 +39,81 @@ def always_true(*args, **kwargs) -> bool:
 
 def always_false(*args, **kwargs) -> bool:
     return False
+
+
+def _initialize_prompt(
+    prompt_argument: PromptArgument,
+    conversation: "Conversation",
+    locked_fields: Optional[dict[str, Any]] = None,
+    init_from_longterm_memory: bool = True,
+    init_from_previous_agent: bool = True,
+) -> PromptArgument:
+    """
+    Initialize a prompt argument with values from longterm memory and/or previous agent's prompt argument.
+
+    This utility function centralizes the logic for initializing prompt arguments, which is used
+    by multiple agent types (MultiStepAgent, HeuristicAgent, LLMCompilerAgent, etc.).
+
+    :param conversation: The current conversation
+    :param prompt_argument: The prompt argument to initialize
+    :param init_from_longterm_memory: Whether to initialize from longterm memory
+    :param init_from_previous_agent: Whether to initialize from previous agent's prompt argument
+    :return: initialized prompt_argument
+    """
+
+    if init_from_longterm_memory and conversation.has_conductor_been_called():
+        conductor_name = conversation.get_last_conductor_name()
+        longterm_memory = conversation.get_agent_longterm_memory(conductor_name)
+
+        if longterm_memory and prompt_argument:
+            prompt_argument = prompt_argument.init(longterm_memory)
+
+    if (
+        conversation.prompt_argument is not None
+        and init_from_previous_agent
+        and not conversation.is_previous_agent_conductor()
+    ):
+        prompt_argument = prompt_argument.init(conversation.prompt_argument)
+
+    if locked_fields:
+        for field_name, field_value in locked_fields.items():
+            if hasattr(prompt_argument, field_name):
+                setattr(prompt_argument, field_name, field_value)
+
+    return prompt_argument
+
+
+def _initialize_conductor_prompt(
+    agent_name: str,
+    prompt_argument: PromptArgument,
+    conversation: "Conversation",
+    locked_fields: Optional[dict[str, Any]] = None,
+    init_from_longterm_memory: bool = True,
+) -> PromptArgument:
+    """
+    Initialize a prompt argument with values from longterm memory and/or previous agent's prompt argument.
+
+    This utility function centralizes the logic for initializing prompt arguments, which is used
+    by multiple agent types (MultiStepAgent, HeuristicAgent, LLMCompilerAgent, etc.).
+
+    :param conversation: The current conversation
+    :param prompt_argument: The prompt argument to initialize
+    :param init_from_longterm_memory: Whether to initialize from longterm memory
+    :return: initialized prompt_argument
+    """
+
+    if init_from_longterm_memory:
+        longterm_memory = conversation.get_agent_longterm_memory(agent_name)
+
+        if longterm_memory and prompt_argument:
+            prompt_argument = prompt_argument.init(longterm_memory)
+
+    if locked_fields:
+        for field_name, field_value in locked_fields.items():
+            if hasattr(prompt_argument, field_name):
+                setattr(prompt_argument, field_name, field_value)
+
+    return prompt_argument
 
 
 def load_template(location: Path) -> Template:
@@ -481,29 +557,6 @@ class BasePrompt(PromptProtocol):
     def create_prompt_argument(self, **prompt_args: dict) -> PromptArg:
         return self.prompt_argument(**prompt_args)
 
-    def init_prompt(
-        self,
-        agent_name: str,
-        conversation: Conversation,
-        message_type: MessageType = MessageType.CONVERSATION,
-        **kwargs,
-    ) -> Conversation:
-        """
-        Initialize the prompt before starting an agent's turn.
-        This method sets fresh values for prompt arguments and renders prompts
-        """
-        prompt_argument = self.create_prompt_argument(**kwargs.get("prompt_argument", {}))
-
-        system_prompt = self.render_system_template(agent_name, prompt_argument=prompt_argument)
-        user_prompt = self.render_user_template(agent_name, prompt_args=prompt_argument, message_type=message_type)
-
-        return conversation.update(
-            prompt_argument=prompt_argument,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            active_agent=agent_name,
-        )
-
     def render_json_formatting_prompt(self, prompt_argument: PromptArgument) -> str:
         """
         Render the JSON formatting template with included fields.
@@ -602,6 +655,35 @@ class BasePrompt(PromptProtocol):
         except Exception as e:
             return ChatMessage(role=Role.USER, name=name, content=f"An error occurred: {str(e)}")
 
+    def initialize_prompt(
+        self,
+        agent_name: str,
+        conversation: "Conversation",
+        locked_fields: Optional[dict[str, Any]] = None,
+        init_from_longterm_memory: bool = True,
+        init_from_previous_agent: bool = True,
+        reset_prompt: bool = True,
+    ) -> Conversation:
+
+        updated_prompt_argument = (
+            _initialize_prompt(
+                prompt_argument=self.create_prompt_argument(),
+                conversation=conversation,
+                locked_fields=locked_fields,
+                init_from_longterm_memory=init_from_longterm_memory,
+                init_from_previous_agent=init_from_previous_agent,
+            )
+            if reset_prompt
+            else conversation.prompt_argument
+        )
+
+        return conversation.update(
+            active_agent=agent_name,
+            prompt_argument=updated_prompt_argument,
+            system_prompt=self.render_system_template(name=agent_name, prompt_argument=updated_prompt_argument),
+            user_prompt=self.render_user_template(name=agent_name, prompt_args=updated_prompt_argument),
+        )
+
 
 @register_prompt("multistep_prompt")
 class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
@@ -638,7 +720,7 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
 
 @dataclass
 class DefaultConductorPromptArgument(PromptArgument):
-    agent_descriptions: InputField[dict[str, str]] = InputField(field(default_factory=dict))
+    agent_descriptions: LockedField[dict[str, str]] = InputField(field(default_factory=dict))
     next_agent: OutputField[Optional[str]] = OutputField(None)
 
 
@@ -863,6 +945,35 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
     def init_longterm_memory(self, **kwargs) -> GenericConductorLongtermMemory:
         return self.longterm_memory(**kwargs)
 
+    def initialize_prompt(
+        self,
+        agent_name: str,
+        conversation: "Conversation",
+        locked_fields: Optional[dict[str, Any]] = None,
+        init_from_longterm_memory: bool = True,
+        init_from_previous_agent: bool = True,
+        reset_prompt: bool = True,
+    ) -> Conversation:
+
+        updated_prompt_argument = (
+            _initialize_conductor_prompt(
+                agent_name=agent_name,
+                prompt_argument=self.create_prompt_argument(),
+                conversation=conversation,
+                locked_fields=locked_fields,
+                init_from_longterm_memory=init_from_longterm_memory,
+            )
+            if reset_prompt
+            else conversation.prompt_argument
+        )
+
+        return conversation.update(
+            active_agent=agent_name,
+            prompt_argument=updated_prompt_argument,
+            system_prompt=self.render_system_template(name=agent_name, prompt_argument=updated_prompt_argument),
+            user_prompt=self.render_user_template(name=agent_name, prompt_args=updated_prompt_argument),
+        )
+
 
 @register_prompt("heuristic_prompt")
 class HeuristicPrompt(HeuristicPromptProtocol):
@@ -885,7 +996,6 @@ class HeuristicPrompt(HeuristicPromptProtocol):
         code_filename: str = kwargs.get("code_filename", "prompt.py")
         user_template_filename: str = kwargs.get("user_template_filename", "user_template.jinja2")
         heuristic_sequence_name: str = kwargs.get("heuristic_sequence_name", "heuristic_sequence")
-        render_template: bool = kwargs.get("render_template", False)
 
         module_path = location / code_filename
 
@@ -899,10 +1009,8 @@ class HeuristicPrompt(HeuristicPromptProtocol):
 
         prompt_argument_class: Type[PromptArg] = safe_load_symbol(symbol_name=prompt_argument_class, module=module)
 
-        template_location = location / user_template_filename
-
         user_template = None
-
+        template_location = location / user_template_filename
         if template_location.exists():
             user_template = load_template(location / user_template_filename)
 
@@ -931,10 +1039,38 @@ class HeuristicPrompt(HeuristicPromptProtocol):
         prompt_args: PromptArgument,
         message_type: MessageType = MessageType.CONVERSATION,
     ) -> ChatMessage:
-        content = self.user_template.render(**asdict(prompt_args))
+        content = self.user_template.render(**asdict(prompt_args)) if self.user_template else ""
         return ChatMessage(
             role=Role.USER,
             name=name,
             content=content,
             type=message_type,
+        )
+
+    def initialize_prompt(
+        self,
+        agent_name: str,
+        conversation: "Conversation",
+        locked_fields: Optional[dict[str, Any]] = None,
+        init_from_longterm_memory: bool = True,
+        init_from_previous_agent: bool = True,
+        reset_prompt: bool = True,
+    ) -> Conversation:
+
+        updated_prompt_argument = (
+            _initialize_prompt(
+                prompt_argument=self.create_prompt_argument(),
+                conversation=conversation,
+                locked_fields=locked_fields,
+                init_from_longterm_memory=init_from_longterm_memory,
+                init_from_previous_agent=init_from_previous_agent,
+            )
+            if reset_prompt
+            else conversation.prompt_argument
+        )
+
+        return conversation.update(
+            active_agent=agent_name,
+            prompt_argument=updated_prompt_argument,
+            user_prompt=self.render_user_template(name=agent_name, prompt_args=updated_prompt_argument),
         )

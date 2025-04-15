@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Callable, List, Type
 
 from diskurs.config import load_config_from_yaml
-from diskurs.entities import ChatMessage, DiskursInput, MessageType, PromptArgument, Role, RoutingRule
+from diskurs.entities import ChatMessage, DiskursInput, MessageType, PromptArgument, Role, RoutingRule, OutputField
 from diskurs.logger_setup import get_logger
 from diskurs.protocols import Agent, ConductorAgent, Conversation, ConversationParticipant, ConversationStore
 from diskurs.registry import (
@@ -24,7 +24,7 @@ logging.basicConfig(level=logging.WARNING)
 
 @dataclass
 class ForumPromptArgument(PromptArgument):
-    user_query: str
+    user_query: OutputField[str]
 
 
 def filter_conductor_agents(agents: list[Agent]) -> list[ConductorAgent]:
@@ -313,7 +313,7 @@ class ForumFactory:
         # for each conductor agent, get the agent descriptions for the agents that are in the topics
         for conf in conductor_configs:
             conductor = next((agent for agent in self.agents if agent.name == conf.name))
-            conductor.agent_descriptions = {
+            conductor.locked_fields["agent_descriptions"] = {
                 agent.name: agent.prompt.agent_description for agent in self.agents if agent.name in conf.topics
             }
 

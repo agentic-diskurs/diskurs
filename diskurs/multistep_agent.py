@@ -69,15 +69,13 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         """
         self.logger.debug(f"Invoke called on agent {self.name}")
 
-        if reset_prompt:
-            conversation = await self.prepare_invoke(conversation)
-        else:
-            conversation = conversation.update(
-                system_prompt=self.prompt.render_system_template(
-                    name=self.name, prompt_argument=conversation.prompt_argument
-                ),
-                user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=conversation.prompt_argument),
-            )
+        conversation = self.prompt.initialize_prompt(
+            agent_name=self.name,
+            conversation=conversation,
+            locked_fields=self.locked_fields,
+            init_from_longterm_memory=self.init_prompt_arguments_with_longterm_memory,
+            init_from_previous_agent=self.init_prompt_arguments_with_previous_agent,
+        )
 
         for reasoning_step in range(self.max_reasoning_steps):
             self.logger.debug(f"Reasoning step {reasoning_step + 1} for Agent {self.name}")

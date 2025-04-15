@@ -3,8 +3,8 @@ import logging
 from dataclasses import asdict
 from typing import Any, List, Optional, Self
 
-from diskurs.agent import BaseAgent, is_previous_agent_conductor
-from diskurs.entities import ChatMessage, MessageType, PromptArgument, Role, RoutingRule
+from diskurs.agent import BaseAgent
+from diskurs.entities import ChatMessage, MessageType, Role, RoutingRule
 from diskurs.protocols import ConductorAgent as ConductorAgentProtocol
 from diskurs.protocols import ConductorPrompt, Conversation, ConversationDispatcher, LLMClient
 from diskurs.registry import register_agent
@@ -28,7 +28,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         prompt: ConductorPrompt,
         llm_client: LLMClient,
         topics: list[str],
-        agent_descriptions: dict[str, str],
+        locked_fields: Optional[dict[str, Any]],
         finalizer_name: Optional[str] = None,
         supervisor: Optional[str] = None,
         can_finalize_name: Optional[str] = None,
@@ -37,7 +37,6 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         max_dispatches: int = 50,
         rules: Optional[List[RoutingRule]] = None,
         fallback_to_llm: bool = True,
-        # BaseAgent parameters
         tools: Optional[list[Any]] = None,
         tool_executor: Optional[Any] = None,
         init_prompt_arguments_with_longterm_memory: bool = True,
@@ -54,10 +53,11 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             max_trials=max_trials,
             tools=tools,
             tool_executor=tool_executor,
+            locked_fields=locked_fields,
             init_prompt_arguments_with_longterm_memory=init_prompt_arguments_with_longterm_memory,
             init_prompt_arguments_with_previous_agent=init_prompt_arguments_with_previous_agent,
         )
-        self.agent_descriptions = agent_descriptions
+        self.agent_descriptions = locked_fields
         self.finalizer_name = finalizer_name
         self.supervisor = supervisor
         self.can_finalize_name = can_finalize_name
@@ -74,7 +74,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
     ) -> Self:
         prompt = kwargs["prompt"]
         llm_client = kwargs["llm_client"]
-        agent_descriptions = kwargs.get("agent_descriptions", {})
+        locked_fields = kwargs.get("locked_fields", {})
         finalizer_name = kwargs.get("finalizer_name", None)
         can_finalize_name = kwargs.get("can_finalize_name", None)
         supervisor = kwargs.get("supervisor", None)
@@ -96,7 +96,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             prompt=prompt,
             llm_client=llm_client,
             dispatcher=dispatcher,
-            agent_descriptions=agent_descriptions,
+            locked_fields=locked_fields,
             finalizer_name=finalizer_name,
             can_finalize_name=can_finalize_name,
             supervisor=supervisor,
@@ -140,7 +140,7 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
 
         source = (
             conversation.get_agent_longterm_memory(agent_name=conversation.last_message.name or "")
-            if is_previous_agent_conductor(conversation=conversation)
+            if conversation.is_previous_agent_conductor()
             else conversation.prompt_argument
         )
 
@@ -148,7 +148,9 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             longterm_memory = longterm_memory.update(prompt_argument=source)
         else:
             self.logger.warning(
-                "No suitable user prompt argument nor long-term memory found in conversation %s", conversation
+                "No suitable prompt argument nor long-term memory for updating conductor %s found in conversation %s",
+                self.name,
+                conversation,
             )
 
         return conversation.update_agent_longterm_memory(agent_name=self.name, longterm_memory=longterm_memory)
@@ -174,15 +176,15 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
     ) -> Conversation:
         self.logger.debug(f"Invoke called on conductor agent {self.name}")
 
-        conversation = self.prompt.init_prompt(
-            self.name,
-            conversation,
-            message_type=MessageType.CONDUCTOR,
-            prompt_argument={"agent_descriptions": self.agent_descriptions},
+        conversation = self.prompt.initialize_prompt(
+            agent_name=self.name,
+            conversation=conversation,
+            locked_fields=self.locked_fields,
+            init_from_longterm_memory=self.init_prompt_arguments_with_longterm_memory,
+            init_from_previous_agent=self.init_prompt_arguments_with_previous_agent,
         )
 
         if next_agent := self.evaluate_rules(conversation):
-            # Directly update the next_agent field in the prompt argument
             conversation = await self.add_routing_message_to_chat(conversation, next_agent)
 
         elif self.fallback_to_llm and self.llm_client:
@@ -218,11 +220,12 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         self.logger.debug(f"Finalize conversation on conductor agent {self.name}")
 
         if self.supervisor or self.finalizer_name:
-            conversation = self.prompt.init_prompt(
-                self.name,
-                conversation,
-                message_type=MessageType.CONDUCTOR,
-                prompt_argument={"agent_descriptions": self.agent_descriptions},
+            conversation = self.prompt.initialize_prompt(
+                agent_name=self.name,
+                conversation=conversation,
+                locked_fields=self.locked_fields,
+                init_from_longterm_memory=self.init_prompt_arguments_with_longterm_memory,
+                init_from_previous_agent=self.init_prompt_arguments_with_previous_agent,
             )
 
         if self.supervisor:

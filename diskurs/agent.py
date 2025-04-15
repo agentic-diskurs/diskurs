@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Callable, Generic, Optional, List
+from typing import Callable, Generic, Optional, List, Any
 
 from typing_extensions import TypeVar
 
@@ -26,66 +26,6 @@ PromptType = TypeVar("PromptType", bound=Prompt)
 # TODO: implement conditional rendering i.e. for each agent, only the information relevant to it is shown
 
 
-def is_previous_agent_conductor(conversation):
-    if conversation.is_empty():
-        return False
-    else:
-        return conversation.last_message.type == MessageType.CONDUCTOR
-
-
-def get_last_conductor_name(chat: list[ChatMessage]) -> Optional[str]:
-    for message in reversed(chat):
-        if message.type == MessageType.CONDUCTOR:
-            return message.name
-    return None
-
-
-def has_conductor_been_called(conversation):
-    return any(message.type == MessageType.CONDUCTOR for message in conversation.chat)
-
-
-def initialize_prompt_argument(
-    conversation: "Conversation",
-    prompt_argument: "PromptArgument",
-    init_from_longterm_memory: bool = True,
-    init_from_previous_agent: bool = True,
-    previous_prompt_argument: "PromptArgument" = None,
-) -> tuple["Conversation", "PromptArgument"]:
-    """
-    Initialize a prompt argument with values from longterm memory and/or previous agent's prompt argument.
-
-    This utility function centralizes the logic for initializing prompt arguments, which is used
-    by multiple agent types (MultiStepAgent, HeuristicAgent, LLMCompilerAgent, etc.).
-
-    :param conversation: The current conversation
-    :param prompt_argument: The prompt argument to initialize
-    :param init_from_longterm_memory: Whether to initialize from longterm memory
-    :param init_from_previous_agent: Whether to initialize from previous agent's prompt argument
-    :param previous_prompt_argument: The previous agent's prompt argument, if already retrieved
-    :return: A tuple of (updated_conversation, updated_prompt_argument)
-    """
-    updated_prompt_argument = prompt_argument
-
-    # Update with longterm memory if enabled
-    if init_from_longterm_memory and has_conductor_been_called(conversation):
-        conductor_name = get_last_conductor_name(conversation.chat)
-        longterm_memory = conversation.get_agent_longterm_memory(conductor_name)
-
-        if longterm_memory and updated_prompt_argument:
-            updated_prompt_argument = updated_prompt_argument.init(longterm_memory)
-
-    # Update with previous agent's prompt argument if enabled and previous agent is not a conductor
-    if (
-        init_from_previous_agent
-        and not is_previous_agent_conductor(conversation)
-        and previous_prompt_argument
-        and updated_prompt_argument
-    ):
-        updated_prompt_argument = updated_prompt_argument.init(previous_prompt_argument)
-
-    return conversation, updated_prompt_argument
-
-
 class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
     def __init__(
         self,
@@ -97,6 +37,7 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
         max_trials: int = 5,
         tools: Optional[list[ToolDescription]] = None,
         tool_executor: Optional[ToolExecutor] = None,
+        locked_fields: Optional[dict[str, Any]] = None,
         init_prompt_arguments_with_longterm_memory: bool = True,
         init_prompt_arguments_with_previous_agent: bool = True,
     ):
@@ -108,6 +49,7 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
         self.llm_client = llm_client
         self.tools = tools or []
         self.tool_executor = tool_executor
+        self.locked_fields = locked_fields
         self.init_prompt_arguments_with_longterm_memory = init_prompt_arguments_with_longterm_memory
         self.init_prompt_arguments_with_previous_agent = init_prompt_arguments_with_previous_agent
         self.logger = get_logger(f"diskurs.agent.{self.name}")
@@ -144,41 +86,6 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
         self, conversation: Conversation | str, message_type=MessageType.CONVERSATION, reset_prompt=True
     ) -> Conversation:
         pass
-
-    async def prepare_invoke(self, conversation: Conversation) -> Conversation:
-        """
-        Prepares the conversation for invocation by initializing the prompt and updating
-        it with long-term memory and previous agent arguments if applicable.
-
-        :param conversation: The conversation object to prepare.
-        :return: The updated conversation object.
-        """
-        # Store the previous prompt argument in case we need it
-        previous_prompt_argument = conversation.prompt_argument
-
-        # Initialize a fresh prompt
-        conversation = self.prompt.init_prompt(self.name, conversation)
-
-        # Use the centralized utility function to initialize prompt arguments
-        _, updated_prompt_argument = initialize_prompt_argument(
-            conversation=conversation,
-            prompt_argument=conversation.prompt_argument,
-            init_from_longterm_memory=self.init_prompt_arguments_with_longterm_memory,
-            init_from_previous_agent=self.init_prompt_arguments_with_previous_agent,
-            previous_prompt_argument=previous_prompt_argument,
-        )
-
-        # Update the conversation with the initialized prompt argument
-        if updated_prompt_argument is not conversation.prompt_argument:
-            conversation = conversation.update(
-                prompt_argument=updated_prompt_argument,
-                system_prompt=self.prompt.render_system_template(
-                    name=self.name, prompt_argument=updated_prompt_argument
-                ),
-                user_prompt=self.prompt.render_user_template(name=self.name, prompt_args=updated_prompt_argument),
-            )
-
-        return conversation
 
     @abstractmethod
     async def process_conversation(self, conversation: Conversation) -> None:
@@ -333,7 +240,7 @@ class FinalizerMixin(ConversationFinalizer):
 
         :param conversation: The conversation to finalize
         """
-        self.logger.info(f"Process conversation on agent: {self.name}")
+        self.logger.info(f"Finalize conversation on agent: {self.name}")
         conversation = await self.invoke(conversation)
 
         await conversation.maybe_persist()

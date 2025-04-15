@@ -1,7 +1,11 @@
 from unittest.mock import Mock
 
 from diskurs import ImmutableConversation
-from diskurs.agent import is_previous_agent_conductor, get_last_conductor_name, has_conductor_been_called
+from diskurs.immutable_conversation import (
+    is_previous_agent_conductor,
+    get_last_conductor_name,
+    has_conductor_been_called,
+)
 from diskurs.entities import ChatMessage, Role, MessageType
 
 

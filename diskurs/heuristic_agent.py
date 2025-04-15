@@ -51,18 +51,20 @@ class HeuristicAgent(BaseAgent[HeuristicPrompt]):
     ) -> Conversation:
         self.logger.debug(f"Invoke called on agent {self.name}")
 
-        # Prepare the conversation with initialized prompt arguments
-        if reset_prompt:
-            conversation = await self.prepare_invoke(conversation)
+        conversation = self.prompt.initialize_prompt(
+            agent_name=self.name,
+            conversation=conversation,
+            locked_fields=self.locked_fields,
+            init_from_longterm_memory=self.init_prompt_arguments_with_longterm_memory,
+            init_from_previous_agent=self.init_prompt_arguments_with_previous_agent,
+        )
 
-        # Execute the heuristic sequence
         conversation = await self.prompt.heuristic_sequence(
             conversation=conversation,
             call_tool=self.tool_executor.call_tool if self.tool_executor else None,
             llm_client=self.llm_client,
         )
 
-        # Render the prompt if configured to do so
         if self.render_prompt:
             conversation = conversation.append(
                 name=self.name,

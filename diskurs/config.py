@@ -176,6 +176,7 @@ class AgentConfig(YamlSerializable, Registrable):
     type: str
     name: str
     topics: Optional[list[str]] = None
+    locked_fields: Optional[dict[str, Any]] = None
 
 
 @dataclass(kw_only=True)

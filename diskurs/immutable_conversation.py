@@ -286,3 +286,18 @@ class ImmutableConversation(Conversation):
         """
         if self.conversation_store and self.conversation_id:
             await self.conversation_store.persist(self)
+
+    def is_previous_agent_conductor(self):
+        if self.is_empty():
+            return False
+        else:
+            return self.last_message.type == MessageType.CONDUCTOR
+
+    def get_last_conductor_name(self) -> Optional[str]:
+        for message in reversed(self.chat):
+            if message.type == MessageType.CONDUCTOR:
+                return message.name
+        return None
+
+    def has_conductor_been_called(self):
+        return any(message.type == MessageType.CONDUCTOR for message in self.chat)

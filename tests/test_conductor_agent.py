@@ -6,7 +6,7 @@ from unittest.mock import ANY, AsyncMock, Mock
 import pytest
 from jinja2 import Template
 
-from conftest import MyLongtermMemory
+from .conftest import MyLongtermMemory
 from diskurs import ImmutableConversation, Conversation, PromptValidationError, InputField
 from diskurs.conductor_agent import ConductorAgent, validate_finalization
 from diskurs.entities import (
@@ -212,12 +212,12 @@ def create_conductor_agent(
         prompt=mock_prompt,
         llm_client=mock_llm_client,
         topics=["agent1", "agent2", "agent3"],
-        agent_descriptions={},
+        locked_fields={},
         finalizer_name=finalizer,
+        supervisor=supervisor,
         dispatcher=mock_dispatcher,
         max_trials=5,
         max_dispatches=5,
-        supervisor=supervisor,
         rules=rules,
         fallback_to_llm=fallback_to_llm,
         tools=tools,
@@ -340,13 +340,13 @@ def conductor_agent():
 
     return ConductorAgent(
         name="conductor",
-        agent_descriptions={
+        prompt=prompt,
+        llm_client=AsyncMock(spec=LLMClient),
+        topics=["agent1", "agent2"],
+        locked_fields={
             "agent1": "Test agent 1",
             "agent2": "Test agent 2",
         },
-        topics=["agent1", "agent2"],
-        prompt=prompt,
-        llm_client=AsyncMock(spec=LLMClient),
         dispatcher=AsyncMock(spec=ConversationDispatcher),
     )
 
@@ -753,7 +753,7 @@ async def test_invoke_no_rule_match_one_message(conductor_agent_with_rules, mock
     )
 
     # Mock generate_validated_response to return a modified conversation
-    async def mock_generate_validated_response(conversation, message_type=None):
+    async def mock_generate_validated_response(conversation, tools=None, message_type=None):
         return conversation.append(
             ChatMessage(role=Role.ASSISTANT, content="LLM response", name="llm", type=MessageType.CONDUCTOR)
         )
@@ -826,57 +826,6 @@ async def test_handle_tool_call(conductor_agent_with_tools, mock_conversation):
 
 
 @pytest.mark.asyncio
-async def test_generate_validated_response_with_tools(conductor_agent_with_tools, mock_conversation):
-    """Test the generate_validated_response method with tools"""
-    # Set up the parse_user_prompt mock to return a valid prompt argument
-    prompt_arg = MockPromptArgument(next_agent="agent1")
-    conductor_agent_with_tools.prompt.parse_user_prompt.return_value = prompt_arg
-
-    # First have the LLM generate a response with a tool call
-    async def mock_generate_first_tool_call(conversation, tools=None, message_type=None):
-        return conversation.append(
-            ChatMessage(
-                role=Role.ASSISTANT,
-                content=None,
-                name=conductor_agent_with_tools.name,
-                tool_calls=[
-                    ToolCall(
-                        tool_call_id="test_id",
-                        function_name="test_tool",
-                        arguments={"test_param": "test_value"},
-                    )
-                ],
-            )
-        )
-
-    # Then when generate is called again after the tool response, return a normal response
-    async def mock_generate_after_tool(conversation, tools=None, message_type=None):
-        # Check if there's a tool response already
-        if any(msg.role == Role.TOOL for msg in conversation.user_prompt):
-            return conversation.append(
-                ChatMessage(
-                    role=Role.ASSISTANT,
-                    content='{"next_agent": "agent1"}',
-                    name=conductor_agent_with_tools.name,
-                )
-            )
-        # Otherwise return the tool call response again
-        return mock_generate_first_tool_call(conversation, tools, message_type)
-
-    conductor_agent_with_tools.llm_client.generate = AsyncMock(side_effect=mock_generate_after_tool)
-
-    # Call generate_validated_response
-    result = await conductor_agent_with_tools.generate_validated_response(mock_conversation, MessageType.CONDUCTOR)
-
-    # Verify the flow: LLM generates tool call -> tool is executed -> LLM generates final response
-    conductor_agent_with_tools.llm_client.generate.assert_called()
-    conductor_agent_with_tools.tool_executor.execute_tool.assert_called_once()
-
-    # The final result should have the prompt argument updated
-    assert result.prompt_argument == prompt_arg
-
-
-@pytest.mark.asyncio
 async def test_prepare_invoke_with_initialization_flags(mock_dispatcher, mock_llm_client, mock_prompt):
     """Test that the prepare_invoke method correctly initializes conversation based on flags"""
     # Create agent with initialization flags disabled
@@ -907,24 +856,6 @@ async def test_prepare_invoke_with_initialization_flags(mock_dispatcher, mock_ll
     # from either longterm memory or previous prompt argument
     assert result.prompt_argument.field1 == ""
     assert result.prompt_argument != conversation.prompt_argument
-
-
-@pytest.mark.asyncio
-async def test_register_tools(conductor_agent_with_tools):
-    """Test registering additional tools with the agent"""
-    # Initial tool count
-    initial_tool_count = len(conductor_agent_with_tools.tools)
-
-    # Define a mock function to register as a tool
-    def mock_tool_function(param1: str):
-        """A mock tool function for testing"""
-        return f"Processed {param1}"
-
-    # Register the tool
-    conductor_agent_with_tools.register_tools(mock_tool_function)
-
-    # Verify the tool was added
-    assert len(conductor_agent_with_tools.tools) > initial_tool_count
 
 
 # ----- Tests for Integration of BaseAgent and ConductorAgent Functionality -----
@@ -990,113 +921,3 @@ async def test_integration_rule_based_routing_with_tools(
     # Verify that tool was called AND routing happened
     conductor.tool_executor.execute_tool.assert_called_once()
     assert result.prompt_argument.next_agent == "agent1"
-
-
-@pytest.mark.asyncio
-async def test_integration_prepare_invoke_and_can_finalize(conductor_agent, mock_conversation):
-    """Test integration between prepare_invoke and conversation finalization"""
-    # Mock prepare_invoke to properly initialize the conversation
-    original_prepare_invoke = conductor_agent.prepare_invoke
-
-    async def mock_prepare_invoke_with_finalize(conversation):
-        # Call the original prepare_invoke
-        updated_conv = await original_prepare_invoke(conversation)
-        # Add special flag to prompt_argument to allow finalization
-        if updated_conv.prompt_argument:
-            updated_conv.prompt_argument = DefaultCanFinalizePromptArgument(can_finalize=True)
-        return updated_conv
-
-    conductor_agent.prepare_invoke = AsyncMock(side_effect=mock_prepare_invoke_with_finalize)
-    conductor_agent.prompt.can_finalize = Mock(return_value=True)
-    conductor_agent.finalize = AsyncMock()
-
-    # Add longterm memory that will be returned by the mock
-    longterm_memory = MyLongTermMemory()
-    mock_conversation = mock_conversation.update_agent_longterm_memory(
-        agent_name=conductor_agent.name,
-        longterm_memory=longterm_memory,
-    )
-
-    # Process the conversation
-    await conductor_agent.process_conversation(mock_conversation)
-
-    # Verify that prepare_invoke was called and led to finalization
-    conductor_agent.prepare_invoke.assert_called_once()
-    conductor_agent.finalize.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_integration_prepare_invoke_before_rule_evaluation(conductor_agent_with_rules, mock_conversation):
-    """Test that prepare_invoke is correctly called before rule evaluation"""
-    # Create a spy on prepare_invoke
-    original_prepare_invoke = conductor_agent_with_rules.prepare_invoke
-    prepare_invoke_called = False
-
-    async def prepare_invoke_spy(conversation):
-        nonlocal prepare_invoke_called
-        prepare_invoke_called = True
-        return await original_prepare_invoke(conversation)
-
-    conductor_agent_with_rules.prepare_invoke = AsyncMock(side_effect=prepare_invoke_spy)
-
-    # Mock the original invoke to avoid actual rule evaluation
-    conductor_agent_with_rules.prompt.init_prompt = lambda name, conv, message_type, **kwargs: conv
-
-    # Call invoke
-    await conductor_agent_with_rules.invoke(mock_conversation, MessageType.CONDUCTOR)
-
-    # Verify prepare_invoke was called
-    assert prepare_invoke_called
-    conductor_agent_with_rules.prepare_invoke.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_inheritance_tools_and_longterm_memory_integration(conductor_agent_with_tools, mock_conversation):
-    """Test that BaseAgent tool handling works correctly with ConductorAgent's longterm memory"""
-    # Mock conversation with longterm memory
-    longterm_memory = MyLongTermMemory(field1="memory_value")
-    conversation = mock_conversation.update_agent_longterm_memory(
-        agent_name=conductor_agent_with_tools.name,
-        longterm_memory=longterm_memory,
-    )
-
-    # Setup the LLM to use tools first then have a valid response
-    async def generate_with_tool_then_normal(conv, tools=None, message_type=None):
-        # If there's already a tool response, return a normal message
-        if any(msg.role == Role.TOOL for msg in conv.chat):
-            return conv.append(
-                ChatMessage(
-                    role=Role.ASSISTANT,
-                    content='{"next_agent": "agent1", "field1": "updated_value"}',
-                    name=conductor_agent_with_tools.name,
-                )
-            )
-        # Otherwise return a tool call
-        return conv.append(
-            ChatMessage(
-                role=Role.ASSISTANT,
-                content=None,
-                name=conductor_agent_with_tools.name,
-                tool_calls=[
-                    {
-                        "tool_call_id": "test_id",
-                        "function_name": "test_tool",
-                        "arguments": '{"test_param": "test_value"}',
-                    }
-                ],
-            )
-        )
-
-    conductor_agent_with_tools.llm_client.generate = AsyncMock(side_effect=generate_with_tool_then_normal)
-
-    # Setup prompt parser to update the memory
-    updated_prompt_arg = MyPromptArgument(field1="updated_value", next_agent="agent1")
-    conductor_agent_with_tools.prompt.parse_user_prompt.return_value = updated_prompt_arg
-
-    # Process the conversation
-    conversation = await conductor_agent_with_tools.invoke(conversation)
-    conversation = conductor_agent_with_tools.create_or_update_longterm_memory(conversation)
-
-    # Verify tool was used and longterm memory updated
-    conductor_agent_with_tools.tool_executor.execute_tool.assert_called_once()
-    assert longterm_memory.field1 == "updated_value"

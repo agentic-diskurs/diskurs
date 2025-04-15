@@ -432,15 +432,9 @@ my_conductor_finish_rule = [
 ]
 
 
-my_conductor_agent = ConductorAgent(
-    name="My_Conductor_Agent",
-    prompt=my_conductor_prompt,
-    llm_client=llm_client,
-    handoff=[agent.name for agent in agent_descriptions],
-    agent_descriptions=agent_descriptions,
-    dispatcher=my_agent_dispatcher,
-    rules=my_conductor_finish_rule,
-)
+my_conductor_agent = ConductorAgent(name="My_Conductor_Agent", prompt=my_conductor_prompt, llm_client=llm_client,
+                                    topics=, locked_fields=agent_descriptions, dispatcher=my_agent_dispatcher,
+                                    rules=my_conductor_finish_rule)
 
 agents = [
     sales_agent,
