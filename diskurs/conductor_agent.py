@@ -208,7 +208,16 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         return conversation
 
     async def can_finalize(self, conversation: Conversation) -> bool:
-        if self.can_finalize_name:
+        if can_finalize_name := self.can_finalize_name:
+            conversation = self.prompt.initialize_prompt(
+                agent_name=self.name,
+                conversation=conversation,
+                locked_fields=self.locked_fields,
+                init_from_longterm_memory=self.init_prompt_arguments_with_longterm_memory,
+                init_from_previous_agent=self.init_prompt_arguments_with_previous_agent,
+            )
+
+            conversation = await self.add_routing_message_to_chat(conversation, can_finalize_name)
             conversation = await self.dispatcher.request_response(self.can_finalize_name, conversation)
             return conversation.prompt_argument.can_finalize or self.prompt.can_finalize(
                 conversation.get_agent_longterm_memory(self.name)

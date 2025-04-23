@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from dataclasses import fields, is_dataclass
+from dataclasses import asdict, dataclass, field, replace, fields, is_dataclass
 from enum import Enum
 from typing import Annotated, TypeVar, TypeAlias, get_type_hints
 from typing import Any, Callable, Optional, Union, get_args, get_origin, TYPE_CHECKING
@@ -266,41 +265,24 @@ class PromptArgument(JsonSerializable):
         # Create a new instance with updated values
         return self.__class__(**{**asdict(self), **update_values})
 
-    def update(self, values: dict[str, Any]) -> "PromptArgument":
+    def update(self, other: PromptArgument) -> PromptArgument:
         """
-        Update instance fields with values from a dictionary, except for those of type
-        LockedField or InputField.
-
-        :param values: Dictionary containing field values to update
-        :return: A new instance with updated values
+        Return a new instance with all non‐locked/non‐input fields
+        taken from `other`.
         """
-        if not values:
-            return self
 
-        update_values = {}
-
-        # Get type hints with metadata for the current class
         hints = get_type_hints(self.__class__, include_extras=True)
+        updates = {
+            f.name: getattr(other, f.name)
+            for f in fields(self)
+            # skip if this field has PromptField metadata that is locked or input
+            if not any(
+                isinstance(m, PromptField) and (m.is_locked() or m.is_input())
+                for m in getattr(hints.get(f.name), "__metadata__", ())
+            )
+        }
 
-        for field_name, value in values.items():
-            if field_name not in {f.name for f in fields(self)}:
-                continue
-
-            field_type = hints.get(field_name)
-            skip_field = False
-
-            # Check if the field has LockedField or InputField metadata
-            if field_type and hasattr(field_type, "__metadata__"):
-                for metadata in field_type.__metadata__:
-                    if isinstance(metadata, PromptField) and (metadata.is_locked() or metadata.is_input()):
-                        skip_field = True
-                        break
-
-            if not skip_field:
-                update_values[field_name] = value
-
-        # Create a new instance with updated values
-        return self.__class__(**{**asdict(self), **update_values})
+        return replace(self, **updates)
 
     def get_output_fields(self) -> dict[str, Any]:
         """
@@ -350,9 +332,15 @@ class LongtermMemory(JsonSerializable):
             return self
 
         common_fields = {f.name for f in fields(self)}.intersection({f.name for f in fields(prompt_argument)})
-        update_values = {field_name: getattr(prompt_argument, field_name) for field_name in common_fields}
 
-        return self.__class__(**{**asdict(self), **update_values})
+        update_values = {}
+
+        for field_name in common_fields:
+            val = getattr(prompt_argument, field_name)
+            if val is not None and val != "":
+                update_values[field_name] = val
+
+        return replace(self, **update_values)
 
 
 @dataclass
@@ -392,5 +380,5 @@ class RoutingRule(JsonSerializable):
 
     name: str
     description: str
-    condition: Callable[[Conversation], bool]
+    condition: Callable[["Conversation"], bool]
     target_agent: str

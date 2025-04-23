@@ -540,9 +540,9 @@ class BasePrompt(PromptProtocol):
         logger.debug("Parsing llm response into user prompt arguments")
         try:
             parsed_response = validate_json(llm_response)
-            merged_arguments = {**vars(old_prompt_argument), **parsed_response}
-            validated_response = validate_dataclass(merged_arguments, self.prompt_argument)
-            self.is_valid(validated_response)
+            validated_response = validate_dataclass(parsed_response, self.prompt_argument)
+            updated_prompt_argument = old_prompt_argument.update(validated_response)
+            self.is_valid(updated_prompt_argument)
 
             return validated_response
         except PromptValidationError as e:
