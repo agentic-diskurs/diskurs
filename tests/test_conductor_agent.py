@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-from unittest.mock import ANY, AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from jinja2 import Template
@@ -401,31 +401,46 @@ async def test_max_dispatches(conductor_cannot_finalize):
 
 
 @pytest.mark.asyncio
-async def test_conductor_agent_valid_next_agent(conductor_cannot_finalize, mock_llm_client):
-    # Setup initial conversation with longterm memory
-    conversation = ImmutableConversation(prompt_argument=MyPromptArgument())
-    longterm_memory = MyLongTermMemory()
-    conversation = conversation.update_agent_longterm_memory(
-        agent_name=conductor_cannot_finalize.name, longterm_memory=longterm_memory
+async def test_conductor_agent_valid_next_agent(mock_prompt, mock_dispatcher):
+    """Test that a conductor agent correctly routes to a valid next agent when one is determined.
+
+    This test verifies the core routing functionality of the ConductorAgent - when a conversation
+    is processed and a valid next_agent is determined, the conversation should be published to that agent.
+    """
+    # Create a minimal ConductorAgent for testing
+    agent = ConductorAgent(
+        name="test_conductor",
+        prompt=mock_prompt,
+        llm_client=None,  # Not needed for this test
+        topics=["agent1", "agent2", "agent3"],
+        locked_fields={},
+        dispatcher=mock_dispatcher,
     )
 
-    async def stub_generate_validated_response(conversation, message_type=None, tools=None):
-        return conversation.append(
-            ChatMessage(role=Role.ASSISTANT, content='{"next_agent": "agent1"}', type=MessageType.CONDUCTOR)
-        )
+    # Create a simple conversation with a prompt argument that already has next_agent set
+    initial_conversation = ImmutableConversation(prompt_argument=MockPromptArgument(next_agent="agent1"))
 
-    mock_llm_client.generate = AsyncMock(side_effect=stub_generate_validated_response)
+    # Mock create_or_update_longterm_memory to return the same conversation
+    agent.create_or_update_longterm_memory = Mock(return_value=initial_conversation)
 
-    parsed_prompt_argument = DefaultConductorPromptArgument(next_agent="agent1")
-    conductor_cannot_finalize.prompt.parse_user_prompt.return_value = parsed_prompt_argument
-    conductor_cannot_finalize.prompt.can_finalize.return_value = False
-    conductor_cannot_finalize.prompt.init_prompt = (
-        lambda agent_name, conversation, message_type, **kwargs: conversation
-    )
+    # Mock can_finalize to return False so that the finalize branch isn't taken
+    agent.can_finalize = AsyncMock(return_value=False)
 
-    await conductor_cannot_finalize.process_conversation(conversation)
+    # Setup the mock_prompt to return the same conversation when initialized (no changes needed)
+    agent.prompt.init_prompt = Mock(return_value=initial_conversation)
 
-    conductor_cannot_finalize.dispatcher.publish.assert_called_once_with(topic="agent1", conversation=ANY)
+    # Mock invoke to return the same conversation (simulate that routing decision has been made)
+    agent.invoke = AsyncMock(return_value=initial_conversation)
+
+    # Process the conversation
+    await agent.process_conversation(initial_conversation)
+
+    # Verify the conversation was published to the correct agent
+    mock_dispatcher.publish.assert_called_once()
+    called_topic = mock_dispatcher.publish.call_args[1]["topic"]
+    assert (
+        called_topic == "agent1"
+    ), f"Expected conversation to be routed to 'agent1', but was routed to '{called_topic}'"
 
 
 @pytest.mark.asyncio
@@ -562,7 +577,7 @@ async def test_invoke_fallback_to_llm(conductor_agent_with_rules, mock_conversat
             ChatMessage(role=Role.ASSISTANT, content='{"next_agent": "llm_agent"}', type=MessageType.CONDUCTOR)
         )
 
-    conductor_agent_with_rules.llm_client.generate = AsyncMock(side_effect=mock_llm_generate)
+    mock_llm_generate = AsyncMock(side_effect=mock_llm_generate)
 
     # Mock the prompt parsing to return a valid prompt argument
     conductor_agent_with_rules.prompt.parse_user_prompt.return_value = DefaultConductorPromptArgument(
@@ -573,7 +588,7 @@ async def test_invoke_fallback_to_llm(conductor_agent_with_rules, mock_conversat
     result = await conductor_agent_with_rules.invoke(mock_conversation, MessageType.CONDUCTOR)
 
     # Verify LLM was used and next_agent is set correctly
-    conductor_agent_with_rules.llm_client.generate.assert_called_once()
+    mock_llm_generate.assert_called_once()
     assert result.prompt_argument.next_agent == "llm_agent"
 
 

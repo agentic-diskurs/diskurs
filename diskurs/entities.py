@@ -283,21 +283,19 @@ class PromptArgument(JsonSerializable):
 
     def update(self, other: PromptArgument) -> PromptArgument:
         """
-        Return a new instance with all non‐locked/non‐input fields
+        Return a new instance with all non‑locked/non‑input fields
         taken from `other`.
         """
-
         hints = get_type_hints(self.__class__, include_extras=True)
         updates = {
-            f.name: getattr(other, f.name)
+            f.name: val
             for f in fields(self)
-            # skip if this field has PromptField metadata that is locked or input
             if not any(
                 isinstance(m, PromptField) and (m.is_locked() or m.is_input())
                 for m in getattr(hints.get(f.name), "__metadata__", ())
             )
+            and (val := getattr(other, f.name)) not in (None, "")
         }
-
         return replace(self, **updates)
 
     def get_output_fields(self) -> dict[str, Any]:

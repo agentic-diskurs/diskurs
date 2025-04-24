@@ -927,7 +927,9 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
             active_agent=agent_name,
             prompt_argument=updated_prompt_argument,
             system_prompt=self.render_system_template(name=agent_name, prompt_argument=updated_prompt_argument),
-            user_prompt=self.render_user_template(name=agent_name, prompt_args=updated_prompt_argument),
+            user_prompt=self.render_user_template(
+                name=agent_name, prompt_args=updated_prompt_argument, message_type=MessageType.CONDUCTOR
+            ),
         )
 
 
