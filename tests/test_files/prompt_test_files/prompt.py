@@ -1,16 +1,16 @@
 from dataclasses import dataclass, field
 
 from diskurs import PromptValidationError
-from diskurs.entities import JsonSerializable, PromptArgument
+from diskurs.entities import JsonSerializable, OutputField, PromptArgument
 
 
 @dataclass
 class MyPromptArgument(PromptArgument):
     agent_name: str = "Jane"
-    topic: str = "food"
+    topic: str = "food"  # Removed InputField, need to update from JSON in some tests
     mode: str = "friendly"
     name: str = ""
-    user_question: str = ""
+    user_question: OutputField[str] = ""
     answer: str = ""
 
 
@@ -21,7 +21,6 @@ def is_valid(arg: MyPromptArgument) -> bool:
         raise PromptValidationError("Please extract the topic of the user's query")
     if not arg.user_question:
         raise PromptValidationError("Please extract a concise description of the user's question")
-    return True
 
 
 def is_final(arg: MyPromptArgument) -> bool:

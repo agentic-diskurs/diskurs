@@ -3,7 +3,7 @@ import logging
 import re
 from dataclasses import MISSING, asdict, dataclass, fields, is_dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional, Self, Type, TypeVar, Union, get_type_hints
+from typing import Any, Callable, Optional, Self, Type, TypeVar, Union, get_type_hints, get_origin, get_args
 
 from jinja2 import Environment, FileSystemLoader, Template
 
@@ -267,128 +267,84 @@ def validate_json(llm_response: str, max_depth: int = 5, max_size: int = 1_000_0
 def validate_dataclass(parsed_response: dict[str, Any], prompt_argument: Type[GenericDataclass]) -> GenericDataclass:
     """
     Validate and convert a dictionary to a dataclass instance with proper type coercion.
-    Fields with InputFieldMetadata will be skipped during validation,
-    as these are intended to accept user input rather than be validated.
-
-    :param parsed_response: Dictionary from parsed JSON/response
-    :param prompt_argument: Target dataclass type
-
-    :return: An instance of the target dataclass
-
-    :raises TypeError: If prompt_argument is not a dataclass
-    :raises PromptValidationError: If validation or conversion fails
     """
     if not is_dataclass(prompt_argument):
         raise TypeError(f"{prompt_argument} is not a valid dataclass")
 
-    # Get type hints with metadata
     hints = get_type_hints(prompt_argument, include_extras=True)
+    dc_fields = {f.name: f for f in fields(prompt_argument)}
 
-    # Validate field presence
-    dataclass_fields = {f.name: f for f in fields(prompt_argument)}
+    # Determine excluded fields (Input or Locked)
+    def is_excluded(name: str) -> bool:
+        t = hints.get(name)
+        if hasattr(t, "__metadata__"):
+            return any(isinstance(m, PromptField) and (m.is_input() or m.is_locked()) for m in t.__metadata__)
+        return False
 
-    # Filter out fields that should not be included in validation
-    includable_fields = {}
-    for field_name, field in dataclass_fields.items():
-        field_type = hints.get(field_name)
-        # Skip fields marked with INPUT metadata
-        if field_type and hasattr(field_type, "__metadata__"):
-            # Check for field with input access mode using PromptField metadata
-            if any(isinstance(m, PromptField) and m.is_input() for m in field_type.__metadata__):
-                continue
-        includable_fields[field_name] = field
+    excluded = {name for name in dc_fields if is_excluded(name)}
+    includable = set(dc_fields) - excluded
 
-    required_fields = {
-        f.name for f in includable_fields.values() if f.default is MISSING and f.default_factory is MISSING
+    # Check required and extra fields
+    required = {
+        n for n, f in dc_fields.items() if n in includable and f.default is MISSING and f.default_factory is MISSING
     }
+    missing = required - parsed_response.keys()
+    extra = set(parsed_response) - set(dc_fields)
+    if missing or extra:
+        parts = []
+        if missing:
+            parts.append(f"Missing required fields: {', '.join(sorted(missing))}.")
+        if extra:
+            parts.append(f"Extra fields provided: {', '.join(sorted(extra))}. Please remove them.")
+        # Preserve original dataclass field order for valid fields
+        valid = ", ".join([name for name in dc_fields if name in includable])
+        parts.append(f"Valid fields are: {valid}.")
+        raise PromptValidationError(" ".join(parts))
 
-    missing_required = required_fields - parsed_response.keys()
-    extra_fields = parsed_response.keys() - dataclass_fields.keys()
+    # Helper to strip Optional/Annotated metadata
+    def resolve_type(tp):
+        origin = get_origin(tp)
+        if origin is Union:
+            args = [a for a in get_args(tp) if a is not type(None)]
+            return resolve_type(args[0]) if args else Any
+        if origin is list or origin is dict:
+            return tp
+        if origin is getattr(__import__("typing"), "Annotated", None):
+            return resolve_type(get_args(tp)[0])
+        return tp
 
-    if missing_required or extra_fields:
-        error_parts = []
-        if missing_required:
-            error_parts.append(f"Missing required fields: {', '.join(missing_required)}.")
-        if extra_fields:
-            error_parts.append(f"Extra fields provided: {', '.join(extra_fields)}. Please remove them.")
-
-        valid_fields = ", ".join(includable_fields.keys())
-        error_parts.append(f"Valid fields are: {valid_fields}.")
-
-        raise PromptValidationError(" ".join(error_parts))
-
-    # Convert and validate fields
-    converted = {}
-
-    # First, copy any default values from the dataclass for fields we're not processing
-    default_instance = prompt_argument()
-    for field_name, field in dataclass_fields.items():
-        field_type = hints.get(field_name)
-
-        # Skip fields marked with INPUT or LOCKED metadata if they're not in the parsed response
-        if field_type and hasattr(field_type, "__metadata__"):
-            is_excluded = False
-            for m in field_type.__metadata__:
-                if isinstance(m, PromptField) and (m.is_input() or m.is_locked()):
-                    is_excluded = True
-                    break
-
-            if is_excluded:
-                # Keep the original value from the default instance
-                converted[field_name] = getattr(default_instance, field_name)
-                continue
-
-        # Skip fields not in the parsed response
-        if field_name not in parsed_response:
-            continue
-
-        value = parsed_response[field_name]
+    # Recursive field parsing
+    def parse_field(value, tp):
+        rt = resolve_type(tp)
         if value is None:
-            converted[field_name] = None
-            continue
-
-        field_type = field.type
-        # Handle Optional types
-        if hasattr(field_type, "__origin__") and field_type.__origin__ is Union:
-            field_types = field_type.__args__
-            if type(None) in field_types:  # Optional field
-                field_type = next(t for t in field_types if t != type(None))
-
+            return None
+        if rt is Any:
+            return value
+        if rt is bool:
+            if isinstance(value, str):
+                return value.strip().lower() in ("true", "1", "yes")
+            return bool(value)
+        origin = get_origin(rt)
+        if origin is list:
+            elem = get_args(rt)[0]
+            return [parse_field(v, elem) for v in value]
+        if is_dataclass(rt) and isinstance(value, dict):
+            return validate_dataclass(value, rt)
         try:
-            # Special handling for Any type
-            if field_type is Any:
-                converted[field_name] = value
-            elif field_type == bool and isinstance(value, str):
-                # Fix: Properly handle different string representations of booleans
-                # True values: "true", "True", "TRUE", "1", "yes", "Yes", "YES"
-                # False values: "false", "False", "FALSE", "0", "no", "No", "NO"
-                converted[field_name] = value.lower() in ("true", "1", "yes")
-            elif field_type == dict or (hasattr(field_type, "__origin__") and field_type.__origin__ is dict):
-                # Handle dictionaries - if the value is already a dict, use it directly
-                if isinstance(value, dict):
-                    converted[field_name] = value
-                else:
-                    # Otherwise try to convert it
-                    converted[field_name] = field_type(value)
-            elif isinstance(value, list) and hasattr(field_type, "__origin__") and field_type.__origin__ is list:
-                element_type = field_type.__args__[0]
-                # Handle lists of dataclass objects
-                if is_dataclass(element_type) and all(isinstance(item, dict) for item in value):
-                    converted[field_name] = [validate_dataclass(item, element_type) for item in value]
-                else:
-                    converted[field_name] = [element_type(item) for item in value]
-            elif is_dataclass(field_type) and isinstance(value, dict):
-                # Handle nested dataclass
-                converted[field_name] = validate_dataclass(value, field_type)
-            else:
-                converted[field_name] = field_type(value)
-        except (ValueError, TypeError) as e:
+            return rt(value)
+        except Exception as e:
             raise PromptValidationError(
-                f"Type conversion failed for field '{field_name}': expected {field_type}, got {type(value)} with error: {e}"
+                f"Type conversion failed for field: expected {rt}, got {type(value)} ({value})"
             )
 
+    # Build with defaults then override
+    default_inst = prompt_argument()
+    data = asdict(default_inst)
+    for name in includable & parsed_response.keys():
+        data[name] = parse_field(parsed_response[name], dc_fields[name].type)
+
     try:
-        return prompt_argument(**converted)
+        return prompt_argument(**data)
     except TypeError as e:
         raise PromptValidationError(f"Error creating {prompt_argument.__name__}: {e}")
 
@@ -543,7 +499,8 @@ class BasePrompt(PromptProtocol):
             updated_prompt_argument = old_prompt_argument.update(validated_response)
             self.is_valid(updated_prompt_argument)
 
-            return validated_response
+            # Return the updated prompt argument so partial updates retain existing values
+            return updated_prompt_argument
         except PromptValidationError as e:
             return ChatMessage(role=Role.USER, name=name, content=str(e), type=message_type)
 

@@ -7,7 +7,8 @@ import pytest
 from jinja2 import Template
 
 from tests.conftest import are_classes_structurally_similar
-from diskurs import ImmutableConversation, ToolExecutor, PromptValidationError
+from diskurs import ToolExecutor, PromptValidationError
+from diskurs.immutable_conversation import ImmutableConversation
 from diskurs.entities import (
     ChatMessage,
     Role,
@@ -317,25 +318,6 @@ def test_conductor_no_finalize_function():
     assert prompt._can_finalize.__name__ == "can_finalize"
 
 
-def test_parse_user_prompt_partial_update(prompt_instance, prompt_testing_conversation):
-    old_prompt_argument = MyPromptArgument(name="Alice", topic="Wonderland")
-    returned_property = """{
-        "user_question": "Am I updated correctly?"
-        }"""
-    conversation_with_prompt_args = prompt_testing_conversation.update(prompt_argument=old_prompt_argument)
-    print(conversation_with_prompt_args.prompt_argument)
-
-    res = prompt_instance.parse_user_prompt(
-        name="test_agent",
-        llm_response=returned_property,
-        old_prompt_argument=conversation_with_prompt_args.prompt_argument,
-    )
-
-    assert res.name == "Alice"
-    assert res.topic == "Wonderland"
-    assert res.user_question == "Am I updated correctly?"
-
-
 def test_parse_user_prompt(prompt_instance, prompt_testing_conversation):
     res = prompt_instance.parse_user_prompt(
         name="test_agent",
@@ -458,8 +440,8 @@ def test_validate_json_2():
     assert "buildall" in res["comment"]
 
 
-def test_render_json_formatting_prompt(prompt_instance):
-    prompt_args = {"name": "test", "topic": "example"}
+def test_render_json_formatting_prompt(prompt_instance, prompt_testing_conversation):
+    prompt_args = prompt_instance.create_prompt_argument(name="test", topic="example")
     result = prompt_instance.render_json_formatting_prompt(prompt_args)
     assert "name" in result
     assert "topic" in result
@@ -485,9 +467,12 @@ def test_render_json_formatting_prompt_with_access_modes():
         json_formatting_template=template,
     )
 
-    result = prompt.render_json_formatting_prompt(
-        {"output_field": "should appear", "input_field": "should not appear", "locked_field": "should not appear"}
+    # Create a proper instance of TestPromptArg instead of using a dictionary
+    prompt_args = TestPromptArg(
+        output_field="should appear", input_field="should not appear", locked_field="should not appear"
     )
+
+    result = prompt.render_json_formatting_prompt(prompt_args)
 
     assert "output_field" in result
     assert "input_field" not in result
@@ -499,7 +484,9 @@ def test_render_json_formatting_prompt_empty_args():
     class EmptyPromptArg(PromptArgument):
         pass
 
-    template = Template("Fields: {% for key in keys %}{{ key }}{% if not loop.last %}, {% endif %}{% endfor %}")
+    template = Template(
+        "Fields: {% for key in schema.keys() %}{{ key }}{% if not loop.last %}, {% endif %}{% endfor %}"
+    )
 
     prompt = BasePrompt(
         agent_description="Test Agent",
@@ -509,7 +496,9 @@ def test_render_json_formatting_prompt_empty_args():
         json_formatting_template=template,
     )
 
-    result = prompt.render_json_formatting_prompt({})
+    # Create a proper instance of EmptyPromptArg instead of using an empty dictionary
+    prompt_args = EmptyPromptArg()
+    result = prompt.render_json_formatting_prompt(prompt_args)
     assert result == "Fields: "
 
 
@@ -550,12 +539,15 @@ def test_render_json_formatting_prompt_inheritance():
         json_formatting_template=template,
     )
 
-    result = prompt.render_json_formatting_prompt(
-        {"base_output": "base", "base_input": "input", "child_output": "child", "child_locked": "locked"}
-    )
+    # Create a proper instance of ChildPromptArg instead of using a dictionary
+    prompt_args = ChildPromptArg(base_output="base", base_input="input", child_output="child", child_locked="locked")
 
+    result = prompt.render_json_formatting_prompt(prompt_args)
+
+    # Verify output fields from both parent and child classes are included
     assert "base_output" in result
     assert "child_output" in result
+    # Verify input and locked fields are excluded
     assert "base_input" not in result
     assert "child_locked" not in result
 
@@ -646,7 +638,10 @@ def test_render_json_formatting_prompt_with_array_type():
         json_formatting_template=template,
     )
 
-    result = prompt.render_json_formatting_prompt({"user_query": "", "execution_plan": [], "summary": ""})
+    # Create a proper instance of TestArrayArgument instead of using a dictionary
+    prompt_args = TestArrayArgument(user_query="", execution_plan=[], summary="")
+
+    result = prompt.render_json_formatting_prompt(prompt_args)
 
     assert '"user_query"' in result
     assert '"execution_plan"' in result
@@ -671,17 +666,24 @@ def test_json_formatting_with_real_llm_compiler_prompt(prompt_with_array_instanc
         json_formatting_template=template,
     )
 
-    result = prompt.render_json_formatting_prompt({"user_query": "", "execution_plan": [], "summary": ""})
+    # Create a proper instance of PlanningPromptArgument with the correct fields
+    prompt_args = PlanningPromptArgument(
+        user_query="", execution_plan=[], answer="", tools=[], replan=False, replan_explanation=""
+    )
+
+    result = prompt.render_json_formatting_prompt(prompt_args)
 
     assert "JSON" in result
     assert '"user_query"' in result
     assert '"execution_plan"' in result
+    assert '"answer"' in result
+    assert '"tools"' in result
+    # Check specific fields in the execution plan structure
     assert '"step_id"' in result
     assert '"description"' in result
     assert '"function"' in result
     assert '"parameters"' in result
     assert '"depends_on"' in result
-    assert '"summary"' in result
 
     assert "[" in result and "]" in result
 
@@ -748,3 +750,34 @@ def test_access_mode_annotations():
     assert '"input_field"' not in content
     assert '"locked_field"' not in content
     assert '"multi_annotated_input"' not in content
+
+
+def test_validate_dataclass_output_field_next_agent():
+    """
+    Test the specific case for the next_agent field with OutputField[str] annotation
+    that was causing type conversion issues.
+    """
+    from diskurs.prompt import DefaultConductorPromptArgument, validate_dataclass
+
+    # JSON response that would come from LLM
+    response = {"next_agent": "Maintenance_Conductor_Agent"}  # String value as returned by LLM
+
+    # Validate the dataclass with the string value for next_agent
+    result = validate_dataclass(parsed_response=response, prompt_argument=DefaultConductorPromptArgument)
+
+    # Assert the result has the correct next_agent value
+    assert result.next_agent == "Maintenance_Conductor_Agent"
+
+    # Also test a more complex case with agent_descriptions and next_agent
+    complex_response = {
+        "next_agent": "Maintenance_Conductor_Agent",
+        # agent_descriptions is a LockedField, so it shouldn't be validated
+        # but we include it here to test that it doesn't interfere
+        "agent_descriptions": {"agent1": "Description 1"},
+    }
+
+    complex_result = validate_dataclass(
+        parsed_response=complex_response, prompt_argument=DefaultConductorPromptArgument
+    )
+    assert complex_result.next_agent == "Maintenance_Conductor_Agent"
+    assert complex_result.agent_descriptions is None  # Default value since it's a LockedField

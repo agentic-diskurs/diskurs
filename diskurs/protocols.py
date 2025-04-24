@@ -556,31 +556,6 @@ class Conversation(Protocol[PromptArg]):
         """
         ...
 
-    def update_prompt_argument_with_longterm_memory(self, conductor_name: str) -> "Conversation":
-        """
-        Creates a new conversation with prompt argument updated from long-term memory.
-
-        This method copies fields from a conductor agent's long-term memory into the
-        prompt argument, allowing memory state to influence the current conversation.
-
-        :param conductor_name: The name of the conductor agent whose memory to use.
-        :return: A new Conversation with the updated prompt argument.
-        """
-        ...
-
-    def update_prompt_argument_with_previous_agent(self, prompt_argument: PromptArg) -> "Conversation":
-        """
-        Creates a new conversation with prompt argument updated from previous agent.
-
-        This method merges values from the provided prompt argument with the
-        conversation's existing prompt argument, typically used when transitioning
-        from one agent to another to preserve context.
-
-        :param prompt_argument: The prompt argument to update.
-        :return: A new Conversation with the updated prompt argument.
-        """
-        ...
-
     def update(self, **kwargs) -> "Conversation":
         """
         Creates a new conversation with updated fields.
