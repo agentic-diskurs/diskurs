@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field, replace, fields, is_dataclass
+from dataclasses import MISSING, asdict, dataclass, field, replace, fields, is_dataclass
 from enum import Enum
 from typing import Annotated, TypeVar, TypeAlias, get_type_hints
 from typing import Any, Callable, Optional, Union, get_args, get_origin, TYPE_CHECKING
@@ -14,6 +14,7 @@ class AccessMode(Enum):
     INPUT = "input"  # Field accepts user input
     OUTPUT = "output"  # Field displays output only
     LOCKED = "locked"  # Field is locked/unchangeable
+    PER_TURN = "per_turn"  # Field resets between conversation turns
 
     def __str__(self):
         """Return the value of the enum member."""
@@ -189,6 +190,10 @@ class PromptField:
         """Check if this field has LOCKED access mode."""
         return self.access_mode == AccessMode.LOCKED.value
 
+    def is_per_turn(self) -> bool:
+        """Check if this field should be reset between turns."""
+        return self.access_mode == AccessMode.PER_TURN.value
+
 
 # For type checking purposes, define these types as just the generic type
 if TYPE_CHECKING:
@@ -198,6 +203,7 @@ if TYPE_CHECKING:
     InputField: TypeAlias = V
     OutputField: TypeAlias = V
     LockedField: TypeAlias = V
+    PerTurnField: TypeAlias = V
 
 else:
     # Runtime implementation
@@ -230,6 +236,16 @@ else:
         @classmethod
         def __class_getitem__(cls, t):
             return Annotated[t, PromptField("locked")]
+
+    class PerTurnField:
+        """Field that resets between conversation turns."""
+
+        def __new__(cls, value=None):
+            return value
+
+        @classmethod
+        def __class_getitem__(cls, t):
+            return Annotated[t, PromptField("per_turn")]
 
 
 @dataclass
@@ -341,6 +357,64 @@ class LongtermMemory(JsonSerializable):
                 update_values[field_name] = val
 
         return replace(self, **update_values)
+
+    def reset_per_turn_fields(self) -> "LongtermMemory":
+        """
+        Reset all fields marked with PerTurnField decorator to their default values.
+
+        :return: A new LongtermMemory instance with per-turn fields reset
+        """
+        # Get type hints with metadata for the current class
+        hints = get_type_hints(self.__class__, include_extras=True)
+        reset_values = {}
+
+        # Find all fields that are marked as per-turn and get their default values
+        for f in fields(self.__class__):
+            field_type = hints.get(f.name)
+            if field_type and hasattr(field_type, "__metadata__"):
+                for metadata in field_type.__metadata__:
+                    if isinstance(metadata, PromptField) and metadata.is_per_turn():
+                        # Get default value from the field's default factory or default value
+                        if f.default_factory is not MISSING:
+                            reset_values[f.name] = f.default_factory()
+                        elif f.default is not MISSING:
+                            reset_values[f.name] = f.default
+                        else:
+                            # For fields with no default, use empty values based on type
+                            origin_type = get_origin(get_args(field_type)[0]) if get_args(field_type) else field_type
+                            if origin_type is list:
+                                reset_values[f.name] = []
+                            elif origin_type is dict:
+                                reset_values[f.name] = {}
+                            elif origin_type is str:
+                                reset_values[f.name] = ""
+                            else:
+                                reset_values[f.name] = None
+                        break
+
+        # Create a new instance with reset values
+        return replace(self, **reset_values)
+
+    @classmethod
+    def from_dict(cls, data, reset_per_turn=True):
+        """
+        Create a new instance from a dictionary, applying special handling for per-turn fields.
+
+        :param data: Dictionary containing serialized field values
+        :param reset_per_turn: Whether to reset per-turn fields during deserialization
+        :return: A new instance with fields initialized from the dictionary
+        """
+        if data is None:
+            return None
+
+        # First, create the instance normally using the parent class method
+        instance = super().from_dict(data)
+
+        # Then reset any per-turn fields if requested
+        if reset_per_turn and isinstance(instance, LongtermMemory):
+            instance = instance.reset_per_turn_fields()
+
+        return instance
 
 
 @dataclass

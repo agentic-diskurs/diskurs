@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from dataclasses import MISSING, asdict, dataclass, field, fields, is_dataclass
+from dataclasses import MISSING, asdict, dataclass, fields, is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional, Self, Type, TypeVar, Union, get_type_hints
 
@@ -14,7 +14,6 @@ from diskurs.entities import (
     OutputField,
     PromptArgument,
     Role,
-    InputField,
     PromptField,
 )
 from diskurs.errors import PromptValidationError
@@ -720,8 +719,8 @@ class MultistepPrompt(BasePrompt, MultistepPromptProtocol):
 
 @dataclass
 class DefaultConductorPromptArgument(PromptArgument):
-    agent_descriptions: LockedField[dict[str, str]] = InputField(field(default_factory=dict))
-    next_agent: OutputField[Optional[str]] = OutputField(None)
+    agent_descriptions: LockedField[Optional[dict[str, str]]] = None
+    next_agent: OutputField[str] = ""
 
 
 GenericConductorLongtermMemory = TypeVar("GenericConductorLongtermMemory", bound="ConductorLongtermMemory")
