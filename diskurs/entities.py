@@ -11,10 +11,10 @@ class AccessMode(Enum):
     Enumeration representing different access modes or states for fields.
     """
 
-    INPUT = "input"  # Field accepts user input
-    OUTPUT = "output"  # Field displays output only
-    LOCKED = "locked"  # Field is locked/unchangeable
-    PER_TURN = "per_turn"  # Field resets between conversation turns
+    INPUT = "input"
+    OUTPUT = "output"
+    LOCKED = "locked"
+    PER_TURN = "per_turn"
 
     def __str__(self):
         """Return the value of the enum member."""
@@ -305,16 +305,16 @@ class PromptArgument(JsonSerializable):
 
         :return: Dictionary of field names to values that should be included in output
         """
-        # Get type hints with metadata
         hints = get_type_hints(self.__class__, include_extras=True)
 
         # Filter fields for output
         output_fields = {}
-        for key, value in asdict(self).items():
+        for field_info in fields(self):
+            key = field_info.name
+            value = getattr(self, key)
             hint = hints.get(key)
             include_field = True
 
-            # If field has metadata, only include it if it has OutputField annotation
             if hint and hasattr(hint, "__metadata__"):
                 include_field = False
                 for metadata in hint.__metadata__:
@@ -322,7 +322,6 @@ class PromptArgument(JsonSerializable):
                         include_field = True
                         break
 
-            # Include fields with no metadata or with OutputField annotation
             if include_field:
                 output_fields[key] = value
 
@@ -349,10 +348,29 @@ class LongtermMemory(JsonSerializable):
 
         update_values = {}
 
-        for field_name in common_fields:
-            val = getattr(prompt_argument, field_name)
-            if val is not None and val != "":
-                update_values[field_name] = val
+        if isinstance(prompt_argument, PromptArgument):
+            prompt_arg_hints = get_type_hints(prompt_argument.__class__, include_extras=True)
+
+            for field_name in common_fields:
+                field_type = prompt_arg_hints.get(field_name)
+                is_output_field = False
+
+                if field_type and hasattr(field_type, "__metadata__"):
+                    for metadata in field_type.__metadata__:
+                        if isinstance(metadata, PromptField) and metadata.is_output():
+                            is_output_field = True
+                            break
+
+                if is_output_field:
+                    val = getattr(prompt_argument, field_name)
+                    if val is not None and val != "":
+                        update_values[field_name] = val
+        else:
+            # If it's not a PromptArgument (e.g., another LongtermMemory), copy all fields
+            for field_name in common_fields:
+                val = getattr(prompt_argument, field_name)
+                if val is not None and val != "":
+                    update_values[field_name] = val
 
         return replace(self, **update_values)
 
@@ -362,7 +380,6 @@ class LongtermMemory(JsonSerializable):
 
         :return: A new LongtermMemory instance with per-turn fields reset
         """
-        # Get type hints with metadata for the current class
         hints = get_type_hints(self.__class__, include_extras=True)
         reset_values = {}
 
@@ -390,7 +407,6 @@ class LongtermMemory(JsonSerializable):
                                 reset_values[f.name] = None
                         break
 
-        # Create a new instance with reset values
         return replace(self, **reset_values)
 
     @classmethod
@@ -405,10 +421,8 @@ class LongtermMemory(JsonSerializable):
         if data is None:
             return None
 
-        # First, create the instance normally using the parent class method
         instance = super().from_dict(data)
 
-        # Then reset any per-turn fields if requested
         if reset_per_turn and isinstance(instance, LongtermMemory):
             instance = instance.reset_per_turn_fields()
 

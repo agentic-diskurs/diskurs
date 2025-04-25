@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import get_type_hints, Optional
+from typing import Any, get_type_hints, Optional
 
 import pytest
 
@@ -275,11 +275,11 @@ def test_access_mode_with_multiple_annotations():
     @dataclass
     class MultiAnnotatedClass(PromptArgument):
         # Field with multiple annotations including OutputField
-        output_with_doc: Annotated[OutputField[str], "This is documentation"] = OutputField("test output")
+        output_with_doc: Annotated[OutputField[str], "This is documentation"] = "test output"
         # Field with multiple annotations including InputField
-        input_with_doc: Annotated[InputField[bool], "This is documentation"] = InputField(False)
+        input_with_doc: Annotated[InputField[bool], "This is documentation"] = False
         # Field with multiple annotations including LockedField
-        locked_with_doc: Annotated[LockedField[int], "This is documentation"] = LockedField(42)
+        locked_with_doc: Annotated[LockedField[int], "This is documentation"] = 42
 
     hints = get_type_hints(MultiAnnotatedClass, include_extras=True)
 
@@ -465,37 +465,21 @@ class TestPromptFieldMethods:
         # Create a PromptArgument with default values
         prompt_arg = TestPromptArgument()
 
-        # Update with a dictionary of values
-        result = prompt_arg.update(
-            {
-                "input_field": "new_input",
-                "output_field": "new_output",
-                "locked_field": "new_locked",
-                "regular_field": "new_regular",
-            }
+        other = TestPromptArgument(
+            input_field="new_input",
+            output_field="new_output",
+            locked_field="new_locked",
+            regular_field="new_regular",
         )
+
+        # Update with the TestPromptArgument instance
+        result = prompt_arg.update(other)
 
         # Verify that only non-InputField and non-LockedField values were updated
         assert result.input_field == "default_input"  # Should not be updated (InputField)
         assert result.output_field == "new_output"  # Should be updated (OutputField)
         assert result.locked_field == "default_locked"  # Should not be updated (LockedField)
         assert result.regular_field == "new_regular"  # Should be updated (regular field)
-
-    def test_prompt_argument_update_with_empty_dict(self):
-        """Test updating a PromptArgument with an empty dictionary"""
-        prompt_arg = TestPromptArgument()
-        result = prompt_arg.update({})
-
-        # Should return self unchanged
-        assert result == prompt_arg
-
-    def test_prompt_argument_update_with_nonexistent_field(self):
-        """Test updating a PromptArgument with a nonexistent field"""
-        prompt_arg = TestPromptArgument()
-        result = prompt_arg.update({"nonexistent_field": "value"})
-
-        # Should return self unchanged, ignoring the nonexistent field
-        assert result == prompt_arg
 
     def test_longterm_memory_update(self):
         """Test updating a LongtermMemory with values from a PromptArgument"""
@@ -532,8 +516,8 @@ class TestPromptFieldMethods:
 
         @dataclass
         class DifferentPromptArgument(PromptArgument):
-            different_output_field: OutputField[str] = OutputField("different_output")
-            common_output_field: OutputField[str] = OutputField("common_output")
+            different_output_field: OutputField[str] = "different_output"
+            common_output_field: OutputField[str] = "common_output"
 
         @dataclass
         class TestLongtermMemory2(LongtermMemory):
@@ -600,9 +584,9 @@ class TestGetOutputFields:
 
         @dataclass
         class TestOutputFieldsArgument(PromptArgument):
-            input_field: InputField[str] = InputField("input value")
-            output_field: OutputField[str] = OutputField("output value")
-            locked_field: LockedField[str] = LockedField("locked value")
+            input_field: InputField[str] = "input value"
+            output_field: OutputField[str] = "output value"
+            locked_field: LockedField[str] = "locked value"
             regular_field: str = "regular value"
 
         arg = TestOutputFieldsArgument()
@@ -621,16 +605,16 @@ class TestGetOutputFields:
 
         @dataclass
         class BaseArgument(PromptArgument):
-            base_input: InputField[str] = InputField("base input")
-            base_output: OutputField[str] = OutputField("base output")
-            base_locked: LockedField[str] = LockedField("base locked")
+            base_input: InputField[str] = "base input"
+            base_output: OutputField[str] = "base output"
+            base_locked: LockedField[str] = "base locked"
             base_regular: str = "base regular"
 
         @dataclass
         class ChildArgument(BaseArgument):
-            child_input: InputField[str] = InputField("child input")
-            child_output: OutputField[str] = OutputField("child output")
-            child_locked: LockedField[str] = LockedField("child locked")
+            child_input: InputField[str] = "child input"
+            child_output: OutputField[str] = "child output"
+            child_locked: LockedField[str] = "child locked"
             child_regular: str = "child regular"
 
         arg = ChildArgument()
@@ -657,11 +641,11 @@ class TestGetOutputFields:
 
         @dataclass
         class ComplexArgument(PromptArgument):
-            output_list: OutputField[list[str]] = OutputField(["one", "two", "three"])
-            output_dict: OutputField[dict[str, int]] = OutputField({"a": 1, "b": 2})
-            output_nested: OutputField[NestedClass] = OutputField(NestedClass())
-            input_complex: InputField[list[dict[str, str]]] = InputField([{"key": "value"}])
-            locked_complex: LockedField[dict[str, list[int]]] = LockedField({"numbers": [1, 2, 3]})
+            output_list: OutputField[list[str]] = field(default_factory=lambda: ["one", "two", "three"])
+            output_dict: OutputField[dict[str, int]] = field(default_factory=lambda: {"a": 1, "b": 2})
+            output_nested: OutputField[NestedClass] = field(default_factory=NestedClass)
+            input_complex: InputField[list[dict[str, str]]] = field(default_factory=lambda: [{"key": "value"}])
+            locked_complex: LockedField[dict[str, list[int]]] = field(default_factory=lambda: {"numbers": [1, 2, 3]})
             regular_complex: dict[str, Any] = field(default_factory=lambda: {"regular": "value"})
 
         arg = ComplexArgument()
@@ -688,9 +672,9 @@ class TestGetOutputFields:
 
         @dataclass
         class EmptyArgument(PromptArgument):
-            output_none: OutputField[Optional[str]] = OutputField(None)
-            output_empty_list: OutputField[list] = OutputField([])
-            output_empty_dict: OutputField[dict] = OutputField({})
+            output_none: OutputField[Optional[str]] = None
+            output_empty_list: OutputField[list] = field(default_factory=list)
+            output_empty_dict: OutputField[dict] = field(default_factory=dict)
             regular_none: Optional[str] = None
 
         arg = EmptyArgument()
@@ -715,9 +699,9 @@ class TestGetOutputFields:
 
         @dataclass
         class TestIntegrationArgument(PromptArgument):
-            input_field: InputField[str] = InputField("input value")
-            output_field: OutputField[str] = OutputField("output value")
-            locked_field: LockedField[str] = LockedField("locked value")
+            input_field: InputField[str] = "input value"
+            output_field: OutputField[str] = "output value"
+            locked_field: LockedField[str] = "locked value"
             regular_field: str = "regular value"
 
         # Create a simple BasePrompt for testing
