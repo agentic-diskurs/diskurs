@@ -1,10 +1,19 @@
 import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Callable, List, Type
+from typing import Any, Callable, List, Type, Optional
 
 from diskurs.config import load_config_from_yaml
-from diskurs.entities import ChatMessage, DiskursInput, MessageType, PromptArgument, Role, RoutingRule, OutputField
+from diskurs.entities import (
+    ChatMessage,
+    DiskursInput,
+    MessageType,
+    PromptArgument,
+    Role,
+    RoutingRule,
+    OutputField,
+    LongtermMemory,
+)
 from diskurs.logger_setup import get_logger
 from diskurs.protocols import Agent, ConductorAgent, Conversation, ConversationParticipant, ConversationStore
 from diskurs.registry import (
@@ -49,6 +58,7 @@ class Forum:
         first_contact: ConversationParticipant,
         conversation_store: ConversationStore,
         conversation_class: Type[Conversation],
+        longterm_memory_class: Optional[Type[LongtermMemory]] = None,
     ):
         self.agents = agents
         self.dispatcher = dispatcher
@@ -56,6 +66,7 @@ class Forum:
         self.conversation_store = conversation_store
         self.first_contact = first_contact
         self.conversation_class = conversation_class
+        self.longterm_memory_class = longterm_memory_class
         self.logger = get_logger(f"diskurs.{__name__}.forum")
 
         self.logger.info("Initializing forum")
@@ -75,16 +86,25 @@ class Forum:
         if store and await store.exists(conversation_id):
             conversation = await store.fetch(conversation_id)
         else:
-            longterm_memory = init_longterm_memories(self.agents)
+            # Create a new longterm memory instance if we have a class
+            longterm_memory = None
+            if self.longterm_memory_class:
+
+                args = (
+                    {"user_query": diskurs_input.user_query}
+                    if hasattr(self.longterm_memory_class, "user_query")
+                    else {}
+                )
+                longterm_memory = self.longterm_memory_class(**args)
+
             conversation = self.conversation_class(
                 metadata=diskurs_input.metadata,
                 conversation_id=conversation_id,
-                longterm_memory=longterm_memory,
                 conversation_store=store,
-                prompt_argument=ForumPromptArgument(user_query=diskurs_input.user_query),
+                longterm_memory=longterm_memory,
             )
 
-        # Remove if safe
+        # Add user query if provided
         if diskurs_input.user_query:
             conversation = conversation.append(
                 ChatMessage(
@@ -110,6 +130,7 @@ class ForumFactory:
         base_path: Path,
         conversation_store: ConversationStore = None,
     ):
+        self.longterm_memory_class = None
         self.tool_dependencies = None
         self.base_path = base_path
         self.config = load_config_from_yaml(config=config_path, base_path=base_path)
@@ -151,6 +172,7 @@ class ForumFactory:
         self.create_agents()
         self.prepare_conductors()
         self.identify_first_contact_agent()
+        self.longterm_memory_class = self.load_longterm_memory()
         self.load_conversation()
         self.load_conversation_store()
 
@@ -163,6 +185,7 @@ class ForumFactory:
             first_contact=self.first_contact,
             conversation_store=self.conversation_store,
             conversation_class=self.conversation_cls,
+            longterm_memory_class=self.longterm_memory_class,
         )
 
     def import_modules(self):
@@ -334,11 +357,50 @@ class ForumFactory:
         conversation_store_config.pop("type")
 
         self.conversation_store = conversation_store_cls.create(
-            **{"agents": self.agents, "conversation_class": self.conversation_cls},
+            **{
+                "agents": self.agents,
+                "conversation_class": self.conversation_cls,
+                "longterm_memory_class": self.longterm_memory_class,
+            },
             **conversation_store_config,
         )
         if self.conversation_store is None:
             raise ValueError(f"Conversation store '{self.config.conversation_store}' is not registered.")
+
+    def load_longterm_memory(self) -> Optional[Type[LongtermMemory]]:
+        """
+        Load the global longterm memory class from configuration if provided.
+
+        This returns the longterm memory class that will be used to create
+        instances for each conversation.
+
+        :return: The LongtermMemory class if configured, None otherwise
+        """
+        if not self.config.longterm_memory:
+            self.logger.info("No longterm memory configured")
+            return None
+
+        mem_config = self.config.longterm_memory
+        self.logger.info(f"Loading longterm memory class: {mem_config.type}")
+
+        # Determine the module and class to load
+        if mem_config.location:
+            # Load from custom location
+            module_path = (self.base_path / mem_config.location).resolve()
+            module = load_module_from_path(module_path)
+            memory_class = getattr(module, mem_config.type)
+        else:
+            # Load from built-in classes
+            from diskurs.entities import LongtermMemory as BaseMemory
+
+            # Try to find the class in the entities module
+            memory_class = next(
+                (cls for cls in BaseMemory.__subclasses__() if cls.__name__ == mem_config.type), BaseMemory
+            )
+
+        # Return the class, not an instance
+        self.logger.info(f"Found longterm memory class: {memory_class.__name__}")
+        return memory_class
 
 
 def create_forum_from_config(config_path: Path, base_path: Path) -> Forum:

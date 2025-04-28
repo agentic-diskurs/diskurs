@@ -40,7 +40,6 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         tools: Optional[list[Any]] = None,
         tool_executor: Optional[Any] = None,
         init_prompt_arguments_with_longterm_memory: bool = True,
-        init_prompt_arguments_with_previous_agent: bool = True,
     ):
         validate_finalization(finalizer_name, prompt, supervisor=supervisor)
 
@@ -55,7 +54,6 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             tool_executor=tool_executor,
             locked_fields=locked_fields,
             init_prompt_arguments_with_longterm_memory=init_prompt_arguments_with_longterm_memory,
-            init_prompt_arguments_with_previous_agent=init_prompt_arguments_with_previous_agent,
         )
         self.agent_descriptions = locked_fields
         self.finalizer_name = finalizer_name
@@ -89,7 +87,6 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         tools = kwargs.get("tools", None)
         tool_executor = kwargs.get("tool_executor", None)
         init_prompt_arguments_with_longterm_memory = kwargs.get("init_prompt_arguments_with_longterm_memory", True)
-        init_prompt_arguments_with_previous_agent = kwargs.get("init_prompt_arguments_with_previous_agent", True)
 
         return cls(
             name=name,
@@ -108,7 +105,6 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             tools=tools,
             tool_executor=tool_executor,
             init_prompt_arguments_with_longterm_memory=init_prompt_arguments_with_longterm_memory,
-            init_prompt_arguments_with_previous_agent=init_prompt_arguments_with_previous_agent,
         )
 
     def evaluate_rules(self, conversation: Conversation) -> Optional[str]:
@@ -125,35 +121,6 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
                 self.logger.error(f"Error evaluating rule '{rule.name}': {e}")
 
         return None
-
-    def create_or_update_longterm_memory(self, conversation: Conversation) -> Conversation:
-        """
-        Creates or updates the conductor's longterm memory based on the current conversation.
-        Uses the LongtermMemory.update() method to copy OutputField values from a PromptArgument.
-
-        :param conversation: Current conversation object
-        :return: Updated conversation with updated longterm memory
-        """
-        longterm_memory = (
-            conversation.get_agent_longterm_memory(agent_name=self.name) or self.prompt.init_longterm_memory()
-        )
-
-        source = (
-            conversation.get_agent_longterm_memory(agent_name=conversation.last_message.name or "")
-            if conversation.is_previous_agent_conductor()
-            else conversation.prompt_argument
-        )
-
-        if source:
-            longterm_memory = longterm_memory.update(prompt_argument=source)
-        else:
-            self.logger.warning(
-                "No suitable prompt argument nor long-term memory for updating conductor %s found in conversation %s",
-                self.name,
-                conversation,
-            )
-
-        return conversation.update_agent_longterm_memory(agent_name=self.name, longterm_memory=longterm_memory)
 
     async def add_routing_message_to_chat(self, conversation, next_agent):
         if updated_prompt := conversation.prompt_argument:
@@ -181,7 +148,9 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             conversation=conversation,
             locked_fields=self.locked_fields,
             init_from_longterm_memory=self.init_prompt_arguments_with_longterm_memory,
-            init_from_previous_agent=self.init_prompt_arguments_with_previous_agent,
+            reset_prompt=reset_prompt,
+            message_type=MessageType.CONDUCTOR,  # Explicitly set message type for conductor
+            render_system_prompt=True,
         )
 
         if next_agent := self.evaluate_rules(conversation):
@@ -205,6 +174,9 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
         else:
             self.logger.error("No matching rule found and no LLM client available")
 
+        # Update global longterm memory with output fields from the prompt argument
+        if conversation.prompt_argument:
+            conversation = conversation.update_longterm_memory(conversation.prompt_argument)
         return conversation
 
     async def can_finalize(self, conversation: Conversation) -> bool:
@@ -214,16 +186,13 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
                 conversation=conversation,
                 locked_fields=self.locked_fields,
                 init_from_longterm_memory=self.init_prompt_arguments_with_longterm_memory,
-                init_from_previous_agent=self.init_prompt_arguments_with_previous_agent,
             )
 
             conversation = await self.add_routing_message_to_chat(conversation, can_finalize_name)
             conversation = await self.dispatcher.request_response(self.can_finalize_name, conversation)
-            return conversation.prompt_argument.can_finalize or self.prompt.can_finalize(
-                conversation.get_agent_longterm_memory(self.name)
-            )
+            return conversation.prompt_argument.can_finalize or self.prompt.can_finalize(conversation.longterm_memory)
         else:
-            return self.prompt.can_finalize(conversation.get_agent_longterm_memory(self.name))
+            return self.prompt.can_finalize(conversation.longterm_memory)
 
     async def finalize(self, conversation: Conversation) -> None:
         self.logger.debug(f"Finalize conversation on conductor agent {self.name}")
@@ -234,7 +203,6 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
                 conversation=conversation,
                 locked_fields=self.locked_fields,
                 init_from_longterm_memory=self.init_prompt_arguments_with_longterm_memory,
-                init_from_previous_agent=self.init_prompt_arguments_with_previous_agent,
             )
 
         if self.supervisor:
@@ -244,18 +212,17 @@ class ConductorAgent(BaseAgent[ConductorPrompt], ConductorAgentProtocol):
             conversation = await self.add_routing_message_to_chat(conversation, self.finalizer_name)
             await self.dispatcher.publish_final(topic=self.finalizer_name, conversation=conversation)
         else:
-            conversation.final_result = self.prompt.finalize(conversation.get_agent_longterm_memory(self.name))
+            conversation.final_result = self.prompt.finalize(conversation.longterm_memory)
 
     def fail(self, conversation: Conversation) -> dict[str, Any]:
         self.logger.debug(f"End conversation with fail on conductor agent {self.name}")
-        return self.prompt.fail(conversation.get_agent_longterm_memory(self.name))
+        return self.prompt.fail(conversation.longterm_memory)
 
     async def process_conversation(self, conversation: Conversation) -> None:
         self.logger.info(f"Process conversation on conductor agent: {self.name}")
         self.n_dispatches += 1
-        conversation = self.create_or_update_longterm_memory(conversation)
 
-        if conversation.get_agent_longterm_memory(self.name) and await self.can_finalize(conversation):
+        if conversation.longterm_memory and await self.can_finalize(conversation):
             await self.finalize(conversation=conversation)
             self.n_dispatches = 0
 

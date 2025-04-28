@@ -92,7 +92,7 @@ def init_conversation():
     system_prompt = ChatMessage(role=Role.SYSTEM, content="You are a helpful assistant.")
     user_prompt = ChatMessage(role=Role.USER, content="What is the capital of france?")
     prompt_arg = PromptArgument()
-    return ImmutableConversation(system_prompt, user_prompt, prompt_arg)
+    return ImmutableConversation(system_prompt=system_prompt, chat=[user_prompt], prompt_argument=prompt_arg)
 
 
 @pytest.fixture

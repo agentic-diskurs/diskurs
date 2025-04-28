@@ -3,8 +3,7 @@ import enum
 import importlib
 from typing import Any, Optional, TypeVar
 
-from diskurs import LongtermMemory
-from diskurs.entities import ChatMessage, MessageType, ResultHolder, Role
+from diskurs.entities import ChatMessage, LongtermMemory, MessageType, ResultHolder, Role
 from diskurs.protocols import Conversation, ConversationStore
 from diskurs.registry import register_conversation
 
@@ -17,29 +16,40 @@ class ImmutableConversation(Conversation):
 
     def __init__(
         self,
-        system_prompt: Optional[ChatMessage] = None,
-        user_prompt: Optional[ChatMessage] = None,
-        prompt_argument: Optional[GenericPromptArg] = None,
-        chat=None,
-        longterm_memory: Optional[dict[str, "LongtermMemory"]] = None,
         metadata: Optional[dict[str, str | enum.Enum]] = None,
-        active_agent: str = "",
-        conversation_id="",
-        final_result: Optional[dict[str, Any]] = None,
+        chat: Optional[list[ChatMessage]] = None,
+        prompt_argument: Optional[GenericPromptArg] = None,
+        system_prompt: Optional[ChatMessage] = None,
+        user_prompt: Optional[ChatMessage | list[ChatMessage]] = None,
+        active_agent: Optional[str] = None,
+        conversation_id: Optional[str] = None,
         conversation_store: Optional[ConversationStore] = None,
+        final_result: Optional[dict[str, Any]] = None,
+        longterm_memory: Optional[LongtermMemory] = None,
     ):
-        if chat is None:
-            self._chat = []
-        else:
-            self._chat = copy.deepcopy(chat)
+        """
+        Initialize an immutable conversation object.
 
-        self._system_prompt = copy.deepcopy(system_prompt) if system_prompt else None
-        self._user_prompt = copy.deepcopy(user_prompt) if user_prompt else None
-        self._prompt_argument = copy.deepcopy(prompt_argument) if prompt_argument else None
-        self._longterm_memory = copy.deepcopy(longterm_memory) or {}
-        self._metadata = copy.deepcopy(metadata) or {}
+        :param metadata: Optional metadata dictionary.
+        :param chat: Chat history.
+        :param prompt_argument: Current prompt argument.
+        :param system_prompt: System prompt.
+        :param user_prompt: User prompt.
+        :param active_agent: Name of the active agent.
+        :param conversation_id: Unique conversation ID.
+        :param conversation_store: Conversation store for persistence.
+        :param final_result: Optional final result dictionary.
+        :param longterm_memory: Global longterm memory for the conversation.
+        """
+        self._metadata = metadata or {}
+        self._chat = chat or []
+        self._prompt_argument = prompt_argument
+        self._system_prompt = system_prompt
+        self._user_prompt = user_prompt
         self._active_agent = active_agent
         self._conversation_id = conversation_id
+        self._longterm_memory = longterm_memory
+        self._conversation_store = conversation_store
         self._final_result = final_result or ResultHolder()
         self.conversation_store = conversation_store
 
@@ -110,16 +120,37 @@ class ImmutableConversation(Conversation):
         else:
             raise ValueError("The chat is empty.")
 
+    @property
+    def longterm_memory(self) -> "LongtermMemory":
+        """
+        Returns a copy of the global longterm memory.
+
+        :return: Copy of the global longterm memory
+        """
+        return copy.deepcopy(self._longterm_memory)
+
     def get_agent_longterm_memory(self, agent_name: str) -> "LongtermMemory":
-        return copy.deepcopy(self._longterm_memory.get(agent_name))
+        """
+        Returns the global longterm memory.
+        This method is maintained for backward compatibility.
+
+        :param agent_name: Ignored in the new implementation
+        :return: Copy of the global longterm memory
+        """
+        return copy.deepcopy(self._longterm_memory)
 
     def update_agent_longterm_memory(
         self, agent_name: str, longterm_memory: "LongtermMemory"
     ) -> "ImmutableConversation":
-        updated_longterm_memory = copy.deepcopy(self._longterm_memory)
-        updated_longterm_memory[agent_name] = longterm_memory
+        """
+        Updates the global longterm memory.
+        This method is maintained for backward compatibility.
 
-        return self.update(longterm_memory=updated_longterm_memory)
+        :param agent_name: Ignored in the new implementation
+        :param longterm_memory: The new longterm memory
+        :return: A new ImmutableConversation with updated longterm memory
+        """
+        return self.update(longterm_memory=longterm_memory)
 
     def update(
         self,
@@ -127,7 +158,7 @@ class ImmutableConversation(Conversation):
         prompt_argument: Optional[GenericPromptArg] = None,
         system_prompt: Optional[ChatMessage] = None,
         user_prompt: Optional[ChatMessage | list[ChatMessage]] = None,
-        longterm_memory: Optional[dict[str, Any]] = None,
+        longterm_memory: Optional["LongtermMemory"] = None,
         metadata: Optional[dict[str, str | enum.Enum]] = None,
         active_agent: Optional[str] = None,
         conversation_id: Optional[str] = None,
@@ -180,7 +211,20 @@ class ImmutableConversation(Conversation):
         else:
             raise ValueError(f"Invalid message type: {message_type}")
 
-        return [self.system_prompt] + chat + [self.user_prompt]
+        result = []
+
+        if self.system_prompt is not None:
+            result.append(self.system_prompt)
+
+        result.extend(chat)
+
+        if self.user_prompt is not None:
+            if isinstance(self.user_prompt, list):
+                result.extend(self.user_prompt)
+            else:
+                result.append(self.user_prompt)
+
+        return result
 
     def is_empty(self) -> bool:
         return len(self._chat) == 0
@@ -209,21 +253,52 @@ class ImmutableConversation(Conversation):
         cls,
         data: dict[str, Any],
         agents: list,
+        longterm_memory_class: Optional[LongtermMemory] = None,
         conversation_store: Optional[ConversationStore] = None,
     ) -> "ImmutableConversation":
         active_agent = next(agent for agent in agents if agent.name == data["active_agent"])
 
         prompt_argument = active_agent.prompt.prompt_argument
-        prompt_argument = prompt_argument.from_dict(data["prompt_argument"]) if data["prompt_argument"] else None
+        prompt_argument = (
+            prompt_argument.from_dict(
+                data["prompt_argument"],
+            )
+            if data["prompt_argument"]
+            else None
+        )
 
         system_prompt = ChatMessage.from_dict(data["system_prompt"]) if data["system_prompt"] else None
         user_prompt = ChatMessage.from_dict(data["user_prompt"]) if data["user_prompt"] else None
 
-        ltm_cls_map = {
-            conductor_name: [agent for agent in agents if agent.name == conductor_name][0].prompt.longterm_memory
-            for conductor_name in data["longterm_memory"].keys()
-        }
-        longterm_memory = {k: ltm_cls_map[k].from_dict(v) for k, v in data.get("longterm_memory", {}).items()}
+        # If no longterm_memory_class is provided, try to get it from active agent
+        if longterm_memory_class is None:
+            # Try to get longterm_memory_class from active agent or one of the other agents
+            for agent in agents:
+                try:
+                    if hasattr(agent.prompt, "longterm_memory"):
+                        longterm_memory_class = agent.prompt.longterm_memory
+                        if longterm_memory_class is not None:
+                            break
+                except (AttributeError, TypeError):
+                    continue
+
+            # If we still don't have a longterm_memory_class, use the base LongtermMemory
+            if longterm_memory_class is None:
+                from diskurs.entities import LongtermMemory
+
+                longterm_memory_class = LongtermMemory
+
+        # Handle backward compatibility - if data["longterm_memory"] is a dict with agent names as keys
+        longterm_memory_data = data.get("longterm_memory", {})
+        if isinstance(longterm_memory_data, dict) and any(agent.name in longterm_memory_data for agent in agents):
+            # For backward compatibility, construct a single memory from the first agent memory
+            agent_name = next(
+                name for name in longterm_memory_data.keys() if any(agent.name == name for agent in agents)
+            )
+            longterm_memory = longterm_memory_class.from_dict(longterm_memory_data.get(agent_name, {}))
+        else:
+            # Use the regular approach for the new format
+            longterm_memory = longterm_memory_class.from_dict(longterm_memory_data)
 
         # Process metadata to deserialize enums
         metadata = data.get("metadata", {})
@@ -273,7 +348,7 @@ class ImmutableConversation(Conversation):
             "user_prompt": (self.user_prompt.to_dict() if self.user_prompt else None),
             "prompt_argument": (self.prompt_argument.to_dict() if self.prompt_argument else None),
             "chat": [msg.to_dict() for msg in self.chat],
-            "longterm_memory": {k: v.to_dict() for k, v in self._longterm_memory.items()},
+            "longterm_memory": (self._longterm_memory.to_dict() if self._longterm_memory else {}),
             "metadata": process_metadata(self.metadata),
             "active_agent": self.active_agent,
             "conversation_id": self.conversation_id,
@@ -301,3 +376,15 @@ class ImmutableConversation(Conversation):
 
     def has_conductor_been_called(self):
         return any(message.type == MessageType.CONDUCTOR for message in self.chat)
+
+    def update_longterm_memory(self, prompt_argument: GenericPromptArg) -> "ImmutableConversation":
+        """
+        Updates the global longterm memory using values from a PromptArgument.
+        Only fields of type OutputField in the PromptArgument will be copied to
+        the LongtermMemory if they have matching names.
+
+        :param prompt_argument: The prompt argument to extract output fields from
+        :return: A new ImmutableConversation with updated longterm memory
+        """
+        updated_memory = self.longterm_memory.update(prompt_argument)
+        return self.update(longterm_memory=updated_memory)

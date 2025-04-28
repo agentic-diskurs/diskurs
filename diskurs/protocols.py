@@ -193,11 +193,28 @@ class Prompt(Protocol):
         self,
         agent_name: str,
         conversation: "Conversation",
-        locked_fields,
+        locked_fields: Optional[dict[str, Any]] = None,
         init_from_longterm_memory: bool = True,
-        init_from_previous_agent: bool = True,
         reset_prompt: bool = True,
-    ) -> "Conversation": ...
+        message_type: MessageType = MessageType.CONVERSATION,
+        render_system_prompt: bool = True,
+    ) -> "Conversation":
+        """
+        Initializes the prompt for the conversation.
+
+        This method sets up the initial state of the prompt for the conversation,
+        including locked fields, long-term memory, and system prompt rendering.
+
+        :param agent_name: The name of the agent initializing the prompt.
+        :param conversation: The conversation object to initialize the prompt for.
+        :param locked_fields: Optional dictionary of fields to lock during initialization.
+        :param init_from_longterm_memory: Whether to initialize from long-term memory.
+        :param reset_prompt: Whether to reset the prompt state.
+        :param message_type: The type of message to generate (defaults to CONVERSATION).
+        :param render_system_prompt: Whether to render the system prompt.
+        :return: The updated conversation object with the initialized prompt.
+        """
+        ...
 
 
 class MultistepPrompt(Prompt):
@@ -391,15 +408,7 @@ class HeuristicPrompt(Protocol):
         """
         ...
 
-    def initialize_prompt(
-        self,
-        agent_name: str,
-        conversation: "Conversation",
-        locked_fields,
-        init_from_longterm_memory: bool = True,
-        init_from_previous_agent: bool = True,
-        reset_prompt: bool = True,
-    ) -> "Conversation": ...
+    ...
 
 
 class Conversation(Protocol[PromptArg]):
@@ -511,6 +520,16 @@ class Conversation(Protocol[PromptArg]):
         """
         ...
 
+    @property
+    def longterm_memory(self) -> LongtermMemory: ...  # unified global memory
+
+    def update_longterm_memory(self, prompt_argument: PromptArgument) -> "Conversation":
+        """
+        Returns a new Conversation with global long-term memory updated from OutputFields
+        of the given prompt argument.
+        """
+        ...
+
     def append(
         self,
         message: Union[ChatMessage, List[ChatMessage], str],
@@ -528,31 +547,6 @@ class Conversation(Protocol[PromptArg]):
         :param role: The role of the message sender (used only when message is a string).
         :param name: The name of the message sender (used only when message is a string).
         :return: A new Conversation instance with the appended message(s).
-        """
-        ...
-
-    def get_agent_longterm_memory(self, agent_name: str) -> Optional[LongtermMemory]:
-        """
-        Returns a deep copy of an agent's long-term memory.
-
-        Long-term memory allows agents to maintain state across conversation turns.
-        This method retrieves the memory associated with a specific agent.
-
-        :param agent_name: The name of the agent whose memory to retrieve.
-        :return: A deep copy of the agent's longterm memory, or None if not found.
-        """
-        ...
-
-    def update_agent_longterm_memory(self, agent_name: str, longterm_memory: LongtermMemory) -> "Conversation":
-        """
-        Creates a new conversation with updated long-term memory for an agent.
-
-        This method updates the long-term memory associated with an agent and returns
-        a new Conversation instance with the updated memory.
-
-        :param agent_name: The name of the agent whose memory to update.
-        :param longterm_memory: The new long-term memory for the agent.
-        :return: A new Conversation with the updated long-term memory.
         """
         ...
 
@@ -625,7 +619,11 @@ class Conversation(Protocol[PromptArg]):
 
     @classmethod
     def from_dict(
-        cls, data: dict[str, Any], agents: list[Any], conversation_store: Optional["ConversationStore"] = None
+        cls,
+        data: dict[str, Any],
+        agents: list[Any],
+        longterm_memory_class: Type[LongtermMemory],
+        conversation_store: Optional["ConversationStore"] = None,
     ) -> "Conversation":
         """
         Creates a Conversation instance from a dictionary representation.
@@ -635,6 +633,7 @@ class Conversation(Protocol[PromptArg]):
 
         :param data: Dictionary containing the serialized conversation.
         :param agents: List of agent instances needed for context reconstruction.
+        :param longterm_memory_class: The class of the longterm memory..
         :param conversation_store: Optional store for persistence operations.
         :return: A new Conversation instance.
         """
@@ -1079,43 +1078,6 @@ class ConductorAgent(Protocol):
 
         :param conversation: The conversation to evaluate against the rules.
         :return: The name of the target agent if a rule matches, None otherwise.
-        """
-        ...
-
-    @staticmethod
-    def update_longterm_memory(
-        source: LongtermMemory | PromptArgument,
-        target: LongtermMemory,
-        overwrite: bool,
-    ) -> LongtermMemory:
-        """
-        Updates the target longterm memory with values from the source.
-
-        This method copies fields from the source (either a LongtermMemory or PromptArgument)
-        to the target LongtermMemory. Fields are only updated if they are present in both
-        source and target objects.
-
-        :param source: The source object containing values to copy from (either LongtermMemory or PromptArgument)
-        :param target: The target LongtermMemory object to update
-        :param overwrite: If True, existing values in target will be overwritten;
-                         if False, only empty/None values in target will be updated
-        :return: The updated LongtermMemory instance
-        """
-        ...
-
-    def create_or_update_longterm_memory(self, conversation: Conversation) -> Conversation:
-        """
-        Creates or updates the longterm memory for this conductor agent in the conversation.
-
-        This method first retrieves the agent's existing longterm memory from the conversation,
-        or initializes a new one if none exists. It then updates this memory with values from either:
-        1. The longterm memory of the previous agent (if it was a conductor), or
-        2. The conversation's prompt_argument
-
-        :param conversation: The conversation containing the context for memory updates
-        :param overwrite: If True, existing values in longterm memory will be overwritten;
-                         if False, only empty/None values in target will be updated
-        :return: Updated conversation with the new/updated longterm memory
         """
         ...
 

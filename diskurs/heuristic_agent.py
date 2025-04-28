@@ -23,7 +23,6 @@ class HeuristicAgent(BaseAgent[HeuristicPrompt]):
         tool_executor: Optional[ToolExecutor] = None,
         max_trials: int = 5,
         init_prompt_arguments_with_longterm_memory: bool = True,
-        init_prompt_arguments_with_previous_agent: bool = True,
         render_prompt: bool = True,
         final_properties: Optional[list[str]] = None,
     ):
@@ -37,7 +36,6 @@ class HeuristicAgent(BaseAgent[HeuristicPrompt]):
             tools=tools,
             tool_executor=tool_executor,
             init_prompt_arguments_with_longterm_memory=init_prompt_arguments_with_longterm_memory,
-            init_prompt_arguments_with_previous_agent=init_prompt_arguments_with_previous_agent,
         )
         self.render_prompt = render_prompt
         self.final_properties = final_properties
@@ -56,7 +54,9 @@ class HeuristicAgent(BaseAgent[HeuristicPrompt]):
             conversation=conversation,
             locked_fields=self.locked_fields,
             init_from_longterm_memory=self.init_prompt_arguments_with_longterm_memory,
-            init_from_previous_agent=self.init_prompt_arguments_with_previous_agent,
+            reset_prompt=reset_prompt,
+            message_type=message_type,
+            render_system_prompt=False,  # Heuristic agents don't use system prompts
         )
 
         conversation = await self.prompt.heuristic_sequence(
@@ -74,6 +74,10 @@ class HeuristicAgent(BaseAgent[HeuristicPrompt]):
                     message_type=MessageType.CONVERSATION,
                 ),
             )
+
+        # Update the global longterm memory with output fields from the prompt argument
+        if conversation.prompt_argument:
+            conversation = conversation.update_longterm_memory(conversation.prompt_argument)
 
         return conversation
 

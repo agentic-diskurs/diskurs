@@ -3,6 +3,10 @@ dispatcherType: "asynchronous"
 toolExecutorType: "default"
 conversationType: "immutable"
 
+# Add longterm memory configuration for global memory model
+longtermMemory:
+  type: "TestLongtermMemory"
+
 # Simplified LLMs section
 llms:
   - name: "test-llm"

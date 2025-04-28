@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from jinja2 import Template
 
-from .conftest import MyLongtermMemory
 from diskurs import ImmutableConversation, Conversation, PromptValidationError, InputField
 from diskurs.conductor_agent import ConductorAgent, validate_finalization
 from diskurs.entities import (
@@ -335,7 +334,6 @@ def conductor_agent():
         user_template=Template("Test conductor agent"),
         prompt_argument_class=MyConductorPromptArgument,
         json_formatting_template=json_formatting_template,
-        longterm_memory=MyLongtermMemory,
     )
 
     return ConductorAgent(
@@ -351,40 +349,51 @@ def conductor_agent():
     )
 
 
-def test_update_longterm_memory(conductor_agent):
+def test_update_conversation_longterm_memory(conductor_agent):
+    """Test that a conversation's longterm memory is updated correctly from a prompt argument."""
+    # Create a test conversation with an empty longterm memory
     conversation = ImmutableConversation(
-        prompt_argument=MyPromptArgument(field1="value1", field2="value2", field3="value3")
+        prompt_argument=MyPromptArgument(field1="value1", field2="value2", field3="value3"),
+        longterm_memory=MyLongTermMemory(),
     )
 
-    updated_conversation = conductor_agent.create_or_update_longterm_memory(conversation=conversation)
-    longterm_memory = updated_conversation.get_agent_longterm_memory("conductor")
+    # Update the longterm memory directly using the conversation's method
+    updated_conversation = conversation.update_longterm_memory(conversation.prompt_argument)
 
-    assert longterm_memory.field1 == "value1"
-    assert longterm_memory.field2 == "value2"
-    assert longterm_memory.field3 == "value3"
+    # Verify the longterm memory has been updated with prompt argument values
+    assert updated_conversation.longterm_memory.field1 == "value1"
+    assert updated_conversation.longterm_memory.field2 == "value2"
+    assert updated_conversation.longterm_memory.field3 == "value3"
 
 
-def test_update_longterm_memory_with_overwrite(conductor_agent):
-    conversation = ImmutableConversation(prompt_argument=MyPromptArgument(field1="new_value1"))
-    longterm_memory = MyLongTermMemory(field1="existing_value1")
+def test_update_longterm_memory_with_overwrite():
+    """Test that updating longterm memory overwrites existing values."""
+    # Create a memory with existing values
+    memory = MyLongTermMemory(field1="old_value", field2="old_value", field3="old_value")
 
-    updated_conversation = conductor_agent.create_or_update_longterm_memory(conversation=conversation)
-    longterm_memory = updated_conversation.get_agent_longterm_memory("conductor")
+    # Create a conversation with that memory and a prompt argument with new values
+    conversation = ImmutableConversation(
+        prompt_argument=MyPromptArgument(field1="new_value", field2=""),  # Empty values shouldn't overwrite
+        longterm_memory=memory,
+    )
 
-    assert longterm_memory.field1 == "new_value1"  # Should be overwritten
+    # Update memory with the prompt argument
+    updated_conversation = conversation.update_longterm_memory(conversation.prompt_argument)
+
+    # Verify only non-empty fields are updated
+    assert updated_conversation.longterm_memory.field1 == "new_value"  # Should be overwritten
+    assert updated_conversation.longterm_memory.field2 == "old_value"  # Empty value - shouldn't overwrite
+    assert updated_conversation.longterm_memory.field3 == "old_value"  # Unchanged
 
 
 @pytest.mark.asyncio
 async def test_max_dispatches(conductor_cannot_finalize):
     conductor_cannot_finalize.n_dispatches = 49
-    conversation = ImmutableConversation(prompt_argument=MyPromptArgument()).append(
-        ChatMessage(Role.ASSISTANT, content='{"next_agent": "agent1"}')
-    )
     longterm_memory = MyLongTermMemory()
 
-    conversation = conversation.update_agent_longterm_memory(
-        agent_name=conductor_cannot_finalize.name,
-        longterm_memory=longterm_memory,
+    # Use the global longterm memory instead of agent-specific memory
+    conversation = ImmutableConversation(prompt_argument=MyPromptArgument(), longterm_memory=longterm_memory).append(
+        ChatMessage(Role.ASSISTANT, content='{"next_agent": "agent1"}')
     )
 
     # Use a regular Mock with a return value instead of an AsyncMock
@@ -393,7 +402,7 @@ async def test_max_dispatches(conductor_cannot_finalize):
 
     await conductor_cannot_finalize.process_conversation(conversation)
 
-    # Verify the fail mock was called correctly
+    # Verify the fail mock was called correctly with the global longterm memory
     conductor_cannot_finalize.prompt.fail.assert_called_once_with(longterm_memory)
 
     # Check that the conversation's final_result was set correctly
@@ -418,10 +427,9 @@ async def test_conductor_agent_valid_next_agent(mock_prompt, mock_dispatcher):
     )
 
     # Create a simple conversation with a prompt argument that already has next_agent set
-    initial_conversation = ImmutableConversation(prompt_argument=MockPromptArgument(next_agent="agent1"))
-
-    # Mock create_or_update_longterm_memory to return the same conversation
-    agent.create_or_update_longterm_memory = Mock(return_value=initial_conversation)
+    initial_conversation = ImmutableConversation(
+        prompt_argument=MockPromptArgument(next_agent="agent1"), longterm_memory=MyLongTermMemory()
+    )
 
     # Mock can_finalize to return False so that the finalize branch isn't taken
     agent.can_finalize = AsyncMock(return_value=False)
@@ -596,7 +604,6 @@ async def test_invoke_fallback_to_llm(conductor_agent_with_rules, mock_conversat
 async def test_process_conversation_with_rules(conductor_agent_with_rules, mock_conversation):
     """Test that process_conversation correctly handles rule-based routing"""
     # Setup the agent to use rule-based routing
-    conductor_agent_with_rules.create_or_update_longterm_memory = Mock(return_value=mock_conversation)
     conductor_agent_with_rules.can_finalize = AsyncMock(return_value=False)
 
     # Mock the invoke method to return a conversation with next_agent set in both:

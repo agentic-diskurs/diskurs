@@ -138,7 +138,6 @@ class ConductorPromptConfig(PromptConfig):
 
     type: str = "conductor_prompt"
     prompt_argument_class: Optional[str] = None
-    longterm_memory_class: str
     can_finalize_name: Optional[str] = None
     fail_name: str
 
@@ -190,7 +189,6 @@ class MultistepAgentConfig(AgentConfig):
     prompt: PromptConfig
     tools: Optional[list[str]] = None
     init_prompt_arguments_with_longterm_memory: Optional[bool] = True
-    init_prompt_arguments_with_previous_agent: Optional[bool] = True
     max_reasoning_steps: Optional[int] = 5
     max_trials: Optional[int] = 5
 
@@ -219,7 +217,6 @@ class LLMCompilerAgentConfig(AgentConfig):
     prompt: PromptConfig
     tools: Optional[list[str]] = None
     init_prompt_arguments_with_longterm_memory: Optional[bool] = True
-    init_prompt_arguments_with_previous_agent: Optional[bool] = True
     max_reasoning_steps: Optional[int] = 5
     max_trials: Optional[int] = 5
 
@@ -356,6 +353,14 @@ class FilesystemConversationStoreConfig(ConversationStoreConfig):
 
 
 @dataclass
+class LongtermMemoryConfig(YamlSerializable):
+    """Configuration for global longterm memory"""
+
+    type: str
+    location: Optional[Path] = None
+
+
+@dataclass
 class ForumConfig(YamlSerializable):
     """
     Represents the entire config file structure.
@@ -366,6 +371,7 @@ class ForumConfig(YamlSerializable):
     tool_executor_type: str
     agents: list[AgentConfig]
     llms: list[LLMConfig]
+    longterm_memory: LongtermMemoryConfig
     tools: list[ToolConfig] = field(default_factory=list)
     custom_modules: list[dict] = field(default_factory=dict)
     tool_dependencies: list[ToolDependencyConfig] = field(default_factory=list)

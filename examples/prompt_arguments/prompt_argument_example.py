@@ -443,24 +443,17 @@ agents = [
     my_conductor_agent,
 ]
 
-my_conversation_store = AsyncFilesystemConversationStore(
-    agents=agents,
-    conversation_class=ImmutableConversation,
-    is_persistent=True,
-    storage_path=Path(__file__).parent / "conversations",
-)
+my_conversation_store = AsyncFilesystemConversationStore(agents=agents, conversation_class=ImmutableConversation,
+                                                         is_persistent=True,
+                                                         storage_path=Path(__file__).parent / "conversations",
+                                                         longterm_memory_class=self.longterm_memory_class)
 
 for agent in agents:
     my_agent_dispatcher.subscribe(topic=agent.name, subscriber=agent)
 
-forum = Forum(
-    agents=agents,
-    dispatcher=my_agent_dispatcher,
-    tool_executor=my_tool_executor,
-    first_contact=my_conductor_agent,
-    conversation_store=my_conversation_store,
-    conversation_class=ImmutableConversation,
-)
+forum = Forum(agents=agents, dispatcher=my_agent_dispatcher, tool_executor=my_tool_executor,
+              first_contact=my_conductor_agent, conversation_store=my_conversation_store,
+              conversation_class=ImmutableConversation)
 
 if __name__ == "__main__":
     asyncio.run(

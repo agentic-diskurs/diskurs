@@ -39,7 +39,6 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
         tool_executor: Optional[ToolExecutor] = None,
         locked_fields: Optional[dict[str, Any]] = None,
         init_prompt_arguments_with_longterm_memory: bool = True,
-        init_prompt_arguments_with_previous_agent: bool = True,
     ):
         self.dispatcher = dispatcher
         self.prompt = prompt
@@ -51,7 +50,6 @@ class BaseAgent(ABC, Agent, ConversationParticipant, Generic[PromptType]):
         self.tool_executor = tool_executor
         self.locked_fields = locked_fields
         self.init_prompt_arguments_with_longterm_memory = init_prompt_arguments_with_longterm_memory
-        self.init_prompt_arguments_with_previous_agent = init_prompt_arguments_with_previous_agent
         self.logger = get_logger(f"diskurs.agent.{self.name}")
 
         self.logger.info(f"Initializing agent {self.name}")

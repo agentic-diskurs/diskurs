@@ -10,6 +10,7 @@ from jinja2 import Environment, FileSystemLoader, Template
 from diskurs import LockedField
 from diskurs.entities import (
     ChatMessage,
+    LongtermMemory,
     MessageType,
     OutputField,
     PromptArgument,
@@ -45,64 +46,23 @@ def _initialize_prompt(
     conversation: "Conversation",
     locked_fields: Optional[dict[str, Any]] = None,
     init_from_longterm_memory: bool = True,
-    init_from_previous_agent: bool = True,
 ) -> PromptArgument:
     """
-    Initialize a prompt argument with values from longterm memory and/or previous agent's prompt argument.
+    Initialize a prompt argument with values from the global longterm memory.
 
     This utility function centralizes the logic for initializing prompt arguments, which is used
-    by multiple agent types (MultiStepAgent, HeuristicAgent, LLMCompilerAgent, etc.).
+    by multiple agent types (MultiStepAgent, HeuristicAgent, LLMCompilerAgent, ConductorAgent, etc.).
 
-    :param conversation: The current conversation
     :param prompt_argument: The prompt argument to initialize
-    :param init_from_longterm_memory: Whether to initialize from longterm memory
-    :param init_from_previous_agent: Whether to initialize from previous agent's prompt argument
-    :return: initialized prompt_argument
-    """
-
-    if init_from_longterm_memory and conversation.has_conductor_been_called():
-        conductor_name = conversation.get_last_conductor_name()
-        longterm_memory = conversation.get_agent_longterm_memory(conductor_name)
-
-        if longterm_memory and prompt_argument:
-            prompt_argument = prompt_argument.init(longterm_memory)
-
-    if (
-        conversation.prompt_argument is not None
-        and init_from_previous_agent
-        and not conversation.is_previous_agent_conductor()
-    ):
-        prompt_argument = prompt_argument.init(conversation.prompt_argument)
-
-    if locked_fields:
-        for field_name, field_value in locked_fields.items():
-            if hasattr(prompt_argument, field_name):
-                setattr(prompt_argument, field_name, field_value)
-
-    return prompt_argument
-
-
-def _initialize_conductor_prompt(
-    agent_name: str,
-    prompt_argument: PromptArgument,
-    conversation: "Conversation",
-    locked_fields: Optional[dict[str, Any]] = None,
-    init_from_longterm_memory: bool = True,
-) -> PromptArgument:
-    """
-    Initialize a prompt argument with values from longterm memory and/or previous agent's prompt argument.
-
-    This utility function centralizes the logic for initializing prompt arguments, which is used
-    by multiple agent types (MultiStepAgent, HeuristicAgent, LLMCompilerAgent, etc.).
-
     :param conversation: The current conversation
-    :param prompt_argument: The prompt argument to initialize
+    :param locked_fields: Dictionary of fields to lock with specific values
     :param init_from_longterm_memory: Whether to initialize from longterm memory
     :return: initialized prompt_argument
     """
 
     if init_from_longterm_memory:
-        longterm_memory = conversation.get_agent_longterm_memory(agent_name)
+        # Use the global longterm memory
+        longterm_memory = conversation.longterm_memory
 
         if longterm_memory and prompt_argument:
             prompt_argument = prompt_argument.init(longterm_memory)
@@ -617,28 +577,54 @@ class BasePrompt(PromptProtocol):
         conversation: "Conversation",
         locked_fields: Optional[dict[str, Any]] = None,
         init_from_longterm_memory: bool = True,
-        init_from_previous_agent: bool = True,
         reset_prompt: bool = True,
+        message_type: MessageType = MessageType.CONVERSATION,
+        render_system_prompt: bool = True,
     ) -> Conversation:
+        """
+        Initialize prompt arguments from global longterm memory and set up the conversation.
 
+        This method handles initialization for all agent types:
+        - Regular agents with system and user prompts (default)
+        - Conductor agents (using MessageType.CONDUCTOR)
+        - Heuristic agents (without system prompts)
+
+        :param agent_name: The name of the agent
+        :param conversation: The conversation to initialize
+        :param locked_fields: Dictionary of fields that should be locked to specific values
+        :param init_from_longterm_memory: Whether to initialize from longterm memory
+        :param reset_prompt: Whether to reset the prompt or use conversation's existing prompt
+        :param message_type: The message type to use (CONVERSATION or CONDUCTOR)
+        :param render_system_prompt: Whether to render a system prompt
+        :return: Initialized conversation
+        """
         updated_prompt_argument = (
             _initialize_prompt(
                 prompt_argument=self.create_prompt_argument(),
                 conversation=conversation,
                 locked_fields=locked_fields,
                 init_from_longterm_memory=init_from_longterm_memory,
-                init_from_previous_agent=init_from_previous_agent,
             )
             if reset_prompt
             else conversation.prompt_argument
         )
 
-        return conversation.update(
-            active_agent=agent_name,
-            prompt_argument=updated_prompt_argument,
-            system_prompt=self.render_system_template(name=agent_name, prompt_argument=updated_prompt_argument),
-            user_prompt=self.render_user_template(name=agent_name, prompt_args=updated_prompt_argument),
-        )
+        # Create update parameters
+        update_params = {
+            "active_agent": agent_name,
+            "prompt_argument": updated_prompt_argument,
+            "user_prompt": self.render_user_template(
+                name=agent_name, prompt_args=updated_prompt_argument, message_type=message_type
+            ),
+        }
+
+        # Only add system prompt if required (standard agents, but not heuristic agents)
+        if render_system_prompt:
+            update_params["system_prompt"] = self.render_system_template(
+                name=agent_name, prompt_argument=updated_prompt_argument
+            )
+
+        return conversation.update(**update_params)
 
 
 @register_prompt("multistep_prompt")
@@ -680,9 +666,6 @@ class DefaultConductorPromptArgument(PromptArgument):
     next_agent: OutputField[str] = ""
 
 
-GenericConductorLongtermMemory = TypeVar("GenericConductorLongtermMemory", bound="ConductorLongtermMemory")
-
-
 @register_prompt("conductor_prompt")
 class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
     def __init__(
@@ -694,10 +677,9 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
         json_formatting_template: Optional[Template] = None,
         is_valid: Optional[Callable[[Any], bool]] = None,
         is_final: Optional[Callable[[Any], bool]] = None,
-        can_finalize: Callable[[GenericConductorLongtermMemory], bool] = None,
-        finalize: Callable[[GenericConductorLongtermMemory], GenericConductorLongtermMemory] = None,
-        fail: Callable[[GenericConductorLongtermMemory], GenericConductorLongtermMemory] = None,
-        longterm_memory: Type[GenericConductorLongtermMemory] = None,
+        can_finalize: Callable[[Any], bool] = None,
+        finalize: Callable[[Any], Any] = None,
+        fail: Callable[[Any], Any] = None,
     ):
         super().__init__(
             agent_description=agent_description,
@@ -712,7 +694,6 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
         self._can_finalize = can_finalize
         self._finalize = finalize
         self._fail = fail
-        self.longterm_memory = longterm_memory
 
     @staticmethod
     def create_default_is_valid(**kwargs) -> Callable[[PromptArg], bool]:
@@ -792,24 +773,10 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
         if fail is None:
             fail = default_fail
 
-        # Create default longterm memory if not provided
-        longterm_memory_class_name = kwargs.get("longterm_memory_class")
-        if longterm_memory_class_name:
-            longterm_memory_class = safe_load_symbol(
-                longterm_memory_class_name,
-                module,
-            )
-        else:
-            # Use a simple default implementation
-            from diskurs.entities import LongtermMemory
-
-            longterm_memory_class = LongtermMemory
-
         return {
             "can_finalize": can_finalize,
             "finalize": finalize,
             "fail": fail,
-            "longterm_memory": longterm_memory_class,
         }
 
     @classmethod
@@ -889,52 +856,18 @@ class ConductorPrompt(BasePrompt, ConductorPromptProtocol):
 
         return cls(**all_args)
 
-    def can_finalize(self, longterm_memory: GenericConductorLongtermMemory) -> bool:
+    def can_finalize(self, longterm_memory: LongtermMemory) -> bool:
         return self._can_finalize(longterm_memory)
 
-    def finalize(self, longterm_memory: GenericConductorLongtermMemory) -> GenericConductorLongtermMemory:
+    def finalize(self, longterm_memory: LongtermMemory) -> LongtermMemory:
         return self._finalize(longterm_memory)
 
-    def fail(self, longterm_memory: GenericConductorLongtermMemory) -> GenericConductorLongtermMemory:
+    def fail(self, longterm_memory: LongtermMemory) -> LongtermMemory:
         return self._fail(longterm_memory)
-
-    def init_longterm_memory(self, **kwargs) -> GenericConductorLongtermMemory:
-        return self.longterm_memory(**kwargs)
-
-    def initialize_prompt(
-        self,
-        agent_name: str,
-        conversation: "Conversation",
-        locked_fields: Optional[dict[str, Any]] = None,
-        init_from_longterm_memory: bool = True,
-        init_from_previous_agent: bool = True,
-        reset_prompt: bool = True,
-    ) -> Conversation:
-
-        updated_prompt_argument = (
-            _initialize_conductor_prompt(
-                agent_name=agent_name,
-                prompt_argument=self.create_prompt_argument(),
-                conversation=conversation,
-                locked_fields=locked_fields,
-                init_from_longterm_memory=init_from_longterm_memory,
-            )
-            if reset_prompt
-            else conversation.prompt_argument
-        )
-
-        return conversation.update(
-            active_agent=agent_name,
-            prompt_argument=updated_prompt_argument,
-            system_prompt=self.render_system_template(name=agent_name, prompt_argument=updated_prompt_argument),
-            user_prompt=self.render_user_template(
-                name=agent_name, prompt_args=updated_prompt_argument, message_type=MessageType.CONDUCTOR
-            ),
-        )
 
 
 @register_prompt("heuristic_prompt")
-class HeuristicPrompt(HeuristicPromptProtocol):
+class HeuristicPrompt(BasePrompt, HeuristicPromptProtocol):
     def __init__(
         self,
         prompt_argument_class: Type[PromptArgument],
@@ -1003,32 +936,4 @@ class HeuristicPrompt(HeuristicPromptProtocol):
             name=name,
             content=content,
             type=message_type,
-        )
-
-    def initialize_prompt(
-        self,
-        agent_name: str,
-        conversation: "Conversation",
-        locked_fields: Optional[dict[str, Any]] = None,
-        init_from_longterm_memory: bool = True,
-        init_from_previous_agent: bool = True,
-        reset_prompt: bool = True,
-    ) -> Conversation:
-
-        updated_prompt_argument = (
-            _initialize_prompt(
-                prompt_argument=self.create_prompt_argument(),
-                conversation=conversation,
-                locked_fields=locked_fields,
-                init_from_longterm_memory=init_from_longterm_memory,
-                init_from_previous_agent=init_from_previous_agent,
-            )
-            if reset_prompt
-            else conversation.prompt_argument
-        )
-
-        return conversation.update(
-            active_agent=agent_name,
-            prompt_argument=updated_prompt_argument,
-            user_prompt=self.render_user_template(name=agent_name, prompt_args=updated_prompt_argument),
         )

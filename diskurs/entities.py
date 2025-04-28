@@ -283,7 +283,7 @@ class PromptArgument(JsonSerializable):
 
     def update(self, other: PromptArgument) -> PromptArgument:
         """
-        Return a new instance with all non‑locked/non‑input fields
+        Return a new instance with all non-locked/non-input fields
         taken from `other`.
         """
         hints = get_type_hints(self.__class__, include_extras=True)

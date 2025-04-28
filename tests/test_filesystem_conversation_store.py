@@ -7,27 +7,30 @@ from diskurs import ImmutableConversation, ConductorAgent
 from diskurs.filesystem_conversation_store import AsyncFilesystemConversationStore
 
 
-def setup_agent(agent, longterm_memory, pargs, agent_name):
+def setup_agent(agent, pargs, agent_name):
     agent.name = agent_name
     prompt = Mock()
     prompt.prompt_argument = pargs
-    prompt.longterm_memory = longterm_memory
     agent.prompt = prompt
 
 
 @pytest_asyncio.fixture
 async def conversation_store(tmp_path, prompt_arguments, longterm_memories, conversation):
-    ltm1, ltm2 = longterm_memories
+    ltm1 = longterm_memories[0]  # We'll use just one memory type now that memory is global
 
     directory = tmp_path / "store_test_files"
     directory.mkdir(parents=True, exist_ok=True)
 
     agents = [Mock(spec=ConductorAgent) for _ in range(2)]
-    setup_agent(agents[0], ltm1, prompt_arguments, agent_name="my_conductor")
-    setup_agent(agents[1], ltm2, prompt_arguments, agent_name="my_conductor_2")
+    setup_agent(agents[0], prompt_arguments, agent_name="my_conductor")
+    setup_agent(agents[1], prompt_arguments, agent_name="my_conductor_2")
 
     store = AsyncFilesystemConversationStore.create(
-        base_path=directory, agents=agents, conversation_class=ImmutableConversation, is_persistent=True
+        base_path=directory,
+        agents=agents,
+        conversation_class=ImmutableConversation,
+        is_persistent=True,
+        longterm_memory_class=ltm1,  # Add the longterm_memory_class parameter
     )
 
     yield store

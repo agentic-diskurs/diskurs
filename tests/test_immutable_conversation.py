@@ -24,7 +24,8 @@ def test_conversation_to_dict(conversation):
     assert isinstance(conversation_dict["chat"], list)
     assert conversation_dict["chat"][0]["role"] == "user"
     assert conversation_dict["chat"][0]["content"] == "Hello, world!"
-    assert conversation_dict["longterm_memory"]["my_conductor"]["field1"] == "longterm_val1"
+    # Updated to work with new global longterm memory model
+    assert conversation_dict["longterm_memory"]["field1"] == "longterm_val1"
     assert conversation_dict["active_agent"] == "my_conductor"
 
 
@@ -37,22 +38,11 @@ def test_conversation_from_dict(conversation, conductor_mock, conductor_mock2):
 
     assert new_conversation.chat[0].role == conversation.chat[0].role
     assert new_conversation.chat[0].content == conversation.chat[0].content
-    assert (
-        new_conversation._longterm_memory["my_conductor"].field1
-        == conversation._longterm_memory["my_conductor"].field1
-    )
-    assert (
-        new_conversation._longterm_memory["my_conductor"].field2
-        == conversation._longterm_memory["my_conductor"].field2
-    )
-    assert (
-        new_conversation._longterm_memory["my_conductor"].field3
-        == conversation._longterm_memory["my_conductor"].field3
-    )
-    assert (
-        new_conversation._longterm_memory["my_conductor"].user_query
-        == conversation._longterm_memory["my_conductor"].user_query
-    )
+    # Updated to work with new global longterm memory model
+    assert new_conversation._longterm_memory.field1 == conversation._longterm_memory.field1
+    assert new_conversation._longterm_memory.field2 == conversation._longterm_memory.field2
+    assert new_conversation._longterm_memory.field3 == conversation._longterm_memory.field3
+    assert new_conversation._longterm_memory.user_query == conversation._longterm_memory.user_query
     assert new_conversation.prompt_argument.field1 == conversation.prompt_argument.field1
     assert new_conversation.prompt_argument.field2 == conversation.prompt_argument.field2
     assert new_conversation.prompt_argument.field3 == conversation.prompt_argument.field3
@@ -125,15 +115,14 @@ class TestImmutableConversationWithEnums:
             chat_type=ChatType.CHANNEL, priority=Priority.HIGH, message_type=MessageType.CONDUCTOR
         )
 
+        # Use the global longterm memory model
         conversation = ImmutableConversation(
             system_prompt=ChatMessage(role=Role.SYSTEM, content="System prompt"),
             user_prompt=ChatMessage(role=Role.USER, content="User message"),
             prompt_argument=prompt_arg,
+            longterm_memory=ltm,  # Set longterm memory directly
             active_agent="test_agent",
         )
-
-        # Add longterm memory
-        conversation = conversation.update_agent_longterm_memory(agent_name="test_conductor", longterm_memory=ltm)
 
         return conversation
 
@@ -145,7 +134,8 @@ class TestImmutableConversationWithEnums:
         assert data["prompt_argument"]["chat_type"] == "channel"
         assert data["prompt_argument"]["priority"] == 2
         assert data["prompt_argument"]["message_type"] == "conductor"
-        assert data["longterm_memory"]["test_conductor"]["preferred_chat_type"] == "group"
+        # Updated to use the global longterm memory model
+        assert data["longterm_memory"]["preferred_chat_type"] == "group"
 
     def test_conversation_round_trip(self, enum_conversation, monkeypatch):
         """Test round-trip serialization and deserialization"""
@@ -174,7 +164,8 @@ class TestImmutableConversationWithEnums:
         assert restored.prompt_argument.chat_type == ChatType.CHANNEL
         assert restored.prompt_argument.priority == Priority.HIGH
         assert restored.prompt_argument.message_type == MessageType.CONDUCTOR
-        assert restored._longterm_memory["test_conductor"].preferred_chat_type == ChatType.GROUP
+        # Updated to use global longterm memory model
+        assert restored._longterm_memory.preferred_chat_type == ChatType.GROUP
 
     def test_special_enum_values(self):
         """Test enums with special characters or values"""

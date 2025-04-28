@@ -13,7 +13,7 @@ from diskurs import (
     ImmutableConversation,
     MultistepPrompt,
 )
-from diskurs.entities import ChatMessage, Role, MessageType
+from diskurs.entities import ChatMessage, OutputField, Role, MessageType
 from diskurs.heuristic_agent import HeuristicAgent
 from diskurs.protocols import ConductorPrompt
 
@@ -33,9 +33,9 @@ class MyLongtermMemory2(LongtermMemory):
 
 @dataclass
 class MyPromptArgument(PromptArgument):
-    field1: str = ""
-    field2: str = ""
-    field3: str = ""
+    field1: OutputField[str] = ""
+    field2: OutputField[str] = ""
+    field3: OutputField[str] = ""
 
 
 @pytest.fixture
@@ -48,10 +48,11 @@ def longterm_memories():
     return MyLongtermMemory, MyLongtermMemory2
 
 
-def create_conductor_mock(name, prompt_argument, longterm_memory):
+def create_conductor_mock(name, prompt_argument, longterm_memory=None):
     agent_mock = Mock(spec=ConductorAgent)
     prompt = Mock(spec=ConductorPrompt)
     prompt.prompt_argument = prompt_argument
+    # Set the longterm_memory class on the prompt mock
     prompt.longterm_memory = longterm_memory
     agent_mock.prompt = prompt
     agent_mock.name = name
@@ -87,17 +88,12 @@ def conversation():
                 role=Role.USER, content="{'next_agent': 'my_agent'}", name="Alice", type=MessageType.CONDUCTOR
             ),
         ],
-        longterm_memory={
-            "my_conductor": MyLongtermMemory(
-                field1="longterm_val1",
-                field2="longterm_val2",
-                field3="longterm_val3",
-                user_query="How's the weather?",
-            ),
-            "my_conductor_2": MyLongtermMemory2(
-                user_query="How's the aquarium?",
-            ),
-        },
+        longterm_memory=MyLongtermMemory(
+            field1="longterm_val1",
+            field2="longterm_val2",
+            field3="longterm_val3",
+            user_query="How's the weather?",
+        ),
         active_agent="my_conductor",
         conversation_id="my_conversation_id",
     )
@@ -200,10 +196,10 @@ class MySourcePromptArgument(PromptArgument):
 
 @dataclass
 class MyExtendedPromptArgument(PromptArgument):
-    field1: str = "extended user prompt field 1"
-    field2: str = "extended user prompt field 2"
-    field3: str = "extended user prompt field 3"
-    field4: str = "extended user prompt field 4"
+    field1: OutputField[str] = "extended user prompt field 1"
+    field2: OutputField[str] = "extended user prompt field 2"
+    field3: OutputField[str] = "extended user prompt field 3"
+    field4: OutputField[str] = "extended user prompt field 4"
 
 
 @pytest.fixture
@@ -219,13 +215,11 @@ def extended_conversation():
             field4="user prompt field 4",
         ),
         chat=[ChatMessage(role=Role.USER, content="Hello, world!", name="Alice")],
-        longterm_memory={
-            "my_conductor": MyExtendedLongtermMemory(
-                field2="longterm val 2",
-                field3="longterm val 3",
-                user_query="longterm user query",
-            ),
-        },
+        longterm_memory=MyExtendedLongtermMemory(
+            field2="longterm val 2",
+            field3="longterm val 3",
+            user_query="longterm user query",
+        ),
         active_agent="my_conductor",
         conversation_id="my_conversation_id",
     )
@@ -237,9 +231,7 @@ def finalizer_conversation():
     conversation = ImmutableConversation(
         prompt_argument=MyPromptArgument(field1="user prompt field 1", field2="user prompt field 2"),
         chat=[ChatMessage(role=Role.USER, content="Hello, world!", name="Alice")],
-        longterm_memory={
-            "my_conductor": MyLongtermMemory(user_query="longterm user query"),
-        },
+        longterm_memory=MyLongtermMemory(user_query="longterm user query"),
         active_agent="my_conductor",
         conversation_id="my_conversation_id",
     )
@@ -262,7 +254,7 @@ def conversation_dict():
         "user_prompt": None,
         "prompt_argument": None,
         "chat": [],
-        "longterm_memory": {},
+        "longterm_memory": None,  # Changed from empty dict to None to match the new global memory model
         "metadata": {},
         "active_agent": "my_conductor",
         "conversation_id": "",

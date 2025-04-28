@@ -2,10 +2,11 @@ import asyncio
 import json
 import os
 from pathlib import Path
-from typing import Self
+from typing import Self, Type
 
 import aiofiles
 
+from diskurs import LongtermMemory
 from diskurs.logger_setup import get_logger
 from diskurs.protocols import Conversation, ConversationStore
 from diskurs.registry import register_conversation_store
@@ -13,9 +14,17 @@ from diskurs.registry import register_conversation_store
 
 @register_conversation_store("filesystem")
 class AsyncFilesystemConversationStore(ConversationStore):
-    def __init__(self, agents: list, conversation_class: Conversation, is_persistent: bool, storage_path: Path):
+    def __init__(
+        self,
+        agents: list,
+        conversation_class: Conversation,
+        is_persistent: bool,
+        storage_path: Path,
+        longterm_memory_class: Type[LongtermMemory],
+    ):
         self.is_persistent = is_persistent
         self.agents = agents
+        self.longterm_memory_class = longterm_memory_class
         self.conversation_class = conversation_class
         self.storage_path = storage_path
         self.logger = get_logger(f"diskurs.{__name__}")
@@ -56,7 +65,9 @@ class AsyncFilesystemConversationStore(ConversationStore):
             data_str = await f.read()
 
         data = json.loads(data_str)
-        return self.conversation_class.from_dict(data=data, agents=self.agents, conversation_store=self)
+        return self.conversation_class.from_dict(
+            data=data, agents=self.agents, longterm_memory_class=self.longterm_memory_class, conversation_store=self
+        )
 
     async def delete(self, conversation_id: str) -> None:
         self.logger.info(f"Deleting conversation {conversation_id}")

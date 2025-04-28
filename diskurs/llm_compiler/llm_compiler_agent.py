@@ -67,7 +67,6 @@ class LLMCompilerAgent(MultiStepAgent):
             conversation=conversation,
             locked_fields=self.locked_fields,
             init_from_longterm_memory=self.init_prompt_arguments_with_longterm_memory,
-            init_from_previous_agent=self.init_prompt_arguments_with_previous_agent,
         )
 
         evaluate_replanning = False

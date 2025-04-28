@@ -30,7 +30,6 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
         max_reasoning_steps: int = 5,
         max_trials: int = 5,
         init_prompt_arguments_with_longterm_memory: bool = True,
-        init_prompt_arguments_with_previous_agent: bool = True,
     ):
         super().__init__(
             name=name,
@@ -42,7 +41,6 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
             tools=tools,
             tool_executor=tool_executor,
             init_prompt_arguments_with_longterm_memory=init_prompt_arguments_with_longterm_memory,
-            init_prompt_arguments_with_previous_agent=init_prompt_arguments_with_previous_agent,
         )
         self.max_reasoning_steps = max_reasoning_steps
 
@@ -74,7 +72,7 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
             conversation=conversation,
             locked_fields=self.locked_fields,
             init_from_longterm_memory=self.init_prompt_arguments_with_longterm_memory,
-            init_from_previous_agent=self.init_prompt_arguments_with_previous_agent,
+            reset_prompt=reset_prompt,
         )
 
         for reasoning_step in range(self.max_reasoning_steps):
@@ -85,7 +83,10 @@ class MultiStepAgent(BaseAgent[MultistepPrompt]):
                 self.logger.debug(f"Final response found for Agent {self.name}")
                 break
 
-        return conversation.update()
+        if conversation.prompt_argument:
+            conversation = conversation.update_longterm_memory(conversation.prompt_argument)
+
+        return conversation
 
     async def process_conversation(self, conversation: Conversation) -> None:
         self.logger.info(f"Process conversation on agent: {self.name}")

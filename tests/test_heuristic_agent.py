@@ -239,7 +239,7 @@ async def test_invoke_no_executor():
     assert init_prompt_args["agent_name"] == "test_agent"
     assert init_prompt_args["conversation"] == conversation
     assert init_prompt_args["init_from_longterm_memory"] == True
-    assert init_prompt_args["init_from_previous_agent"] == True
+    # No longer checking for init_from_previous_agent as it's no longer used with the new longterm memory model
 
     # Assert heuristic_sequence was called with the right parameters
     prompt.heuristic_sequence.assert_awaited_once()
@@ -452,9 +452,7 @@ def annotated_extended_conversation():
     conversation = ImmutableConversation(
         prompt_argument=AnnotatedSourcePromptArgument(),
         chat=[ChatMessage(role=Role.USER, content="Initial user message", name="Alice")],
-        longterm_memory={
-            "my_conductor": AnnotatedLongtermMemory(),
-        },
+        longterm_memory=AnnotatedLongtermMemory(),  # Changed from dictionary to single object
         active_agent="my_conductor",
         conversation_id="test_conversation_id",
     )
@@ -508,19 +506,16 @@ async def test_invoke_with_annotated_fields():
     # Create a conversation with our test prompt argument and longterm memory
     conversation = ImmutableConversation(
         prompt_argument=AnnotatedSourcePromptArgument(),
-        longterm_memory={
-            "test_agent": AnnotatedLongtermMemory(),
-        },
+        longterm_memory=AnnotatedLongtermMemory(),  # Use a single object instead of a dictionary
     )
 
     # Create a target prompt argument
     target = AnnotatedPromptArgument()
 
     # 1. Apply values from longterm memory using the real .init() method
-    ltm = conversation.get_agent_longterm_memory("test_agent")
-    if ltm:
-        # This should only initialize InputField-annotated fields from longterm memory
-        target = target.init(ltm)
+    ltm = conversation.longterm_memory  # Get the global longterm memory directly
+    # This should only initialize InputField-annotated fields from longterm memory
+    target = target.init(ltm)
 
     # 2. Apply values from source prompt argument using the real .init() method again
     source = conversation.prompt_argument

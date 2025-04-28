@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from jinja2 import Template
 
-from tests.conftest import are_classes_structurally_similar
+from tests.conftest import MyLongtermMemory, are_classes_structurally_similar
 from diskurs import ToolExecutor, PromptValidationError
 from diskurs.immutable_conversation import ImmutableConversation
 from diskurs.entities import (
@@ -252,8 +252,8 @@ def test_conductor_system_template_excludes_hidden_fields():
 
     @dataclass
     class TestConductorPromptArg(PromptArgument):
-        agent_descriptions: InputField[dict[str, str]] = None
-        next_agent: OutputField[str] = None
+        agent_descriptions: LockedField[Optional[dict[str, str]]] = None
+        next_agent: OutputField[str] = ""
 
     prompt = ConductorPrompt(
         agent_description="Test Conductor",
@@ -264,7 +264,6 @@ def test_conductor_system_template_excludes_hidden_fields():
         can_finalize=lambda x: True,
         finalize=lambda x: x,
         fail=lambda x: {"error": "fail"},
-        longterm_memory=None,
     )
 
     prompt_arg = TestConductorPromptArg(
@@ -347,7 +346,10 @@ def test_parse_user_prompt_json_array(prompt_with_array_instance, prompt_testing
 
 def test_fail():
     prompt = ConductorPrompt.create(**prompt_config)
-    msg = prompt.fail(prompt.longterm_memory())
+    # Create an instance of the LongtermMemory class associated with this prompt
+    # In this case, we can use MyLongtermMemory from conftest.py
+    memory = MyLongtermMemory()
+    msg = prompt.fail(memory)
     assert msg["error"] == "Failed to finalize"
 
 
