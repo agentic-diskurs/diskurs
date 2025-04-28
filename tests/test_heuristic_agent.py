@@ -550,7 +550,6 @@ async def test_invoke_respects_initialization_flags(annotated_heuristic_agent, a
     """
     # Configure the agent to not initialize from longterm memory or previous agent
     annotated_heuristic_agent.init_prompt_arguments_with_longterm_memory = False
-    annotated_heuristic_agent.init_prompt_arguments_with_previous_agent = False
 
     # Add messages to the conversation
     annotated_extended_conversation = annotated_extended_conversation.append(

@@ -565,7 +565,6 @@ class TestPromptFieldMethods:
         assert updated_agent_ltm.input_field == "ltm_input"  # Should not be updated
 
         # Test init pattern that would be used in multistep_agent.py
-        # This simulates the prepare_invoke method
         new_prompt_arg = TestPromptArgument()
         initialized_prompt_arg = new_prompt_arg.init(conversation.get_agent_longterm_memory("test_agent"))
         conversation = conversation.update(prompt_argument=initialized_prompt_arg)

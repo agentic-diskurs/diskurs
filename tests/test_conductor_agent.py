@@ -204,7 +204,6 @@ def create_conductor_agent(
     tools=None,
     tool_executor=None,
     init_prompt_arguments_with_longterm_memory=True,
-    init_prompt_arguments_with_previous_agent=True,
 ):
     agent = ConductorAgent(
         name="conductor",
@@ -222,7 +221,6 @@ def create_conductor_agent(
         tools=tools,
         tool_executor=tool_executor,
         init_prompt_arguments_with_longterm_memory=init_prompt_arguments_with_longterm_memory,
-        init_prompt_arguments_with_previous_agent=init_prompt_arguments_with_previous_agent,
     )
     return agent
 
@@ -845,40 +843,6 @@ async def test_handle_tool_call(conductor_agent_with_tools, mock_conversation):
     assert len(tool_responses) == 1
     assert tool_responses[0].tool_call_id == "test_id"
     assert tool_responses[0].content == "tool execution result"
-
-
-@pytest.mark.asyncio
-async def test_prepare_invoke_with_initialization_flags(mock_dispatcher, mock_llm_client, mock_prompt):
-    """Test that the prepare_invoke method correctly initializes conversation based on flags"""
-    # Create agent with initialization flags disabled
-    conductor = create_conductor_agent(
-        mock_dispatcher,
-        mock_llm_client,
-        mock_prompt,
-        init_prompt_arguments_with_longterm_memory=False,
-        init_prompt_arguments_with_previous_agent=False,
-    )
-
-    # Create mock conversation
-    conversation = ImmutableConversation(prompt_argument=MyPromptArgument(field1="original_value"))
-
-    # Mock the longterm memory that would normally be retrieved
-    longterm_memory = MyLongTermMemory(field1="memory_value")
-    conversation.get_agent_longterm_memory = Mock(return_value=longterm_memory)
-
-    # Mock init_prompt to return conversation with new prompt argument
-    new_prompt_arg = MyPromptArgument(field1="")
-    conductor.prompt.create_prompt_argument = Mock(return_value=new_prompt_arg)
-    conductor.prompt.init_prompt = Mock(return_value=conversation.update(prompt_argument=new_prompt_arg))
-
-    # Call prepare_invoke
-    result = await conductor.prepare_invoke(conversation)
-
-    # Since init flags are disabled, the field1 should remain empty and not be updated
-    # from either longterm memory or previous prompt argument
-    assert result.prompt_argument.field1 == ""
-    assert result.prompt_argument != conversation.prompt_argument
-
 
 # ----- Tests for Integration of BaseAgent and ConductorAgent Functionality -----
 

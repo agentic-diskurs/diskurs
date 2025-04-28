@@ -341,37 +341,30 @@ class LongtermMemory(JsonSerializable):
         :param prompt_argument: The PromptArgument to copy fields from
         :return: A new LongtermMemory instance with updated fields
         """
-        if not prompt_argument:
+        # If no prompt_argument provided, return self unchanged
+        if prompt_argument is None:
             return self
-
+        # Identify common fields between memory and source
         common_fields = {f.name for f in fields(self)}.intersection({f.name for f in fields(prompt_argument)})
-
         update_values = {}
-
         if isinstance(prompt_argument, PromptArgument):
-            prompt_arg_hints = get_type_hints(prompt_argument.__class__, include_extras=True)
-
+            # Copy only OutputField annotated fields from PromptArgument
+            hints = get_type_hints(prompt_argument.__class__, include_extras=True)
             for field_name in common_fields:
-                field_type = prompt_arg_hints.get(field_name)
-                is_output_field = False
-
-                if field_type and hasattr(field_type, "__metadata__"):
-                    for metadata in field_type.__metadata__:
+                hint = hints.get(field_name)
+                if hint and hasattr(hint, "__metadata__"):
+                    for metadata in hint.__metadata__:
                         if isinstance(metadata, PromptField) and metadata.is_output():
-                            is_output_field = True
+                            val = getattr(prompt_argument, field_name)
+                            if val not in (None, ""):
+                                update_values[field_name] = val
                             break
-
-                if is_output_field:
-                    val = getattr(prompt_argument, field_name)
-                    if val is not None and val != "":
-                        update_values[field_name] = val
         else:
-            # If it's not a PromptArgument (e.g., another LongtermMemory), copy all fields
+            # If it's another LongtermMemory, copy all non-empty fields
             for field_name in common_fields:
                 val = getattr(prompt_argument, field_name)
                 if val is not None and val != "":
                     update_values[field_name] = val
-
         return replace(self, **update_values)
 
     def reset_per_turn_fields(self) -> "LongtermMemory":

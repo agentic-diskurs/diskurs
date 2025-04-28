@@ -29,7 +29,6 @@ class LLMCompilerAgent(MultiStepAgent):
         max_reasoning_steps: int = 5,
         max_trials: int = 5,
         init_prompt_arguments_with_longterm_memory: bool = True,
-        init_prompt_arguments_with_previous_agent: bool = True,
     ):
         super().__init__(
             name=name,
@@ -42,7 +41,6 @@ class LLMCompilerAgent(MultiStepAgent):
             max_reasoning_steps=max_reasoning_steps,
             max_trials=max_trials,
             init_prompt_arguments_with_longterm_memory=init_prompt_arguments_with_longterm_memory,
-            init_prompt_arguments_with_previous_agent=init_prompt_arguments_with_previous_agent,
         )
         self.executor = ParallelExecutor(call_tool=tool_executor.call_tool)
 

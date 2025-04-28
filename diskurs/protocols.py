@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Protocol, Self, Type, TypeVar, Union, runtime_checkable
+from typing import Any, Callable, Dict, List, Optional, Protocol, Self, Type, Union, runtime_checkable
 
 from jinja2 import Template
 
@@ -16,22 +15,21 @@ from diskurs.entities import (
 
 
 class LongtermMemoryHandler(Protocol):
-    def can_finalize(self, longterm_memory: Any) -> bool:
-        pass
+    def can_finalize(self, longterm_memory: Any) -> bool: ...
 
 
 class PromptValidator(Protocol):
     """
     Protocol for validating prompt responses.
 
-    This protocol defines methods for validating responses from a language model (LLM).
-    It includes methods for validating responses as dataclasses and JSON objects.
+    Defines methods for validating responses from a language model (LLM),
+    including conversion to dataclass instances and JSON parsing.
     """
 
     @classmethod
     def validate_dataclass(
-        cls, parsed_response: dict[str, Any], prompt_argument: Type[dataclass], strict: bool = False
-    ) -> dataclass:
+        cls, parsed_response: Dict[str, Any], prompt_argument: Type[PromptArgument]
+    ) -> PromptArgument:
         """
         Validates a parsed response dictionary against a dataclass type.
 
@@ -41,10 +39,10 @@ class PromptValidator(Protocol):
 
         :return: An instance of the dataclass populated with the validated data.
         """
-        pass
+        ...
 
     @classmethod
-    def validate_json(cls, llm_response: str) -> dict:
+    def validate_json(cls, llm_response: str) -> Union[Dict[str, Any], List[Any]]:
         """
         Validates a JSON response from a language model (LLM).
 
@@ -54,10 +52,7 @@ class PromptValidator(Protocol):
         :param llm_response: The JSON string response from the LLM.
         :return: A dictionary representation of the validated JSON response.
         """
-        pass
-
-
-PromptArg = TypeVar("PromptArg", bound=PromptArgument)
+        ...
 
 
 class Prompt(Protocol):
@@ -75,13 +70,13 @@ class Prompt(Protocol):
     can use to reason about conversations and make decisions.
     """
 
-    prompt_argument: Type[PromptArg]
+    prompt_argument: Type[PromptArgument]
     agent_description: str
-    system_template: Any  # Jinja2 Template
-    user_template: Any  # Jinja2 Template
-    json_formatting_template: Optional[Any]  # Jinja2 Template
+    system_template: Template
+    user_template: Template
+    json_formatting_template: Optional[Template]
 
-    def create_prompt_argument(self, **prompt_args: Any) -> PromptArg:
+    def create_prompt_argument(self, **prompt_args: Any) -> PromptArgument:
         """
         Creates an instance of the prompt argument dataclass.
 
@@ -130,9 +125,9 @@ class Prompt(Protocol):
         """
         ...
 
-    def render_json_formatting_prompt(self, prompt_args: dict[str, Any]) -> str:
+    def render_json_formatting_prompt(self, prompt_argument: PromptArgument) -> str:
         """
-        Renders JSON formatting instructions for the LLM.
+        Renders instructions to format responses as structured JSON.
 
         This method generates a string containing JSON format instructions that help
         the language model produce responses in a valid, structured JSON format matching
@@ -290,7 +285,7 @@ class ConductorPrompt(Prompt):
         """
         ...
 
-    def finalize(self, longterm_memory: LongtermMemory) -> dict[str, Any]:
+    def finalize(self, longterm_memory: LongtermMemory) -> Any:
         """
         Finalizes the conversation based on the long-term memory.
 
@@ -303,7 +298,7 @@ class ConductorPrompt(Prompt):
         """
         ...
 
-    def fail(self, longterm_memory: LongtermMemory) -> dict[str, Any]:
+    def fail(self, longterm_memory: LongtermMemory) -> Any:
         """
         Handles the case of failure when the long-term memory does not meet the criteria defined
         for finalization.
@@ -376,7 +371,7 @@ class HeuristicPrompt(Protocol):
         """
         ...
 
-    def create_prompt_argument(self, **prompt_args) -> PromptArg:
+    def create_prompt_argument(self, **prompt_args) -> PromptArgument:
         """
         Creates an instance of the user prompt argument dataclass.
 
@@ -392,7 +387,7 @@ class HeuristicPrompt(Protocol):
     def render_user_template(
         self,
         name: str,
-        prompt_args: PromptArg,
+        prompt_args: PromptArgument,
         message_type: MessageType = MessageType.CONVERSATION,
     ) -> ChatMessage:
         """
@@ -411,7 +406,7 @@ class HeuristicPrompt(Protocol):
     ...
 
 
-class Conversation(Protocol[PromptArg]):
+class Conversation(Protocol):
     """
     Protocol for conversation management.
 
@@ -470,7 +465,7 @@ class Conversation(Protocol[PromptArg]):
         ...
 
     @property
-    def prompt_argument(self) -> Optional[PromptArg]:
+    def prompt_argument(self) -> Optional[PromptArgument]:
         """
         Returns the current prompt argument.
 
@@ -533,8 +528,8 @@ class Conversation(Protocol[PromptArg]):
     def append(
         self,
         message: Union[ChatMessage, List[ChatMessage], str],
-        role: Optional[Role] = "",
-        name: Optional[str] = "",
+        role: Optional[Role] = None,
+        name: Optional[str] = None,
     ) -> "Conversation":
         """
         Creates a new conversation with the specified message(s) appended.
@@ -649,12 +644,6 @@ class Conversation(Protocol[PromptArg]):
         :return: Dictionary representation of the Conversation.
         """
         ...
-
-    def has_conductor_been_called(self): ...
-
-    def get_last_conductor_name(self): ...
-
-    def is_previous_agent_conductor(self): ...
 
 
 class LLMClient(Protocol):
@@ -869,7 +858,7 @@ class ConversationDispatcher(Protocol):
         :param topic: The topic to which the participant will be subscribed.
         :param participant: The participant to be subscribed to the topic.
         """
-        pass
+        ...
 
     def unsubscribe(self, topic: str, participant: ConversationParticipant) -> None:
         """
@@ -881,7 +870,7 @@ class ConversationDispatcher(Protocol):
         :param topic: The topic from which the participant will be unsubscribed.
         :param participant: The participant to be unsubscribed from the topic.
         """
-        pass
+        ...
 
     async def publish(self, topic: str, conversation: Conversation) -> None:
         """
@@ -894,7 +883,7 @@ class ConversationDispatcher(Protocol):
         :param topic: The topic to which the conversation will be published.
         :param conversation: The conversation to be dispatched.
         """
-        pass
+        ...
 
     async def publish_final(self, topic: str, conversation: Conversation) -> None:
         """
@@ -906,7 +895,7 @@ class ConversationDispatcher(Protocol):
         :param topic: The name of the finalizing agent.
         :param conversation: The conversation to be dispatched.
         """
-        pass
+        ...
 
     async def request_response(self, topic: str, conversation: Conversation) -> Conversation:
         """
@@ -919,7 +908,7 @@ class ConversationDispatcher(Protocol):
         :param conversation: The `Conversation` object representing the current state of the conversation.
         :return: The updated `Conversation` object with the response from the participant.
         """
-        pass
+        ...
 
     async def run(self, participant: ConversationParticipant, conversation: Conversation) -> Conversation:
         """
@@ -933,7 +922,7 @@ class ConversationDispatcher(Protocol):
         :param conversation: The `Conversation` object representing the current state of the conversation.
         :return: A dictionary containing the final response data.
         """
-        pass
+        ...
 
 
 class ConversationStore(Protocol):
@@ -1023,10 +1012,13 @@ class Agent(Protocol):
     name: str
 
     @classmethod
-    def create(cls, name: str, prompt: Prompt, llm_client: LLMClient, **kwargs): ...
+    def create(cls, name: str, prompt: Prompt, llm_client: LLMClient, **kwargs) -> "Agent": ...
 
     async def invoke(
-        self, conversation: Conversation, message_type=MessageType.CONVERSATION, init_prompt=True
+        self,
+        conversation: Union[Conversation, str],
+        message_type: MessageType = MessageType.CONVERSATION,
+        reset_prompt: bool = True,
     ) -> Conversation:
         """
         Run the agent on a conversation.
