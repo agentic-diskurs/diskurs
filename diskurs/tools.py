@@ -187,7 +187,7 @@ def create_func_with_closure(func: Callable, config: ToolConfig, dependencies: l
             return func(config.configs, **func_args)
 
     except AttributeError as e:
-        raise ImportError(f"Could not load '{config.function_name}'" + f"from '{config.module_path.name}': {e}")
+        raise ImportError(f"Could not load '{config.function_name}'" + f"from '{config.module_name}': {e}")
 
 
 def load_tools(
